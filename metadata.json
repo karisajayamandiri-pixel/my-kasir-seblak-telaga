@@ -1,0 +1,6 @@
+{
+  "name": "My Kasir POS Seblak Telaga",
+  "description": "Sistem Kasir POS & Manajemen Multi-Cabang Seblak (DC Pusat & Cabang PADAHERANG 01, BANJARSARI 02, CIAWTALI 03), Kelola Karyawan, Resep HPP, Surat Jalan, Stok, Absensi, dan Laporan Lengkap.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

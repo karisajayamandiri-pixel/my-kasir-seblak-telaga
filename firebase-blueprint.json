@@ -1,0 +1,309 @@
+{
+  "entities": {
+    "Branch": {
+      "title": "Branch",
+      "description": "Master data collection branches outlet dan gudang DC",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "branchId": { "type": "string" },
+        "nama": { "type": "string" },
+        "name": { "type": "string" },
+        "kode": { "type": "string" },
+        "alamat": { "type": "string" },
+        "noHp": { "type": "string" },
+        "status": { "type": "string", "enum": ["Aktif", "Nonaktif"] },
+        "isPusat": { "type": "boolean" },
+        "bankOrEwallet": { "type": "string" },
+        "noRekening": { "type": "string" },
+        "atasNama": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "nama", "status"]
+    },
+    "Cabang": {
+      "title": "Cabang",
+      "description": "Master data cabang outlet dan gudang DC Seblak",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nama": { "type": "string" },
+        "alamat": { "type": "string" },
+        "noHp": { "type": "string" },
+        "status": { "type": "string", "enum": ["Aktif", "Nonaktif"] },
+        "isPusat": { "type": "boolean" },
+        "bankOrEwallet": { "type": "string" },
+        "noRekening": { "type": "string" },
+        "atasNama": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "nama", "status"]
+    },
+    "Katalog": {
+      "title": "Katalog",
+      "description": "Master katalog menu dan resep HPP",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "kode": { "type": "string" },
+        "nama": { "type": "string" },
+        "kategori": { "type": "string" },
+        "deskripsi": { "type": "string" },
+        "hargaModal": { "type": "number" },
+        "hargaJual": { "type": "number" },
+        "keuntungan": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "nama", "hargaJual"]
+    },
+    "Karyawan": {
+      "title": "Karyawan",
+      "description": "Master data akun karyawan dan penugasan cabang",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nik": { "type": "string" },
+        "nib": { "type": "string" },
+        "nama": { "type": "string" },
+        "hp": { "type": "string" },
+        "alamat": { "type": "string" },
+        "cabang": { "type": "string" },
+        "jabatan": { "type": "string" },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "status": { "type": "string", "enum": ["Aktif", "Nonaktif"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "nama", "username", "password", "status", "cabang"]
+    },
+    "BahanBaku": {
+      "title": "BahanBaku",
+      "description": "Master bahan baku, minuman, dan kemasan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nama": { "type": "string" },
+        "satuan": { "type": "string" },
+        "kategori": { "type": "string", "enum": ["Bahan Makanan", "Bahan Minuman", "Kemasan"] },
+        "hargaBeli": { "type": "number" },
+        "stokMinimum": { "type": "number" },
+        "stokDC": { "type": "number" },
+        "keterangan": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "nama", "satuan", "kategori", "stokDC"]
+    },
+    "StatusToko": {
+      "title": "StatusToko",
+      "description": "Status operasional dan buka-tutup cabang kasir",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string" },
+        "jamBuka": { "type": "string" },
+        "jamTutup": { "type": "string" },
+        "kasirNama": { "type": "string" },
+        "modalAwal": { "type": "number" },
+        "terakhirUpdate": { "type": "string" },
+        "terakhirTutupTanggal": { "type": "string" },
+        "sudahTutupHariIni": { "type": "boolean" }
+      },
+      "required": ["status"]
+    },
+    "StokCabang": {
+      "title": "StokCabang",
+      "description": "Peta inventaris stok per cabang",
+      "type": "object",
+      "properties": {
+        "cabang": { "type": "string" },
+        "stok": { "type": "object" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["cabang"]
+    },
+    "Transaksi": {
+      "title": "Transaksi",
+      "description": "Data transaksi kasir POS",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNo": { "type": "string" },
+        "cabang": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "jam": { "type": "string" },
+        "kasirId": { "type": "string" },
+        "kasirNama": { "type": "string" },
+        "tipePesanan": { "type": "string" },
+        "pelangganNama": { "type": "string" },
+        "pelangganTelepon": { "type": "string" },
+        "pelangganAlamat": { "type": "string" },
+        "ongkir": { "type": "number" },
+        "subtotalPesanan": { "type": "number" },
+        "total": { "type": "number" },
+        "totalModal": { "type": "number" },
+        "totalUntung": { "type": "number" },
+        "metodeBayar": { "type": "string" },
+        "bayar": { "type": "number" },
+        "kembali": { "type": "number" },
+        "status": { "type": "string" },
+        "alasanRetur": { "type": "string" }
+      },
+      "required": ["id", "invoiceNo", "cabang", "total", "metodeBayar", "status"]
+    },
+    "Pengeluaran": {
+      "title": "Pengeluaran",
+      "description": "Pengeluaran operasional cabang kasir dan approval",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "jam": { "type": "string" },
+        "cabang": { "type": "string" },
+        "kasirId": { "type": "string" },
+        "kasirNama": { "type": "string" },
+        "nominal": { "type": "number" },
+        "keterangan": { "type": "string" },
+        "status": { "type": "string" },
+        "accOleh": { "type": "string" },
+        "accWaktu": { "type": "string" },
+        "catatanAcc": { "type": "string" }
+      },
+      "required": ["id", "cabang", "nominal", "keterangan", "status"]
+    },
+    "Absensi": {
+      "title": "Absensi",
+      "description": "Log absensi harian karyawan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "cabang": { "type": "string" },
+        "karyawanId": { "type": "string" },
+        "nama": { "type": "string" },
+        "jabatan": { "type": "string" },
+        "kasirBertugas": { "type": "string" },
+        "jamMasuk": { "type": "string" },
+        "jamPulang": { "type": "string" },
+        "durasi": { "type": "string" },
+        "status": { "type": "string" },
+        "keterangan": { "type": "string" }
+      },
+      "required": ["id", "tanggal", "cabang", "karyawanId", "nama", "status"]
+    },
+    "SuratJalan": {
+      "title": "SuratJalan",
+      "description": "Surat jalan pengiriman DC ke cabang",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "noSuratJalan": { "type": "string" },
+        "cabangTujuan": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "jam": { "type": "string" },
+        "status": { "type": "string" },
+        "driver": { "type": "string" }
+      },
+      "required": ["id", "noSuratJalan", "cabangTujuan", "status"]
+    },
+    "Permintaan": {
+      "title": "Permintaan",
+      "description": "Permintaan restock bahan dari cabang",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "noPermintaan": { "type": "string" },
+        "cabang": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "noPermintaan", "cabang", "status"]
+    },
+    "LaporanHarian": {
+      "title": "LaporanHarian",
+      "description": "Rekap laporan harian tutup toko",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "cabang": { "type": "string" },
+        "totalOmzet": { "type": "number" },
+        "setoran": { "type": "number" },
+        "statusToko": { "type": "string" }
+      },
+      "required": ["id", "tanggal", "cabang"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Audit trail log operasional",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "jam": { "type": "string" },
+        "siapa": { "type": "string" },
+        "cabang": { "type": "string" },
+        "aksi": { "type": "string" },
+        "keterangan": { "type": "string" }
+      },
+      "required": ["id", "tanggal", "siapa", "cabang", "aksi"]
+    }
+  },
+  "firestore": {
+    "/branches/{branchId}": {
+      "schema": "Branch",
+      "description": "Master data collection branches outlet dan gudang DC berdasarkan branchId"
+    },
+    "/cabang/{cabangId}": {
+      "schema": "Cabang",
+      "description": "Master data cabang toko dan DC"
+    },
+    "/katalog/{katalogId}": {
+      "schema": "Katalog",
+      "description": "Master data menu produk"
+    },
+    "/karyawan/{karyawanId}": {
+      "schema": "Karyawan",
+      "description": "Master akun karyawan multi cabang"
+    },
+    "/bahanBaku/{bahanId}": {
+      "schema": "BahanBaku",
+      "description": "Master data bahan baku gudang DC"
+    },
+    "/statusToko/{cabangName}": {
+      "schema": "StatusToko",
+      "description": "Status buka/tutup cabang operasional"
+    },
+    "/stokCabang/{cabangName}": {
+      "schema": "StokCabang",
+      "description": "Inventaris stok per cabang"
+    },
+    "/transaksi/{transaksiId}": {
+      "schema": "Transaksi",
+      "description": "Transaksi penjualan POS cabang"
+    },
+    "/pengeluaran/{pengeluaranId}": {
+      "schema": "Pengeluaran",
+      "description": "Catatan pengeluaran dan ACC Owner"
+    },
+    "/absensi/{absensiId}": {
+      "schema": "Absensi",
+      "description": "Catatan absensi harian"
+    },
+    "/suratJalan/{sjId}": {
+      "schema": "SuratJalan",
+      "description": "Surat jalan distribusi gudang"
+    },
+    "/permintaan/{reqId}": {
+      "schema": "Permintaan",
+      "description": "Permintaan barang cabang"
+    },
+    "/laporanHarian/{lapId}": {
+      "schema": "LaporanHarian",
+      "description": "Rekap laporan harian"
+    },
+    "/auditLog/{logId}": {
+      "schema": "AuditLog",
+      "description": "Jejak audit operasional anti fraud"
+    }
+  }
+}

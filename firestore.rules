@@ -1,0 +1,86 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    match /branches/{branchId} {
+      allow list: if true;
+      allow get, write: if isValidId(branchId);
+    }
+
+    match /cabang/{cabangId} {
+      allow list: if true;
+      allow get, write: if isValidId(cabangId);
+    }
+
+    match /katalog/{katalogId} {
+      allow list: if true;
+      allow get, write: if isValidId(katalogId);
+    }
+
+    match /karyawan/{karyawanId} {
+      allow list: if true;
+      allow get, write: if isValidId(karyawanId);
+    }
+
+    match /bahanBaku/{bahanId} {
+      allow list: if true;
+      allow get, write: if isValidId(bahanId);
+    }
+
+    match /statusToko/{cabangName} {
+      allow list: if true;
+      allow get, write: if isValidId(cabangName);
+    }
+
+    match /stokCabang/{cabangName} {
+      allow list: if true;
+      allow get, write: if isValidId(cabangName);
+    }
+
+    match /transaksi/{transaksiId} {
+      allow list: if true;
+      allow get, write: if isValidId(transaksiId);
+    }
+
+    match /pengeluaran/{pengeluaranId} {
+      allow list: if true;
+      allow get, write: if isValidId(pengeluaranId);
+    }
+
+    match /absensi/{absensiId} {
+      allow list: if true;
+      allow get, write: if isValidId(absensiId);
+    }
+
+    match /suratJalan/{sjId} {
+      allow list: if true;
+      allow get, write: if isValidId(sjId);
+    }
+
+    match /permintaan/{reqId} {
+      allow list: if true;
+      allow get, write: if isValidId(reqId);
+    }
+
+    match /laporanHarian/{lapId} {
+      allow list: if true;
+      allow get, write: if isValidId(lapId);
+    }
+
+    match /auditLog/{logId} {
+      allow list: if true;
+      allow get, write: if isValidId(logId);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
