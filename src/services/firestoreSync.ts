@@ -97,86 +97,86 @@ export async function seedInitialFirestoreDataIfEmpty(force = false): Promise<bo
     INITIAL_DATA_CABANG.forEach((c) => {
       const branchId = c.branchId || c.id;
       const ref = doc(db, FIRESTORE_COLLECTIONS.BRANCHES, branchId);
-      batch.set(ref, {
+      batch.set(ref, sanitizeForFirestore({
         ...c,
         id: branchId,
         branchId,
         name: c.nama,
-      });
+      }));
     });
 
     // 2. Katalog
     INITIAL_KATALOG.forEach((k) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.KATALOG, k.id);
-      batch.set(ref, k);
+      batch.set(ref, sanitizeForFirestore(k));
     });
 
     // 3. Karyawan
     INITIAL_KARYAWAN.forEach((k) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.KARYAWAN, k.id);
-      batch.set(ref, k);
+      batch.set(ref, sanitizeForFirestore(k));
     });
 
     // 4. Bahan Baku
     INITIAL_BAHAN_BAKU.forEach((b) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.BAHAN_BAKU, b.id);
-      batch.set(ref, b);
+      batch.set(ref, sanitizeForFirestore(b));
     });
 
     // 5. Stok Cabang
     Object.entries(INITIAL_STOK_CABANG).forEach(([cabangName, stok]) => {
       const safeId = encodeURIComponent(cabangName);
       const ref = doc(db, FIRESTORE_COLLECTIONS.STOK_CABANG, safeId);
-      batch.set(ref, { cabang: cabangName, stok });
+      batch.set(ref, sanitizeForFirestore({ cabang: cabangName, stok }));
     });
 
     // 6. Status Toko
     Object.entries(INITIAL_TOKO_STATE).forEach(([cabangName, state]) => {
       const safeId = encodeURIComponent(cabangName);
       const ref = doc(db, FIRESTORE_COLLECTIONS.STATUS_TOKO, safeId);
-      batch.set(ref, { cabang: cabangName, ...state });
+      batch.set(ref, sanitizeForFirestore({ cabang: cabangName, ...state }));
     });
 
     // 7. Transaksi
     INITIAL_TRANSAKSI.forEach((t) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.TRANSAKSI, t.id);
-      batch.set(ref, t);
+      batch.set(ref, sanitizeForFirestore(t));
     });
 
     // 8. Pengeluaran
     INITIAL_PENGELUARAN.forEach((p) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.PENGELUARAN, p.id);
-      batch.set(ref, p);
+      batch.set(ref, sanitizeForFirestore(p));
     });
 
     // 9. Absensi
     INITIAL_ABSENSI.forEach((a) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.ABSENSI, a.id);
-      batch.set(ref, a);
+      batch.set(ref, sanitizeForFirestore(a));
     });
 
     // 10. Surat Jalan
     INITIAL_SURAT_JALAN.forEach((sj) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.SURAT_JALAN, sj.id);
-      batch.set(ref, sj);
+      batch.set(ref, sanitizeForFirestore(sj));
     });
 
     // 11. Permintaan
     INITIAL_PERMINTAAN.forEach((req) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.PERMINTAAN, req.id);
-      batch.set(ref, req);
+      batch.set(ref, sanitizeForFirestore(req));
     });
 
     // 12. Laporan Harian
     INITIAL_LAPORAN_HARIAN.forEach((lap) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.LAPORAN_HARIAN, lap.id);
-      batch.set(ref, lap);
+      batch.set(ref, sanitizeForFirestore(lap));
     });
 
     // 13. Audit Log
     INITIAL_AUDIT_LOG.forEach((log) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.AUDIT_LOG, log.id);
-      batch.set(ref, log);
+      batch.set(ref, sanitizeForFirestore(log));
     });
 
     await batch.commit();
@@ -402,20 +402,43 @@ export function subscribeToRealtimeFirestore(callbacks: {
 }
 
 /**
+ * Recursively removes keys with `undefined` values from an object or array,
+ * because Firestore setDoc/updateDoc fails when an unsupported undefined value is passed.
+ */
+export function sanitizeForFirestore<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data.map((item) => sanitizeForFirestore(item)) as unknown as T;
+  }
+  if (typeof data === 'object' && !(data instanceof Date)) {
+    const sanitized: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data as Record<string, any>)) {
+      if (value !== undefined) {
+        sanitized[key] = sanitizeForFirestore(value);
+      }
+    }
+    return sanitized as T;
+  }
+  return data;
+}
+
+/**
  * Mutation helpers with immediate Firestore persist
  */
 export async function firestoreSaveCabang(cabang: DataCabang) {
   try {
     const branchId = cabang.branchId || cabang.id;
     const branchName = cabang.nama || cabang.name || '';
-    const payload = {
+    const payload = sanitizeForFirestore({
       ...cabang,
       id: branchId,
       branchId,
       nama: branchName,
       name: branchName,
       updatedAt: new Date().toISOString(),
-    };
+    });
     await setDoc(doc(db, FIRESTORE_COLLECTIONS.BRANCHES, branchId), payload, { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.BRANCHES}/${cabang.id}`);
@@ -432,7 +455,7 @@ export async function firestoreDeleteCabang(id: string) {
 
 export async function firestoreSaveKatalog(menu: KatalogMenu) {
   try {
-    await setDoc(doc(db, FIRESTORE_COLLECTIONS.KATALOG, menu.id), menu, { merge: true });
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.KATALOG, menu.id), sanitizeForFirestore(menu), { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.KATALOG}/${menu.id}`);
   }
@@ -448,7 +471,7 @@ export async function firestoreDeleteKatalog(id: string) {
 
 export async function firestoreSaveKaryawan(karyawan: Karyawan) {
   try {
-    await setDoc(doc(db, FIRESTORE_COLLECTIONS.KARYAWAN, karyawan.id), karyawan, { merge: true });
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.KARYAWAN, karyawan.id), sanitizeForFirestore(karyawan), { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.KARYAWAN}/${karyawan.id}`);
   }
@@ -464,7 +487,7 @@ export async function firestoreDeleteKaryawan(id: string) {
 
 export async function firestoreSaveBahanBaku(bahan: BahanBaku) {
   try {
-    await setDoc(doc(db, FIRESTORE_COLLECTIONS.BAHAN_BAKU, bahan.id), bahan, { merge: true });
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.BAHAN_BAKU, bahan.id), sanitizeForFirestore(bahan), { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.BAHAN_BAKU}/${bahan.id}`);
   }
@@ -481,7 +504,7 @@ export async function firestoreDeleteBahanBaku(id: string) {
 export async function firestoreSaveStokCabang(cabangName: string, stok: Record<string, number>) {
   try {
     const safeId = encodeURIComponent(cabangName);
-    await setDoc(doc(db, FIRESTORE_COLLECTIONS.STOK_CABANG, safeId), { cabang: cabangName, stok });
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.STOK_CABANG, safeId), sanitizeForFirestore({ cabang: cabangName, stok }));
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.STOK_CABANG}/${cabangName}`);
   }
@@ -490,10 +513,10 @@ export async function firestoreSaveStokCabang(cabangName: string, stok: Record<s
 export async function firestoreSaveStatusToko(cabangName: string, state: TokoState) {
   try {
     const safeId = encodeURIComponent(cabangName);
-    await setDoc(doc(db, FIRESTORE_COLLECTIONS.STATUS_TOKO, safeId), {
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.STATUS_TOKO, safeId), sanitizeForFirestore({
       cabang: cabangName,
       ...state,
-    }, { merge: true });
+    }), { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.STATUS_TOKO}/${cabangName}`);
   }
@@ -501,7 +524,8 @@ export async function firestoreSaveStatusToko(cabangName: string, state: TokoSta
 
 export async function firestoreSaveTransaksi(trx: Transaksi) {
   try {
-    await setDoc(doc(db, FIRESTORE_COLLECTIONS.TRANSAKSI, trx.id), trx, { merge: true });
+    const cleanTrx = sanitizeForFirestore(trx);
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.TRANSAKSI, trx.id), cleanTrx, { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.TRANSAKSI}/${trx.id}`);
   }
@@ -509,7 +533,7 @@ export async function firestoreSaveTransaksi(trx: Transaksi) {
 
 export async function firestoreSavePengeluaran(pengeluaran: PengeluaranToko) {
   try {
-    await setDoc(doc(db, FIRESTORE_COLLECTIONS.PENGELUARAN, pengeluaran.id), pengeluaran, { merge: true });
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.PENGELUARAN, pengeluaran.id), sanitizeForFirestore(pengeluaran), { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.PENGELUARAN}/${pengeluaran.id}`);
   }
@@ -517,7 +541,7 @@ export async function firestoreSavePengeluaran(pengeluaran: PengeluaranToko) {
 
 export async function firestoreSaveAbsensi(absensi: Absensi) {
   try {
-    await setDoc(doc(db, FIRESTORE_COLLECTIONS.ABSENSI, absensi.id), absensi, { merge: true });
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.ABSENSI, absensi.id), sanitizeForFirestore(absensi), { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.ABSENSI}/${absensi.id}`);
   }
@@ -525,7 +549,7 @@ export async function firestoreSaveAbsensi(absensi: Absensi) {
 
 export async function firestoreSaveSuratJalan(sj: SuratJalan) {
   try {
-    await setDoc(doc(db, FIRESTORE_COLLECTIONS.SURAT_JALAN, sj.id), sj, { merge: true });
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.SURAT_JALAN, sj.id), sanitizeForFirestore(sj), { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.SURAT_JALAN}/${sj.id}`);
   }
@@ -533,7 +557,7 @@ export async function firestoreSaveSuratJalan(sj: SuratJalan) {
 
 export async function firestoreSavePermintaan(req: PermintaanBarang) {
   try {
-    await setDoc(doc(db, FIRESTORE_COLLECTIONS.PERMINTAAN, req.id), req, { merge: true });
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.PERMINTAAN, req.id), sanitizeForFirestore(req), { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.PERMINTAAN}/${req.id}`);
   }
@@ -541,7 +565,7 @@ export async function firestoreSavePermintaan(req: PermintaanBarang) {
 
 export async function firestoreSaveLaporanHarian(lap: LaporanHarian) {
   try {
-    await setDoc(doc(db, FIRESTORE_COLLECTIONS.LAPORAN_HARIAN, lap.id), lap, { merge: true });
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.LAPORAN_HARIAN, lap.id), sanitizeForFirestore(lap), { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.LAPORAN_HARIAN}/${lap.id}`);
   }
@@ -549,7 +573,7 @@ export async function firestoreSaveLaporanHarian(lap: LaporanHarian) {
 
 export async function firestoreSaveAuditLog(log: AuditLog) {
   try {
-    await setDoc(doc(db, FIRESTORE_COLLECTIONS.AUDIT_LOG, log.id), log, { merge: true });
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.AUDIT_LOG, log.id), sanitizeForFirestore(log), { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.AUDIT_LOG}/${log.id}`);
   }

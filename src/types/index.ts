@@ -7,10 +7,12 @@ export type Jabatan =
   | 'Kepala Toko'
   | 'Cashier'
   | 'Crew Store'
+  | 'Kitchen'
   | 'Driver'
   | 'KASIR'
   | 'KEPALA TOKO'
   | 'CREW STORE'
+  | 'KITCHEN'
   | 'Admin';
 
 export type UserStatus = 'Aktif' | 'Nonaktif';
@@ -103,7 +105,17 @@ export interface TransaksiItem {
 }
 
 export type TipePesanan = 'Dine In' | 'Take Away' | 'Delivery Order';
-export type StatusPesanan = 'Menunggu' | 'Sedang Dibuat' | 'Selesai' | 'Dibatalkan';
+export type StatusPesanan =
+  | 'MENUNGGU'
+  | 'DIPROSES'
+  | 'SIAP ANTAR'
+  | 'BELUM BAYAR'
+  | 'LUNAS'
+  | 'DIBATALKAN'
+  | 'Menunggu'
+  | 'Sedang Dibuat'
+  | 'Selesai'
+  | 'Dibatalkan';
 
 export interface Transaksi {
   id: string;
@@ -120,12 +132,14 @@ export interface Transaksi {
   subtotalPesanan?: number;
   ongkir?: number;
   jarakKm?: number; // Jarak delivery order (km)
+  nomorMeja?: string; // Nomor Meja untuk Dine In
   pelangganNama?: string;
   pelangganTelepon?: string;
   pelangganAlamat?: string;
   takeAwayId?: string; // ID / Nomor Antrean Take Away agar tidak tertukar
   nomorPesanan?: string; // Nomor antrean/pesanan otomatis untuk dicetak di struk (e.g. #01, #02)
-  statusPesanan?: StatusPesanan; // 'Menunggu' | 'Sedang Dibuat' | 'Selesai' | 'Dibatalkan'
+  statusPesanan?: StatusPesanan;
+  statusPembayaran?: 'LUNAS' | 'BELUM BAYAR';
   waktuMulaiDibuat?: string; // Jam mulai dimasak
   waktuSelesai?: string; // Jam pesanan selesai/siap
   total: number;

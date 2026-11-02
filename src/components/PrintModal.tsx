@@ -30,6 +30,7 @@ import {
   isPrinterConnected,
   getConnectedDeviceName,
   printReceiptViaBluetooth,
+  printKitchenTicketViaBluetooth,
   printTestBluetooth,
   getRawBtReceiptUrl,
   isWebBluetoothSupported,
@@ -37,6 +38,7 @@ import {
 
 export type PrintDocumentType =
   | 'struk'
+  | 'tiketDapur'
   | 'suratJalan'
   | 'harian'
   | 'bulanan'
@@ -84,8 +86,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({
     window.print();
   };
 
+  const isThermalTicketOrReceipt = type === 'struk' || type === 'tiketDapur';
+
   const handlePrintBluetooth = async () => {
-    if (type !== 'struk') return;
+    if (!isThermalTicketOrReceipt) return;
     setIsBtPrinting(true);
     setBtStatusMsg({ type: 'info', text: 'Menghubungkan ke printer Bluetooth...' });
 
@@ -93,12 +97,18 @@ export const PrintModal: React.FC<PrintModalProps> = ({
       (c) => c.nama.trim().toUpperCase() === (data.cabang || '').trim().toUpperCase()
     );
 
-    const result = await printReceiptViaBluetooth(data as Transaksi, branchInfo);
+    const result =
+      type === 'tiketDapur'
+        ? await printKitchenTicketViaBluetooth(data as Transaksi, branchInfo)
+        : await printReceiptViaBluetooth(data as Transaksi, branchInfo);
     setIsBtPrinting(false);
 
     if (result.success) {
       setConnectedDevice(getConnectedDeviceName());
-      setBtStatusMsg({ type: 'success', text: 'Struk berhasil dicetak via Bluetooth!' });
+      setBtStatusMsg({
+        type: 'success',
+        text: type === 'tiketDapur' ? 'Tiket dapur berhasil dicetak via Bluetooth!' : 'Struk kasir berhasil dicetak via Bluetooth!',
+      });
       setTimeout(() => setBtStatusMsg(null), 4000);
     } else {
       setBtStatusMsg({
@@ -118,7 +128,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
       setConnectedDevice(result.deviceName || 'Printer Bluetooth');
       setBtStatusMsg({
         type: 'success',
-        text: `Terhubung dengan ${result.deviceName || 'Printer Bluetooth'}! Siap cetak struk.`,
+        text: `Terhubung dengan ${result.deviceName || 'Printer Bluetooth'}! Siap cetak thermal.`,
       });
       setTimeout(() => setBtStatusMsg(null), 4000);
     } else {
@@ -168,12 +178,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center">
-                {type === 'struk' ? <Bluetooth className="w-4 h-4" /> : <Printer className="w-4 h-4" />}
+                {isThermalTicketOrReceipt ? <Bluetooth className="w-4 h-4" /> : <Printer className="w-4 h-4" />}
               </div>
               <div>
                 <span className="font-black text-slate-800 text-sm block">
                   {type === 'struk'
-                    ? 'Cetak Struk Kasir (Bluetooth & USB Thermal)'
+                    ? 'Cetak Struk Pembayaran Kasir (Dengan Rincian Harga)'
+                    : type === 'tiketDapur'
+                    ? 'Cetak Tiket Pesanan Dapur (Tanpa Harga)'
                     : type === 'suratJalan'
                     ? 'Cetak Dokumen Surat Jalan DC'
                     : type === 'harian'
@@ -191,7 +203,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     : 'Cetak Laporan Audit Bulanan Cabang'}
                 </span>
                 <span className="text-[11px] text-slate-500">
-                  {type === 'struk'
+                  {isThermalTicketOrReceipt
                     ? 'Mendukung printer thermal Bluetooth 58mm/80mm & printer kabel USB'
                     : 'Kompatibel dengan semua jenis printer komputer: InkJet, LaserJet, Dot Matrix (Continuous Paper), dan Thermal'}
                 </span>
@@ -199,7 +211,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              {type !== 'struk' && (
+              {!isThermalTicketOrReceipt && (
                 <button
                   type="button"
                   onClick={handlePrint}
@@ -220,8 +232,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
             </div>
           </div>
 
-          {/* 1. KHUSUS STRUK TRANSAKSI: KONTROL CETAK BLUETOOTH */}
-          {type === 'struk' && (
+          {/* 1. KHUSUS STRUK & TIKET DAPUR: KONTROL CETAK BLUETOOTH */}
+          {isThermalTicketOrReceipt && (
             <div className="space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2 bg-blue-50/70 p-3 rounded-xl border border-blue-200 text-xs">
                 <div className="flex items-center gap-2">
@@ -230,7 +242,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   </div>
                   <div>
                     <div className="font-extrabold text-blue-900 flex items-center gap-2">
-                      <span>Printer Bluetooth Kasir:</span>
+                      <span>Printer Bluetooth {type === 'tiketDapur' ? 'Dapur' : 'Kasir'}:</span>
                       {connectedDevice ? (
                         <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
@@ -337,7 +349,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           )}
 
           {/* 2. KHUSUS LAPORAN: KONTROL PRINTER KOMPUTER UNIVERSAL */}
-          {type !== 'struk' && (
+          {!isThermalTicketOrReceipt && (
             <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
@@ -433,9 +445,15 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     <span>Layanan:</span>
                     <span className="uppercase">[{data.tipePesanan || 'Dine In'}]</span>
                   </div>
+                  {data.nomorMeja && (
+                    <div className="flex justify-between font-bold pt-0.5 border-t border-dashed border-slate-300">
+                      <span>No. Meja:</span>
+                      <span className="font-extrabold">{data.nomorMeja}</span>
+                    </div>
+                  )}
                   {data.tipePesanan === 'Dine In' && data.pelangganNama && (
                     <div className="flex justify-between pt-0.5 border-t border-dashed border-slate-300">
-                      <span>Pelanggan / Meja:</span>
+                      <span>Pelanggan:</span>
                       <span className="font-bold">{data.pelangganNama}</span>
                     </div>
                   )}
@@ -455,8 +473,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     <div className="mt-1 pt-1 border-t border-dashed border-slate-300 space-y-0.5 text-[9px]">
                       <div><b>Penerima:</b> {data.pelangganNama || '-'}</div>
                       {data.pelangganTelepon && <div><b>Telepon:</b> {data.pelangganTelepon}</div>}
-                      <div className="leading-tight"><b>Alamat:</b> {data.pelangganAlamat || '-'}</div>
-                      {data.jarakKm !== undefined && <div><b>Jarak:</b> {data.jarakKm} km</div>}
+                      {data.jarakKm !== undefined && (
+                        <div>
+                          <b>Jarak:</b>{' '}
+                          {data.jarakKm < 1
+                            ? `${data.jarakKm} km (${Math.round(data.jarakKm * 1000)} m)`
+                            : `${data.jarakKm} km`}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -496,7 +520,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       </div>
                       <div className="flex justify-between text-[10px]">
                         <span>Ongkir{data.jarakKm ? ` (${data.jarakKm} km)` : ''}:</span>
-                        <span>{formatRupiah(data.ongkir || 0)}</span>
+                        <span className="font-bold">
+                          {data.ongkir === 0 ? 'GRATIS' : formatRupiah(data.ongkir || 0)}
+                        </span>
                       </div>
                     </>
                   )}
@@ -519,6 +545,121 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   <div className="font-bold">*** TERIMA KASIH ***</div>
                   <div>Selamat Menikmati Seblak Telaga!</div>
                   <div>Layanan Konsumen ({branchNama}): {branchNoHp}</div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ==============================================================
+              1B. TIKET DAPUR THERMAL 58MM (TANPA HARGA)
+          ============================================================== */}
+          {type === 'tiketDapur' && (() => {
+            const branchInfo = dataCabangList.find(
+              (c) => c.nama.trim().toUpperCase() === (data.cabang || '').trim().toUpperCase()
+            );
+            const branchNama = branchInfo?.nama || data.cabang || 'PADAHERANG 01';
+            const totalQty = data.items?.reduce((acc: number, item: any) => acc + item.qty, 0) || 0;
+
+            return (
+              <div className="receipt-58mm bg-white p-4 shadow-lg border border-slate-300 rounded-lg w-[280px] text-black font-mono text-[11px] leading-tight printable-area">
+                <div className="text-center space-y-1 pb-2 border-b-2 border-dashed border-black">
+                  <div className="font-black text-base tracking-wider">
+                    TIKET PESANAN DAPUR
+                  </div>
+                  <div className="text-xs font-bold uppercase">
+                    SEBLAK TELAGA - {branchNama}
+                  </div>
+                  <div className="text-[10px] text-slate-700">
+                    Mohon segera dimasak sesuai antrean
+                  </div>
+                </div>
+
+                <div className="py-2 border-b border-dashed border-black space-y-1 text-[10px]">
+                  {/* Nomor Pesanan / Antrian Otomatis */}
+                  <div className="flex justify-between items-center py-1.5 px-2 border-2 border-dashed border-black bg-slate-50 rounded">
+                    <span className="font-black text-xs">ANTREAN DAPUR:</span>
+                    <span className="text-base font-black tracking-wider">
+                      {data.nomorPesanan || (data.takeAwayId ? data.takeAwayId : '#01')}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span>No Inv: #{data.invoiceNo?.slice(-6) || data.invoiceNo}</span>
+                    <span>Jam: {data.jam}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tgl: {data.tanggal}</span>
+                    <span>Kasir: {data.kasirNama || '-'}</span>
+                  </div>
+                  <div className="flex justify-between font-bold pt-1 border-t border-dashed border-slate-300">
+                    <span>Layanan:</span>
+                    <span className="uppercase text-xs font-black">[{data.tipePesanan || 'Dine In'}]</span>
+                  </div>
+
+                  {data.nomorMeja && (
+                    <div className="flex justify-between pt-0.5 border-t border-dashed border-slate-300 text-xs font-black text-blue-900">
+                      <span>NO. MEJA:</span>
+                      <span className="font-black text-sm">{data.nomorMeja}</span>
+                    </div>
+                  )}
+
+                  {data.pelangganNama && (
+                    <div className="flex justify-between pt-0.5 border-t border-dashed border-slate-300">
+                      <span className="font-bold">Pelanggan:</span>
+                      <span className="font-extrabold">{data.pelangganNama}</span>
+                    </div>
+                  )}
+
+                  {data.takeAwayId && (
+                    <div className="flex justify-between pt-0.5 border-t border-dashed border-slate-300 font-bold">
+                      <span>ID TAKE AWAY:</span>
+                      <span className="font-black">{data.takeAwayId}</span>
+                    </div>
+                  )}
+
+                  {data.pelangganAlamat && (
+                    <div className="pt-0.5 border-t border-dashed border-slate-300 text-[10px]">
+                      <span className="font-bold block">Alamat Kirim:</span>
+                      <span className="leading-tight block">{data.pelangganAlamat}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Items List - TANPA HARGA */}
+                <div className="py-2 border-b-2 border-dashed border-black space-y-2 text-[11px]">
+                  <div className="font-black text-[10px] uppercase tracking-wider text-slate-800 pb-1 border-b border-dashed border-slate-300">
+                    Rincian Menu Masak (Tanpa Harga):
+                  </div>
+
+                  {data.items?.map((item: any, idx: number) => (
+                    <div key={idx} className="space-y-0.5 border-b border-dashed border-slate-200 pb-1.5 last:border-0">
+                      <div className="font-black text-xs flex items-start justify-between">
+                        <span className="text-sm font-black">{item.qty}x</span>
+                        <span className="flex-1 pl-2 text-left">{item.nama}</span>
+                      </div>
+                      {item.levelPedas !== undefined && item.levelPedas !== '' && (
+                        <div className="text-[10px] font-bold text-red-600 pl-6">
+                          🌶️ Level Pedas: {item.levelPedas}
+                        </div>
+                      )}
+                      {item.catatan && (
+                        <div className="text-[10px] text-slate-700 italic font-semibold pl-6">
+                          📝 Catatan: {item.catatan}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Footer Tiket Dapur */}
+                <div className="pt-2 text-center text-[10px] space-y-1">
+                  <div className="font-black text-xs">
+                    TOTAL PORSI: {totalQty} PORSI
+                  </div>
+                  <div className="font-bold text-slate-700">*** SEGERA MASAK DI DAPUR ***</div>
+                  <div className="text-[9px] text-slate-500">
+                    Cocokkan tiket ini dengan fisik pesanan sebelum diserahkan
+                  </div>
                 </div>
               </div>
             );

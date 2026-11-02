@@ -1,86 +1,68 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128;
-    }
-
     match /test/{docId} {
       allow read, write: if true;
     }
 
     match /branches/{branchId} {
-      allow list: if true;
-      allow get, write: if isValidId(branchId);
+      allow read, write: if true;
     }
 
     match /cabang/{cabangId} {
-      allow list: if true;
-      allow get, write: if isValidId(cabangId);
+      allow read, write: if true;
     }
 
     match /katalog/{katalogId} {
-      allow list: if true;
-      allow get, write: if isValidId(katalogId);
+      allow read, write: if true;
     }
 
     match /karyawan/{karyawanId} {
-      allow list: if true;
-      allow get, write: if isValidId(karyawanId);
+      allow read, write: if true;
     }
 
     match /bahanBaku/{bahanId} {
-      allow list: if true;
-      allow get, write: if isValidId(bahanId);
+      allow read, write: if true;
     }
 
     match /statusToko/{cabangName} {
-      allow list: if true;
-      allow get, write: if isValidId(cabangName);
+      allow read, write: if true;
     }
 
     match /stokCabang/{cabangName} {
-      allow list: if true;
-      allow get, write: if isValidId(cabangName);
+      allow read, write: if true;
     }
 
     match /transaksi/{transaksiId} {
-      allow list: if true;
-      allow get, write: if isValidId(transaksiId);
+      allow read, write: if true;
     }
 
     match /pengeluaran/{pengeluaranId} {
-      allow list: if true;
-      allow get, write: if isValidId(pengeluaranId);
+      allow read, write: if true;
     }
 
     match /absensi/{absensiId} {
-      allow list: if true;
-      allow get, write: if isValidId(absensiId);
+      allow read, write: if true;
     }
 
     match /suratJalan/{sjId} {
-      allow list: if true;
-      allow get, write: if isValidId(sjId);
+      allow read, write: if true;
     }
 
     match /permintaan/{reqId} {
-      allow list: if true;
-      allow get, write: if isValidId(reqId);
+      allow read, write: if true;
     }
 
     match /laporanHarian/{lapId} {
-      allow list: if true;
-      allow get, write: if isValidId(lapId);
+      allow read, write: if true;
     }
 
     match /auditLog/{logId} {
-      allow list: if true;
-      allow get, write: if isValidId(logId);
+      allow read, write: if true;
     }
 
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
   }
 }

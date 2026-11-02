@@ -517,8 +517,18 @@ export const KaryawanView: React.FC<KaryawanViewProps> = ({
                     <option value="Kepala Toko">Kepala Toko</option>
                     <option value="Cashier">Cashier</option>
                     <option value="Crew Store">Crew Store</option>
+                    <option value="Kitchen">Kitchen</option>
                     <option value="Driver">Driver</option>
                   </select>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {jabatan === 'Kitchen' && 'Hak Akses: Absensi & Menu Pesanan'}
+                    {jabatan === 'Crew Store' && 'Hak Akses: Absensi & Menu Pesanan'}
+                    {jabatan === 'Cashier' && 'Hak Akses: POS Kasir, Menu Pesanan, Laporan, Absensi'}
+                    {jabatan === 'Driver' && 'Hak Akses: Absensi & Pengiriman Barang'}
+                    {jabatan === 'Kepala Toko' && 'Hak Akses: Operasional Penuh Cabang'}
+                    {jabatan === 'Supervisor Area' && 'Hak Akses: Monitoring Seluruh Cabang'}
+                    {jabatan === 'Admin DC Pusat' && 'Hak Akses: Logistik DC, Inventori, Master Data'}
+                  </p>
                 </div>
 
                 <div>

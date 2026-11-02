@@ -212,7 +212,9 @@ export default function App() {
     } catch {}
 
     // 2. Check and seed initial data if Firestore collections are empty
-    seedInitialFirestoreDataIfEmpty();
+    seedInitialFirestoreDataIfEmpty().catch((err) => {
+      console.warn('Initial Firestore seed check notice:', err);
+    });
 
     // 3. Listen to real-time changes on Firestore collections
     const unsubscribe = subscribeToRealtimeFirestore({
@@ -269,8 +271,13 @@ export default function App() {
 
     setCurrentUser(loggedInUser);
 
-    if (loggedInUser.jabatan === 'Crew Store' || (loggedInUser.jabatan as string) === 'CREW STORE') {
-      setActiveTab('absensi');
+    if (
+      loggedInUser.jabatan === 'Kitchen' ||
+      (loggedInUser.jabatan as string) === 'KITCHEN' ||
+      loggedInUser.jabatan === 'Crew Store' ||
+      (loggedInUser.jabatan as string) === 'CREW STORE'
+    ) {
+      setActiveTab('pesanan');
     } else if (loggedInUser.jabatan === 'Driver') {
       setActiveTab('pengirimanDriver');
     } else if (effectiveCabang === 'DC PUSAT' || loggedInUser.jabatan === 'Owner') {
@@ -490,24 +497,131 @@ export default function App() {
     });
   };
 
-  // Handler Update Status Pesanan (Menunggu -> Sedang Dibuat -> Selesai)
-  const handleUpdateStatusPesanan = (trxId: string, statusPesanan: StatusPesanan) => {
+  // Batalkan Pesanan Handler (Kembalikan stok bahan & kemasan cabang, update statusPesanan = 'DIBATALKAN', catat ke audit log)
+  const handleBatalkanPesanan = (trxId: string, alasan: string) => {
+    const targetTrx = transaksiList.find((t) => t.id === trxId);
+    if (!targetTrx || targetTrx.status === 'Retur' || targetTrx.statusPesanan === 'DIBATALKAN') return;
+
+    // Proteksi: Pesanan yang sudah lunas hanya bisa dibatalkan oleh Owner atau Admin DC Pusat
+    const isLunas =
+      targetTrx.statusPembayaran === 'LUNAS' ||
+      targetTrx.statusPesanan === 'LUNAS' ||
+      targetTrx.statusPesanan === 'Selesai';
+    const isOwnerOrAdminPusat =
+      currentUser?.jabatan === 'Owner' ||
+      currentUser?.cabang === 'DC PUSAT' ||
+      currentUser?.jabatan === 'Admin DC Pusat';
+
+    if (isLunas && !isOwnerOrAdminPusat) {
+      alert(
+        'Peringatan: Pesanan yang sudah lunas pembayaran TIDAK BISA dibatalkan oleh Kasir/Crew Store!\nHanya Owner atau Admin DC Pusat yang memiliki hak akses untuk membatalkan pesanan lunas.'
+      );
+      return;
+    }
+
+    const currentCabang = targetTrx.cabang as Exclude<Cabang, 'DC PUSAT'>;
+    const branchStock = { ...(stokCabang[currentCabang] || {}) };
+
+    // 1. Kembalikan stok bahan makanan dan minuman
+    targetTrx.items.forEach((cartItem) => {
+      cartItem.resep.forEach((recipe) => {
+        const returnedQty = recipe.qtyPakai * cartItem.qty;
+        const current = branchStock[recipe.bahanId] || 0;
+        branchStock[recipe.bahanId] = current + returnedQty;
+      });
+    });
+
+    // 2. Kembalikan stok kemasan jika pesanan Take Away atau Delivery
+    if (targetTrx.tipePesanan !== 'Dine In') {
+      const kemasanBowl = bahanBakuList.find(
+        (b) => (b.kategori === 'Kemasan' && b.nama.toLowerCase().includes('bowl')) || b.id === 'bhn-17'
+      );
+      const kemasanPlastik = bahanBakuList.find(
+        (b) => (b.kategori === 'Kemasan' && b.nama.toLowerCase().includes('plastik')) || b.id === 'bhn-18'
+      );
+      const kemasanCup = bahanBakuList.find(
+        (b) => (b.kategori === 'Kemasan' && b.nama.toLowerCase().includes('cup')) || b.id === 'bhn-19'
+      );
+
+      targetTrx.items.forEach((cartItem) => {
+        const hasKemasanInResep = cartItem.resep.some((r) => {
+          const b = bahanBakuList.find((bk) => bk.id === r.bahanId);
+          return b?.kategori === 'Kemasan';
+        });
+
+        if (!hasKemasanInResep) {
+          const isDrink =
+            cartItem.nama.toLowerCase().includes('teh') ||
+            cartItem.nama.toLowerCase().includes('jeruk') ||
+            cartItem.kode.startsWith('MN');
+
+          if (isDrink && kemasanCup) {
+            branchStock[kemasanCup.id] = (branchStock[kemasanCup.id] || 0) + cartItem.qty;
+          } else {
+            if (kemasanBowl) {
+              branchStock[kemasanBowl.id] = (branchStock[kemasanBowl.id] || 0) + cartItem.qty;
+            }
+            if (kemasanPlastik) {
+              branchStock[kemasanPlastik.id] = (branchStock[kemasanPlastik.id] || 0) + 1;
+            }
+          }
+        }
+      });
+    }
+
+    setStokCabang((prev) => ({
+      ...prev,
+      [currentCabang]: branchStock,
+    }));
+    firestoreSaveStokCabang(currentCabang, branchStock);
+
+    const updatedTrx: Transaksi = {
+      ...targetTrx,
+      status: 'Retur',
+      statusPesanan: 'DIBATALKAN',
+      alasanRetur: alasan,
+      waktuRetur: `${getTodayStr()} ${getNowShortTime()}`,
+    };
+    setTransaksiList((prev) =>
+      prev.map((t) => (t.id === trxId ? updatedTrx : t))
+    );
+    firestoreSaveTransaksi(updatedTrx);
+
+    handleAddAuditLog({
+      siapa: currentUser ? `${currentUser.nama} (${currentUser.jabatan})` : 'Petugas Kasir',
+      cabang: targetTrx.cabang,
+      aksi: 'Pembatalan Pesanan',
+      nominal: targetTrx.total,
+      keterangan: `Batal Pesanan #${targetTrx.nomorPesanan || targetTrx.invoiceNo}: ${alasan}`,
+    });
+  };
+
+  // Handler Update Status Pesanan (MENUNGGU -> DIPROSES -> SIAP ANTAR -> BELUM BAYAR -> LUNAS)
+  const handleUpdateStatusPesanan = (
+    trxId: string,
+    statusPesanan: StatusPesanan,
+    paymentMeta?: { bayar?: number; kembali?: number; metodeBayar?: 'Cash' | 'QRIS' }
+  ): Transaksi | null => {
     const nowTime = getNowTimeStr();
     let updatedTarget: Transaksi | null = null;
     setTransaksiList((prev) =>
       prev.map((t) => {
         if (t.id !== trxId) return t;
+        const isDiproses = statusPesanan === 'DIPROSES' || statusPesanan === 'Sedang Dibuat';
+        const isSelesai = statusPesanan === 'LUNAS' || statusPesanan === 'Selesai';
         const updated: Transaksi = {
           ...t,
           statusPesanan,
-          waktuMulaiDibuat:
-            statusPesanan === 'Sedang Dibuat'
-              ? t.waktuMulaiDibuat || nowTime
-              : t.waktuMulaiDibuat,
-          waktuSelesai:
-            statusPesanan === 'Selesai'
-              ? t.waktuSelesai || nowTime
-              : t.waktuSelesai,
+          ...(paymentMeta || isSelesai ? { statusPembayaran: 'LUNAS' } : {}),
+          ...(paymentMeta?.metodeBayar ? { metodeBayar: paymentMeta.metodeBayar } : {}),
+          ...(paymentMeta?.bayar !== undefined ? { bayar: paymentMeta.bayar } : {}),
+          ...(paymentMeta?.kembali !== undefined ? { kembali: paymentMeta.kembali } : {}),
+          ...((isDiproses || t.waktuMulaiDibuat)
+            ? { waktuMulaiDibuat: t.waktuMulaiDibuat || nowTime }
+            : {}),
+          ...((isSelesai || t.waktuSelesai)
+            ? { waktuSelesai: t.waktuSelesai || nowTime }
+            : {}),
         };
         updatedTarget = updated;
         return updated;
@@ -517,6 +631,7 @@ export default function App() {
     if (updatedTarget) {
       firestoreSaveTransaksi(updatedTarget);
     }
+    return updatedTarget;
   };
 
   // Absensi Handlers
@@ -912,6 +1027,7 @@ export default function App() {
             currentUser={currentUser}
             transaksiList={transaksiList}
             onUpdateStatusPesanan={handleUpdateStatusPesanan}
+            onBatalkanPesanan={handleBatalkanPesanan}
             dataCabangList={dataCabangList}
             onOpenPrintModal={openPrintModal}
             onNavigateToPos={() => setActiveTab('pos')}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ShoppingCart,
   Plus,
@@ -26,6 +26,9 @@ import {
   UtensilsCrossed,
   ShoppingBag,
   Navigation,
+  ChefHat,
+  ArrowRight,
+  Wallet,
 } from 'lucide-react';
 import {
   Karyawan,
@@ -42,6 +45,7 @@ import {
   LevelPedas,
   LEVEL_PEDAS_OPTIONS,
 } from '../types';
+import { PrintDocumentType } from './PrintModal';
 import {
   formatRupiah,
   getTodayStr,
@@ -62,7 +66,7 @@ interface PosViewProps {
   onReturTransaksi: (trxId: string, alasan: string) => void;
   tokoState: AllTokoState;
   absensiList: Absensi[];
-  onOpenPrintModal: (type: 'struk', data: any) => void;
+  onOpenPrintModal: (type: PrintDocumentType, data: any) => void;
   onNavigateToTab: (tab: any) => void;
   dataCabangList?: DataCabang[];
 }
@@ -103,6 +107,7 @@ export const PosView: React.FC<PosViewProps> = ({
 
   // Order Type & Delivery Details
   const [tipePesanan, setTipePesanan] = useState<TipePesanan>('Dine In');
+  const [nomorMeja, setNomorMeja] = useState<string>('');
   const [pelangganNama, setPelangganNama] = useState<string>('');
   const [pelangganTelepon, setPelangganTelepon] = useState<string>('');
   const [pelangganAlamat, setPelangganAlamat] = useState<string>('');
@@ -110,23 +115,50 @@ export const PosView: React.FC<PosViewProps> = ({
   const [takeAwayId, setTakeAwayId] = useState<string>('');
   const [biayaPengiriman, setBiayaPengiriman] = useState<number>(0);
   const [inputOngkirText, setInputOngkirText] = useState<string>('');
+  const [gabungPesananLain, setGabungPesananLain] = useState<boolean>(false);
 
-  // Delivery fee automatic calculation based on distance:
-  // - Jarak <= 0.5 km: GRATIS ONGKIR (Rp 0), baik pesan 1 porsi atau lebih dari 1 porsi
-  // - Jarak 1 km: Rp 2.000
-  // - Setiap tambah jarak per km berikutnya: tambah Rp 1.000 / km
+  // Helper mengurai input jarak ke km (jika input > 20 diasumsikan user mengetik dalam meter, misal 200, 500, 1500)
+  const parseDistanceKm = (val: string): number => {
+    const raw = parseFloat(val);
+    if (isNaN(raw) || raw < 0) return 0;
+    if (raw > 20) {
+      return raw / 1000;
+    }
+    return raw;
+  };
+
+  /**
+   * Aturan Biaya Pengiriman Delivery Order (Update):
+   * 1. Jarak ≤ 200 meter (<= 0.2 km): GRATIS (Rp 0)
+   * 2. Jarak ≥ 200 meter dan max 500 meter (> 0.2 km - 0.5 km): Rp 2.000
+   * 3. Jarak ≥ 500 meter max 1 km (> 0.5 km - 1.0 km): Rp 2.500
+   * 4. Jarak ≥ 1 km max 1,5 km (> 1.0 km - 1.5 km): Rp 3.000
+   * 5. Jarak ≥ 1,5 km s/d max 2 km: Rp 3.500 (per pelanggan jika ada pesanan pelanggan lain / gabung)
+   * 6. Setiap jarak ≥ 2 km: tambah biaya Rp 500 per setiap 500 meter (0.5 km) seterusnya
+   */
   const calculateDeliveryFee = (distanceKm: number): number => {
     if (distanceKm <= 0) return 0;
-    if (distanceKm <= 0.5) return 0;
-    if (distanceKm <= 1) return 2000;
-    const extraKm = Math.ceil(distanceKm - 1);
-    return 2000 + extraKm * 1000;
+    // Jarak ≤ 200 meter: gratis
+    if (distanceKm <= 0.2001) return 0;
+    // Jarak 200m - 500m: Rp 2.000
+    if (distanceKm <= 0.5001) return 2000;
+    // Jarak 500m - 1km: Rp 2.500
+    if (distanceKm <= 1.0001) return 2500;
+    // Jarak 1km - 1.5km: Rp 3.000
+    if (distanceKm <= 1.5001) return 3000;
+    // Jarak 1.5km - 2km: Rp 3.500
+    if (distanceKm <= 2.0001) return 3500;
+
+    // Setiap jarak ≥ 2 km tambah biaya 500 rupiah per setiap 500 meter sampai seterusnya
+    const extraKm = distanceKm - 2.0;
+    const extra500m = Math.ceil(extraKm / 0.5);
+    return 3500 + extra500m * 500;
   };
 
   const handleJarakChange = (val: string) => {
     setJarakKm(val);
-    const num = parseFloat(val);
-    if (!isNaN(num) && num >= 0) {
+    const num = parseDistanceKm(val);
+    if (!isNaN(num) && num >= 0 && val !== '') {
       const calculated = calculateDeliveryFee(num);
       setBiayaPengiriman(calculated);
       setInputOngkirText(calculated.toString());
@@ -215,6 +247,26 @@ export const PosView: React.FC<PosViewProps> = ({
   const kembalian = Math.max(0, effectiveBayar - totalTagihan);
   const isBayarCukup = effectiveBayar >= totalTagihan && totalTagihan > 0;
 
+  // Pesanan delivery lain hari ini di cabang aktif yang masih berstatus menunggu atau dibuat
+  const activeDeliveryOrdersToday = useMemo(() => {
+    return transaksiList.filter(
+      (t) =>
+        t.cabang === (currentBranchName || currentUser.cabang) &&
+        t.tanggal === today &&
+        t.tipePesanan === 'Delivery Order' &&
+        t.status === 'Sukses' &&
+        (t.statusPesanan === 'Menunggu' || t.statusPesanan === 'Sedang Dibuat')
+    );
+  }, [transaksiList, currentBranchName, currentUser.cabang, today]);
+
+  const hasOtherCustomerDeliveryOrder = activeDeliveryOrdersToday.length > 0 || gabungPesananLain;
+  const parsedDistKm = parseDistanceKm(jarakKm);
+
+  // Validasi belanja delivery jarak ≥ 1,5 km
+  const isJarakDiatas15 = tipePesanan === 'Delivery Order' && parsedDistKm >= 1.499;
+  const isBelanjaKurang10k = isJarakDiatas15 && subtotalPesanan < 10000 && cart.length > 0;
+  const isBelanjaKurang20k = isJarakDiatas15 && subtotalPesanan < 20000 && subtotalPesanan >= 10000;
+
   const isSudahTutupHariIni =
     currentBranchState?.sudahTutupHariIni ||
     (currentBranchState?.status === 'Tutup' && currentBranchState?.terakhirTutupTanggal === today);
@@ -294,13 +346,30 @@ export const PosView: React.FC<PosViewProps> = ({
     setInputBayarText(amount.toString());
   };
 
-  // Process Payment
-  const handleProcessPayment = () => {
+  // Process Payment / Order
+  const handleProcessPayment = (mode: 'BELUM_BAYAR' | 'LUNAS' = 'BELUM_BAYAR') => {
     if (!isTokoBuka) {
       alert(`Toko ${currentUser.cabang} sedang tidak buka. Transaksi tidak dapat diproses.`);
       return;
     }
-    if (!isBayarCukup) return;
+    if (cart.length === 0) {
+      alert('Keranjang pesanan masih kosong!');
+      return;
+    }
+
+    // Jika mode LUNAS: Kasir WAJIB memasukkan nominal uang yang diterima (Cash atau QRIS)
+    if (mode === 'LUNAS') {
+      if (metodeBayar === 'Cash') {
+        if (!nominalBayar || nominalBayar < totalTagihan) {
+          alert(
+            `Pelanggan ingin langsung bayar:\nKasir WAJIB memasukkan nominal uang tunai yang diterima minimal ${formatRupiah(
+              totalTagihan
+            )} pada kolom "Uang Tunai Diterima"!\n\n(Jika pelanggan belum bayar, silakan klik tombol "Buat Pesanan" di sampingnya).`
+          );
+          return;
+        }
+      }
+    }
 
     // Validasi Take Away
     if (tipePesanan === 'Take Away') {
@@ -319,6 +388,31 @@ export const PosView: React.FC<PosViewProps> = ({
       if (!pelangganAlamat.trim()) {
         alert('Harap masukkan Alamat Pengiriman untuk pesanan Delivery Order!');
         return;
+      }
+
+      const distKm = parseDistanceKm(jarakKm);
+      // Apabila jarak ≥ 1,5 km minimal harus belanja ≥ 10,000, jika kurang dari 10.000 maka DIBLOKIR
+      if (distKm >= 1.499) {
+        if (subtotalPesanan < 10000) {
+          alert(
+            `Pesanan Delivery DIBLOKIR!\n\nUntuk jarak pengiriman ≥ 1,5 km (${distKm} km), pelanggan WAJIB belanja minimal Rp 10.000.\n\nNama Pelanggan: ${pelangganNama}\nTotal Belanja Saat Ini: ${formatRupiah(subtotalPesanan)}\nKekurangan: ${formatRupiah(10000 - subtotalPesanan)}\n\nTransaksi diblokir dan tidak dapat diproses sampai minimal belanja terpenuhi.`
+          );
+          return;
+        }
+
+        // Apabila belanja < 20.000 kasih peringatan "Minimal biaya pesanan Rp 20,000"
+        // Apabila pas Rp 20.000 atau lebih, transaksi otomatis BISA langsung dipesan
+        if (subtotalPesanan < 20000) {
+          if (!hasOtherCustomerDeliveryOrder) {
+            const konfirmasiGabung = confirm(
+              `Peringatan: Minimal biaya pesanan Rp 20,000\n\nPelanggan "${pelangganNama}" berbelanja ${formatRupiah(subtotalPesanan)} (kurang ${formatRupiah(20000 - subtotalPesanan)} untuk mencapai batas pas Rp 20.000).\n\nApakah ada pesanan pelanggan lain yang diantar bersamaan (ongkir per pelanggan Rp 3.500 s/d max 2 km)?\n\n- Klik [OK] jika ADA pesanan pelanggan lain (pesanan otomatis diproses).\n- Klik [Batal] jika ingin menambah belanja pelanggan hingga Rp 20.000 agar transaksi bisa langsung dipesan.`
+            );
+            if (!konfirmasiGabung) {
+              return;
+            }
+            setGabungPesananLain(true);
+          }
+        }
       }
     }
 
@@ -410,18 +504,24 @@ export const PosView: React.FC<PosViewProps> = ({
       nomorPesanan: assignedOrderNumber,
       subtotalPesanan: subtotalPesanan,
       ongkir: ongkirVal,
-      pelangganNama: pelangganNama.trim() || undefined,
-      pelangganTelepon: pelangganTelepon.trim() || undefined,
-      pelangganAlamat: tipePesanan === 'Delivery Order' ? pelangganAlamat.trim() : undefined,
-      takeAwayId: assignedTakeAwayId,
-      jarakKm: tipePesanan === 'Delivery Order' && jarakKm ? parseFloat(jarakKm) : undefined,
-      statusPesanan: 'Menunggu',
+      ...(nomorMeja.trim() ? { nomorMeja: nomorMeja.trim() } : {}),
+      ...(pelangganNama.trim() ? { pelangganNama: pelangganNama.trim() } : {}),
+      ...(pelangganTelepon.trim() ? { pelangganTelepon: pelangganTelepon.trim() } : {}),
+      ...(tipePesanan === 'Delivery Order' && pelangganAlamat.trim()
+        ? { pelangganAlamat: pelangganAlamat.trim() }
+        : {}),
+      ...(assignedTakeAwayId ? { takeAwayId: assignedTakeAwayId } : {}),
+      ...(tipePesanan === 'Delivery Order' && jarakKm && parseDistanceKm(jarakKm) > 0
+        ? { jarakKm: parseDistanceKm(jarakKm) }
+        : {}),
+      statusPesanan: 'MENUNGGU',
+      statusPembayaran: mode === 'LUNAS' ? 'LUNAS' : 'BELUM BAYAR',
       total: totalTagihan,
       totalModal: totalModal,
       totalUntung: totalUntung,
       metodeBayar: metodeBayar,
-      bayar: effectiveBayar,
-      kembali: kembalian,
+      bayar: mode === 'LUNAS' ? effectiveBayar : 0,
+      kembali: mode === 'LUNAS' ? kembalian : 0,
       status: 'Sukses',
     };
 
@@ -432,6 +532,7 @@ export const PosView: React.FC<PosViewProps> = ({
     setCart([]);
     setNominalBayar(0);
     setInputBayarText('');
+    setNomorMeja('');
     setPelangganNama('');
     setPelangganTelepon('');
     setPelangganAlamat('');
@@ -439,6 +540,7 @@ export const PosView: React.FC<PosViewProps> = ({
     setJarakKm('');
     setBiayaPengiriman(0);
     setInputOngkirText('');
+    setGabungPesananLain(false);
   };
 
   // Transaksi Riwayat for this branch dynamically resolved
@@ -745,19 +847,33 @@ export const PosView: React.FC<PosViewProps> = ({
                   </span>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                    Nama Pelanggan / No. Meja (Input Manual)
-                  </label>
-                  <div className="relative">
-                    <User className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-1">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                      No. Meja
+                    </label>
                     <input
                       type="text"
-                      placeholder="Contoh: Meja 02 / Kak Dinda"
-                      value={pelangganNama}
-                      onChange={(e) => setPelangganNama(e.target.value)}
-                      className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500 font-semibold"
+                      placeholder="Meja 01"
+                      value={nomorMeja}
+                      onChange={(e) => setNomorMeja(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500 font-black text-center text-slate-800"
                     />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                      Nama Pelanggan (Opsional)
+                    </label>
+                    <div className="relative">
+                      <User className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                      <input
+                        type="text"
+                        placeholder="Contoh: Kak Dinda"
+                        value={pelangganNama}
+                        onChange={(e) => setPelangganNama(e.target.value)}
+                        className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500 font-semibold"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -897,45 +1013,49 @@ export const PosView: React.FC<PosViewProps> = ({
                 </div>
 
                 {/* HITUNG ONGKIR OTOMATIS BERDASARKAN JARAK */}
-                <div className="p-2.5 bg-white rounded-xl border border-blue-200 space-y-2">
-                  <div className="flex items-center justify-between">
+                <div className="p-3 bg-white rounded-xl border border-blue-200 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                     <label className="text-[11px] font-bold text-blue-900 flex items-center gap-1">
                       <Navigation className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Jarak Pengiriman (km)</span>
+                      <span>Jarak Pengiriman (km / meter)</span>
                     </label>
-                    <span className="text-[10px] text-blue-700 font-bold">
-                      ≤ 0,5 km: Gratis | 1 km: Rp 2.000 (+Rp 1.000/km)
+                    <span className="text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      ≤ 200m: Gratis | ≤ 500m: 2rb | ≤ 1km: 2,5rb | ≤ 1,5km: 3rb | ≤ 2km: 3,5rb (+500/500m)
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <div className="relative w-28">
+                    <div className="relative w-32">
                       <input
                         type="number"
-                        step="0.5"
+                        step="0.1"
                         min="0"
-                        placeholder="Misal: 1"
+                        placeholder="Misal: 1.5"
                         value={jarakKm}
                         onChange={(e) => handleJarakChange(e.target.value)}
                         className="w-full px-2.5 py-1.5 text-xs bg-blue-50/60 border border-blue-300 rounded-lg font-black text-blue-900 focus:outline-none focus:ring-1 focus:ring-blue-500 text-center"
                       />
                     </div>
-                    <span className="text-xs font-bold text-slate-600">KM</span>
+                    <span className="text-xs font-bold text-slate-600">
+                      {parsedDistKm > 0 && parsedDistKm < 1 ? `KM (${Math.round(parsedDistKm * 1000)} m)` : 'KM'}
+                    </span>
 
                     <div className="flex-1 flex gap-1 justify-end flex-wrap">
                       {[
-                        { label: '0.5 km (Gratis)', val: '0.5' },
-                        { label: '1 km', val: '1' },
-                        { label: '2 km', val: '2' },
-                        { label: '3 km', val: '3' },
-                        { label: '5 km', val: '5' },
-                        { label: '7 km', val: '7' },
+                        { label: '≤ 200 m (Gratis)', val: '0.2' },
+                        { label: '500 m (Rp 2rb)', val: '0.5' },
+                        { label: '1 km (Rp 2,5rb)', val: '1' },
+                        { label: '1.5 km (Rp 3rb)', val: '1.5' },
+                        { label: '2 km (Rp 3,5rb)', val: '2' },
+                        { label: '2.5 km (Rp 4rb)', val: '2.5' },
+                        { label: '3 km (Rp 4,5rb)', val: '3' },
+                        { label: '4 km (Rp 5,5rb)', val: '4' },
                       ].map((chip) => (
                         <button
                           key={chip.val}
                           type="button"
                           onClick={() => handleJarakChange(chip.val)}
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition ${
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
                             jarakKm === chip.val
                               ? 'bg-blue-600 text-white border-blue-600'
                               : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
@@ -946,6 +1066,101 @@ export const PosView: React.FC<PosViewProps> = ({
                       ))}
                     </div>
                   </div>
+
+                  {/* Ringkasan Tier Biaya Pengiriman */}
+                  {parsedDistKm > 0 && (
+                    <div className="p-2 bg-blue-50/80 border border-blue-200 rounded-lg text-[11px] text-blue-900 flex items-center justify-between">
+                      <span className="font-semibold">
+                        {parsedDistKm <= 0.2001 && 'Jarak ≤ 200 meter: Gratis Ongkir'}
+                        {parsedDistKm > 0.2001 && parsedDistKm <= 0.5001 && 'Jarak 200 m s/d 500 m: Ongkir Rp 2.000'}
+                        {parsedDistKm > 0.5001 && parsedDistKm <= 1.0001 && 'Jarak 500 m s/d 1 km: Ongkir Rp 2.500'}
+                        {parsedDistKm > 1.0001 && parsedDistKm <= 1.5001 && 'Jarak 1 km s/d 1,5 km: Ongkir Rp 3.000'}
+                        {parsedDistKm > 1.5001 && parsedDistKm <= 2.0001 && 'Jarak 1,5 km s/d 2 km: Ongkir Rp 3.500 (per pelanggan)'}
+                        {parsedDistKm > 2.0001 && `Jarak ${parsedDistKm} km: Ongkir Rp 3.500 + ${Math.ceil((parsedDistKm - 2.0)/0.5) * 500} (+Rp 500/500m)`}
+                      </span>
+                      <span className="font-black text-blue-700">
+                        {biayaPengiriman === 0 ? 'GRATIS' : formatRupiah(biayaPengiriman)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Validasi & Peringatan Khusus Jarak ≥ 1,5 km */}
+                  {isJarakDiatas15 && (
+                    <div className="space-y-2 pt-1 border-t border-blue-100">
+                      {/* Peringatan & Blokir jika belanja < 10.000 */}
+                      {subtotalPesanan < 10000 && cart.length > 0 && (
+                        <div className="p-2.5 bg-red-50 border border-red-300 rounded-xl text-red-800 text-[11px] flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                          <div className="space-y-0.5">
+                            <p className="font-black text-red-900">
+                              ⛔ Transaksi Diblokir: Minimal Belanja Rp 10.000
+                            </p>
+                            <p className="text-[10px] text-red-700 leading-relaxed">
+                              Untuk pengiriman jarak ≥ 1,5 km, pesanan kurang dari <b>Rp 10.000</b> diblokir. Belanja <b>{pelangganNama || 'Pelanggan'}</b> saat ini: <b>{formatRupiah(subtotalPesanan)}</b> (kurang {formatRupiah(10000 - subtotalPesanan)}). Harap tambahkan menu ke keranjang.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Peringatan jika belanja < 20.000 (10.000 s/d 19.999) */}
+                      {subtotalPesanan >= 10000 && subtotalPesanan < 20000 && (
+                        <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-[11px] space-y-2">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="space-y-0.5">
+                              <p className="font-black text-amber-900 text-xs">
+                                Peringatan: Minimal biaya pesanan Rp 20,000
+                              </p>
+                              <p className="text-[10px] text-amber-800">
+                                Pelanggan <b>{pelangganNama || '-'}</b> berbelanja <b>{formatRupiah(subtotalPesanan)}</b> (kurang {formatRupiah(20000 - subtotalPesanan)} untuk mencapai pas Rp 20.000).
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="pt-1.5 border-t border-amber-200 space-y-1">
+                            <label className="flex items-center gap-2 cursor-pointer font-bold text-[11px] text-amber-950">
+                              <input
+                                type="checkbox"
+                                checked={gabungPesananLain || activeDeliveryOrdersToday.length > 0}
+                                onChange={(e) => setGabungPesananLain(e.target.checked)}
+                                className="rounded text-orange-600 focus:ring-orange-500 w-4 h-4 cursor-pointer"
+                              />
+                              <span>Ada pesanan pelanggan lain (Antar bersamaan / searah)</span>
+                            </label>
+
+                            {hasOtherCustomerDeliveryOrder ? (
+                              <div className="p-2 bg-emerald-100/70 border border-emerald-300 rounded-lg text-[10px] text-emerald-900 font-semibold space-y-0.5">
+                                <p className="font-bold flex items-center gap-1 text-emerald-800">
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Otomatis BISA untuk transaksi!</span>
+                                </p>
+                                <p className="leading-relaxed">
+                                  Karena ada pesanan pelanggan lain{activeDeliveryOrdersToday.length > 0 ? ` (${activeDeliveryOrdersToday.map(o => o.pelangganNama || o.nomorPesanan).join(', ')})` : ''}, pesanan belanja di bawah Rp 20.000 otomatis dapat diproses dengan biaya pengiriman per pelanggan <b>Rp 3.500</b> (jarak sampai max 2 km).
+                                </p>
+                              </div>
+                            ) : (
+                              <p className="text-[10px] text-amber-700 italic">
+                                *Jika belanja pas Rp 20.000, transaksi bisa langsung dipesan. Atau centang kotak di atas jika ada pesanan pelanggan lain untuk diantar bersamaan.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Info jika belanja pas Rp 20.000 atau lebih */}
+                      {subtotalPesanan >= 20000 && (
+                        <div className="p-2 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-900 text-[11px] flex items-center justify-between">
+                          <span className="font-bold flex items-center gap-1.5">
+                            <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
+                            <span>Pesanan pas / lebih dari Rp 20.000: Transaksi BISA langsung dipesan!</span>
+                          </span>
+                          <span className="text-[10px] font-black text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded">
+                            {formatRupiah(subtotalPesanan)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div>
                     <div className="flex justify-between items-center mb-0.5">
@@ -1215,19 +1430,56 @@ export const PosView: React.FC<PosViewProps> = ({
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  disabled={!isBayarCukup}
-                  onClick={handleProcessPayment}
-                  className={`w-full py-3 px-4 rounded-xl font-black text-sm flex items-center justify-center gap-2 cursor-pointer transition shadow-md ${
-                    isBayarCukup
-                      ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white shadow-orange-500/30 active:scale-[0.98]'
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-                  }`}
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  <span>SELESAIKAN PEMBAYARAN</span>
-                </button>
+                {isBelanjaKurang10k && (
+                  <div className="p-2.5 bg-red-100 border border-red-300 rounded-xl text-red-900 text-xs font-bold text-center flex items-center justify-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>⛔ Pesanan Diblokir: Minimal belanja Rp 10.000 untuk jarak pengiriman ≥ 1,5 km (Belanja: {formatRupiah(subtotalPesanan)})</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2.5 pt-1">
+                  {/* Tombol Buat Pesanan (Belum Bayar - tidak perlu input uang diterima) */}
+                  <button
+                    type="button"
+                    disabled={isBelanjaKurang10k || cart.length === 0}
+                    onClick={() => handleProcessPayment('BELUM_BAYAR')}
+                    className={`py-3 px-3 rounded-xl font-black text-xs sm:text-sm flex flex-col items-center justify-center gap-0.5 cursor-pointer transition shadow-md ${
+                      !isBelanjaKurang10k && cart.length > 0
+                        ? 'bg-slate-800 hover:bg-slate-900 text-white active:scale-95 shadow-slate-900/20'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                    }`}
+                    title="Buat pesanan tanpa input uang (pembayaran dilakukan nanti)"
+                  >
+                    <div className="flex items-center gap-1.5 font-black">
+                      <UtensilsCrossed className="w-4 h-4 text-orange-400" />
+                      <span>Buat Pesanan</span>
+                    </div>
+                    <span className="text-[10px] text-slate-300 font-normal">
+                      (Belum Bayar)
+                    </span>
+                  </button>
+
+                  {/* Tombol Bayar (Langsung Lunas - kasir wajib input uang yang diterima) */}
+                  <button
+                    type="button"
+                    disabled={isBelanjaKurang10k || cart.length === 0}
+                    onClick={() => handleProcessPayment('LUNAS')}
+                    className={`py-3 px-3 rounded-xl font-black text-xs sm:text-sm flex flex-col items-center justify-center gap-0.5 cursor-pointer transition shadow-md ${
+                      !isBelanjaKurang10k && cart.length > 0
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-emerald-500/25 active:scale-95'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                    }`}
+                    title="Pelanggan langsung bayar sekarang (wajib isi nominal uang diterima)"
+                  >
+                    <div className="flex items-center gap-1.5 font-black">
+                      <Wallet className="w-4 h-4 text-white" />
+                      <span>Bayar</span>
+                    </div>
+                    <span className="text-[10px] text-emerald-100 font-normal">
+                      (Langsung Lunas)
+                    </span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1370,7 +1622,7 @@ export const PosView: React.FC<PosViewProps> = ({
 
             <div>
               <h3 className="text-lg font-black text-slate-800">
-                Pembayaran Berhasil!
+                Pesanan Berhasil Dibuat!
               </h3>
               <p className="text-xs text-slate-500 mt-1">
                 {showPaymentSuccessModal.invoiceNo}
@@ -1414,6 +1666,31 @@ export const PosView: React.FC<PosViewProps> = ({
                 </span>
               </div>
 
+              {/* Status Pembayaran */}
+              <div
+                className={`p-2 rounded-lg flex items-center justify-between text-xs font-bold border ${
+                  showPaymentSuccessModal.statusPembayaran === 'LUNAS'
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                    : 'bg-amber-50 border-amber-300 text-amber-900'
+                }`}
+              >
+                <span className="flex items-center gap-1">
+                  <Wallet className="w-3.5 h-3.5" />
+                  <span>Status Pembayaran:</span>
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                    showPaymentSuccessModal.statusPembayaran === 'LUNAS'
+                      ? 'bg-emerald-200 text-emerald-950'
+                      : 'bg-amber-200 text-amber-950'
+                  }`}
+                >
+                  {showPaymentSuccessModal.statusPembayaran === 'LUNAS'
+                    ? `LUNAS (${showPaymentSuccessModal.metodeBayar})`
+                    : 'BELUM BAYAR (Bayar Nanti)'}
+                </span>
+              </div>
+
               {/* Take Away Details */}
               {showPaymentSuccessModal.tipePesanan === 'Take Away' && (
                 <div className="p-2.5 bg-orange-50/90 border border-orange-200 rounded-lg space-y-1 text-[11px] text-orange-950">
@@ -1446,12 +1723,17 @@ export const PosView: React.FC<PosViewProps> = ({
                   )}
                   <div><b>Alamat:</b> {showPaymentSuccessModal.pelangganAlamat || '-'}</div>
                   {showPaymentSuccessModal.jarakKm !== undefined && (
-                    <div><b>Jarak:</b> {showPaymentSuccessModal.jarakKm} km</div>
+                    <div>
+                      <b>Jarak:</b>{' '}
+                      {showPaymentSuccessModal.jarakKm < 1
+                        ? `${showPaymentSuccessModal.jarakKm} km (${Math.round(showPaymentSuccessModal.jarakKm * 1000)} m)`
+                        : `${showPaymentSuccessModal.jarakKm} km`}
+                    </div>
                   )}
                   <div className="flex justify-between pt-1 border-t border-blue-200/60 font-semibold">
                     <span>Biaya Pengiriman (Ongkir):</span>
                     <span className="font-bold text-blue-700">
-                      {formatRupiah(showPaymentSuccessModal.ongkir || 0)}
+                      {showPaymentSuccessModal.ongkir === 0 ? 'GRATIS' : formatRupiah(showPaymentSuccessModal.ongkir || 0)}
                     </span>
                   </div>
                 </div>
@@ -1527,7 +1809,20 @@ export const PosView: React.FC<PosViewProps> = ({
                 <span>{isBluetoothPrinting ? 'Mencetak ke Bluetooth...' : 'Cetak Struk via Bluetooth'}</span>
               </button>
 
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = showPaymentSuccessModal;
+                    setShowPaymentSuccessModal(null);
+                    onOpenPrintModal('tiketDapur', target);
+                  }}
+                  className="py-2.5 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition"
+                >
+                  <ChefHat className="w-3.5 h-3.5" />
+                  <span>Tiket Dapur</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -1535,18 +1830,34 @@ export const PosView: React.FC<PosViewProps> = ({
                     setShowPaymentSuccessModal(null);
                     onOpenPrintModal('struk', target);
                   }}
-                  className="flex-1 py-2 px-3 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition"
+                  className="py-2.5 px-3 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Preview & Cetak Printer</span>
+                  <span>Struk Kasir</span>
                 </button>
+              </div>
+
+              <div className="flex gap-2">
+                {onNavigateToTab && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPaymentSuccessModal(null);
+                      onNavigateToTab('pesanan');
+                    }}
+                    className="flex-1 py-2 px-3 bg-slate-900 hover:bg-black text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition shadow-sm"
+                  >
+                    <span>Buka Menu Pesanan</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
 
                 <button
                   type="button"
                   onClick={() => setShowPaymentSuccessModal(null)}
                   className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer transition"
                 >
-                  Selesai
+                  Pesanan Baru
                 </button>
               </div>
             </div>

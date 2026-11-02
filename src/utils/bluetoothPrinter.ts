@@ -369,6 +369,101 @@ export const buildReceiptEscPos = (trx: Transaksi, branchInfo?: DataCabang): Uin
 };
 
 /**
+ * Buat ESC/POS binary untuk Tiket Dapur (Tanpa Harga, hanya info masak)
+ */
+export const buildKitchenTicketEscPos = (trx: Transaksi, branchInfo?: DataCabang): Uint8Array => {
+  const b = new EscPosBuilder();
+  const branchNama = branchInfo?.nama || trx.cabang || 'TELAGA';
+
+  b.init();
+
+  // KOP TIKET DAPUR
+  b.align('center');
+  b.bold(true).size('double').line('TIKET DAPUR');
+  b.bold(true).size('normal').line(`SEBLAK TELAGA - ${branchNama.toUpperCase()}`);
+  b.divider('=');
+
+  // NOMOR PESANAN / ANTRIAN (Besar & Tebal)
+  const orderNumber = trx.nomorPesanan || (trx.takeAwayId ? trx.takeAwayId : '#01');
+  b.align('center');
+  b.bold(true).size('double').line(`NO: ${orderNumber}`);
+  b.bold(false).size('normal');
+  b.divider('-');
+
+  // INFO PESANAN
+  b.align('left');
+  b.twoColumn(`Inv: #${trx.invoiceNo.slice(-6)}`, `Jam: ${trx.jam}`);
+  b.twoColumn(`Tgl: ${trx.tanggal}`, `Kasir: ${trx.kasirNama || '-'}`);
+
+  const tipePesanan = trx.tipePesanan || 'Dine In';
+  b.bold(true).line(`LAYANAN: [ ${tipePesanan.toUpperCase()} ]`);
+  b.bold(false);
+
+  if (trx.nomorMeja) {
+    b.bold(true).line(`NO. MEJA   : ${trx.nomorMeja}`);
+    b.bold(false);
+  }
+  if (trx.pelangganNama) {
+    b.line(`Pelanggan  : ${trx.pelangganNama}`);
+  }
+  if (tipePesanan === 'Take Away' && trx.takeAwayId) {
+    b.bold(true).line(`ID BUNGKUS : ${trx.takeAwayId}`);
+    b.bold(false);
+  }
+  if (tipePesanan === 'Delivery Order' && trx.pelangganAlamat) {
+    b.line(`Alamat     : ${trx.pelangganAlamat}`);
+  }
+  b.divider('-');
+
+  // DAFTAR MENU (TANPA HARGA SAMA SEKALI)
+  b.bold(true).line('PESANAN MASAK (TANPA HARGA):');
+  b.bold(false);
+
+  trx.items.forEach((item) => {
+    b.bold(true).line(`[ ${item.qty}x ] ${item.nama.toUpperCase()}`);
+    b.bold(false);
+    if (item.levelPedas !== undefined && item.levelPedas !== '') {
+      b.line(`  * Level: ${item.levelPedas}`);
+    }
+    if (item.catatan) {
+      b.line(`  * Catatan: ${item.catatan}`);
+    }
+  });
+
+  b.divider('=');
+  b.align('center');
+  const totalItemCount = trx.items.reduce((acc, i) => acc + i.qty, 0);
+  b.bold(true).line(`TOTAL: ${totalItemCount} PORSI`);
+  b.bold(false);
+  b.line('*** HARAP DIPROSES SEGERA ***');
+  b.line('Cocokkan fisik struk saat pesanan siap');
+  b.feed(4);
+  b.cut();
+
+  return b.getBytes();
+};
+
+export const printKitchenTicketViaBluetooth = async (
+  trx: Transaksi,
+  branchInfo?: DataCabang
+): Promise<{ success: boolean; error?: string }> => {
+  if (!isPrinterConnected()) {
+    const conn = await connectBluetoothPrinter();
+    if (!conn.success) {
+      return { success: false, error: conn.error };
+    }
+  }
+
+  try {
+    const bytes = buildKitchenTicketEscPos(trx, branchInfo);
+    await sendBytesToPrinter(bytes);
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Gagal mengirim data tiket dapur ke printer Bluetooth.' };
+  }
+};
+
+/**
  * Cetak struk langsung via Bluetooth
  */
 export const printReceiptViaBluetooth = async (

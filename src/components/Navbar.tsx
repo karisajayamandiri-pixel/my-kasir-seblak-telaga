@@ -43,6 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isAdminDc = currentUser.jabatan === 'Admin DC Pusat' || currentUser.jabatan === 'Admin';
   const isSupervisorArea = currentUser.jabatan === 'Supervisor Area';
   const isCrewStore = currentUser.jabatan === 'Crew Store' || (currentUser.jabatan as string) === 'CREW STORE';
+  const isKitchen = currentUser.jabatan === 'Kitchen' || (currentUser.jabatan as string) === 'KITCHEN';
   const isDriver = currentUser.jabatan === 'Driver';
   const isDcPusat = currentUser.cabang === 'DC PUSAT' || isOwner || isAdminDc;
 
@@ -69,12 +70,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   // Role-based NavItems builder
   let visibleNavItems: { id: ActiveTab; label: string; badge?: number }[] = [];
 
-  // Jabatan Crew Store: Muncul Pesanan & Dapur serta Absensi
-  if (isCrewStore) {
+  // Jabatan Kitchen & Crew Store: Muncul Menu Pesanan serta Absensi
+  if (isKitchen || isCrewStore) {
     visibleNavItems = [
       {
         id: 'pesanan',
-        label: 'Pesanan & Dapur',
+        label: 'Menu Pesanan',
         badge: activeOrdersCount > 0 ? activeOrdersCount : undefined,
       },
       { id: 'absensi', label: 'Absensi' },
@@ -101,7 +102,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       { id: 'pos', label: 'POS Kasir', branchOnly: !isSupervisorArea },
       {
         id: 'pesanan',
-        label: 'Pesanan & Dapur',
+        label: 'Menu Pesanan',
         badge: activeOrdersCount > 0 ? activeOrdersCount : undefined,
       },
       { id: 'katalog', label: 'Katalog Menu' },
