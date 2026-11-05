@@ -583,6 +583,12 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </span>
                   </div>
 
+                  {data.voidDariInvoice && (
+                    <div className="py-1 px-1.5 bg-amber-50 border border-amber-400 text-amber-900 font-black text-center text-[10px] rounded">
+                      ⚠️ TIKET MENU PENGGANTI (GANTI VOID #{data.voidDariInvoice?.slice(-6) || data.voidDariInvoice})
+                    </div>
+                  )}
+
                   <div className="flex justify-between">
                     <span>No Inv: #{data.invoiceNo?.slice(-6) || data.invoiceNo}</span>
                     <span>Jam: {data.jam}</span>

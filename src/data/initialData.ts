@@ -74,6 +74,7 @@ export const INITIAL_KARYAWAN: Karyawan[] = [
   {
     id: 'usr-0',
     nib: '1902240012345',
+    email: 'karisajayamandiri@gmail.com',
     nama: 'Haji Hendra (Owner)',
     hp: '081122334455',
     alamat: 'Jl. Surya Kencana No. 1, Pusat',

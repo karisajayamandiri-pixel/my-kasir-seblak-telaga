@@ -1,68 +1,92 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isOwner() {
+      return request.auth == null || request.auth.token.email == 'karisajayamandiri@gmail.com';
+    }
+
+    // Hanya owner yang boleh delete dokumen di mana isDemo == true
+    function canDelete(data) {
+      return !(data.isDemo == true) || isOwner();
+    }
+
     match /test/{docId} {
       allow read, write: if true;
     }
 
     match /branches/{branchId} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /cabang/{cabangId} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /katalog/{katalogId} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /karyawan/{karyawanId} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /bahanBaku/{bahanId} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /statusToko/{cabangName} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /stokCabang/{cabangName} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /transaksi/{transaksiId} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /pengeluaran/{pengeluaranId} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /absensi/{absensiId} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /suratJalan/{sjId} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /permintaan/{reqId} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /laporanHarian/{lapId} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /auditLog/{logId} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if canDelete(resource.data);
     }
 
     match /{document=**} {
-      allow read, write: if true;
+      allow read, create, update: if true;
+      allow delete: if resource == null || canDelete(resource.data);
     }
   }
 }

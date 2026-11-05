@@ -17,10 +17,13 @@ export type Jabatan =
 
 export type UserStatus = 'Aktif' | 'Nonaktif';
 
+export const OWNER_EMAIL = 'karisajayamandiri@gmail.com';
+
 export interface Karyawan {
   id: string;
   nik?: string; // Nomor Induk Karyawan (diisi manual oleh Owner & Admin DC Pusat)
   nib?: string; // Nomor Induk Berusaha (khusus Owner)
+  email?: string; // Email akun (Owner: karisajayamandiri@gmail.com)
   nama: string;
   hp: string;
   alamat: string;
@@ -112,6 +115,7 @@ export type StatusPesanan =
   | 'BELUM BAYAR'
   | 'LUNAS'
   | 'DIBATALKAN'
+  | 'DIVOID'
   | 'Menunggu'
   | 'Sedang Dibuat'
   | 'Selesai'
@@ -151,6 +155,14 @@ export interface Transaksi {
   status: 'Sukses' | 'Retur';
   alasanRetur?: string;
   waktuRetur?: string;
+  voidDariInvoice?: string;
+  voidKeInvoice?: string;
+  selisihVoid?: number; // Nilai selisih biaya void (+ tagihan tambahan, - kembalian)
+  keteranganVoid?: string;
+  itemsLama?: TransaksiItem[]; // Menu lama sebelum divoid (untuk laporan audit owner/admin)
+  totalLama?: number;
+  itemsPengganti?: TransaksiItem[]; // Menu pengganti setelah divoid (untuk laporan audit owner/admin)
+  totalPengganti?: number;
 }
 
 // Stok Cabang: Record<cabang, Record<bahanId, number>>
@@ -214,7 +226,7 @@ export interface Absensi {
   jamMasuk: string;
   jamPulang?: string;
   durasi?: string;
-  status: 'Tepat Waktu' | 'Terlambat' | 'Izin' | 'Sakit';
+  status: 'Tepat Waktu' | 'Terlambat' | 'Izin' | 'Sakit' | 'Off' | 'Libur';
   keterangan?: string;
 }
 
@@ -330,5 +342,24 @@ export type ActiveTab =
   | 'absensi'
   | 'pengeluaran'
   | 'bukaTutup'
-  | 'laporan';
+  | 'laporan'
+  | 'pengaturan';
+
+export interface FullResetOptions {
+  pesananTransaksi: boolean; // orders, pesanan, transactions, sales, transaksi, pengeluaran
+  menuKategori: boolean; // menus, products, categories, katalog
+  pelanggan: boolean; // customers, pelanggan
+  bahanBakuStok: boolean; // ingredients, stocks, bahan, bahanBaku, stokCabang
+  laporanDivoid: boolean; // divoid, dibatalkan, logs, reports, laporanHarian, auditLog, absensi, suratJalan, permintaan
+  karyawanTrial: boolean; // employees trial, karyawan (kecuali akun Owner)
+}
+
+export interface FullResetResult {
+  success: boolean;
+  totalDeleted: number;
+  collectionCount: number;
+  message: string;
+  affectedCategories: string[];
+}
+
 

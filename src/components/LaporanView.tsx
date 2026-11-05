@@ -17,6 +17,7 @@ import {
   Search,
   CheckCircle,
   Building2,
+  RotateCcw,
 } from 'lucide-react';
 import {
   Transaksi,
@@ -63,8 +64,18 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
   const storeBranchList = getStoreBranchNames(dataCabangList);
 
-  // Sub-tabs: 'harian' | 'bulanan' | 'grafik' | 'stokMenipis' | 'auditLog' | 'auditBulanan'
-  const [activeSubTab, setActiveSubTab] = useState<'harian' | 'bulanan' | 'grafik' | 'stokMenipis' | 'auditLog' | 'auditBulanan'>('harian');
+  // Sub-tabs: 'harian' | 'bulanan' | 'grafik' | 'stokMenipis' | 'auditLog' | 'auditBulanan' | 'divoid'
+  const [activeSubTab, setActiveSubTab] = useState<'harian' | 'bulanan' | 'grafik' | 'stokMenipis' | 'auditLog' | 'auditBulanan' | 'divoid'>('harian');
+
+  // Filtered DIVOID Transactions (Requirement 6: Tampilkan menu lama & menu pengganti untuk audit owner/admin)
+  const divoidTrxList = transaksiList.filter((t) => {
+    const matchCabang = filterCabang === 'Semua' || t.cabang === filterCabang;
+    const isDivoid =
+      t.statusPesanan === 'DIVOID' ||
+      (t.statusPesanan && t.statusPesanan.toUpperCase().includes('VOID')) ||
+      Boolean(t.voidKeInvoice);
+    return matchCabang && isDivoid;
+  });
 
   // Filters
   const [filterCabang, setFilterCabang] = useState<string>('Semua');
@@ -381,6 +392,18 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
         >
           <Lock className="w-4 h-4 text-amber-400" />
           <span>Audit Log Permanen ({auditLogList.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('divoid')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            activeSubTab === 'divoid'
+              ? 'bg-purple-700 text-white shadow-xs'
+              : 'bg-white text-purple-700 hover:bg-purple-50 border border-purple-200'
+          }`}
+        >
+          <RotateCcw className="w-4 h-4" />
+          <span>Laporan DIVOID ({divoidTrxList.length})</span>
         </button>
       </div>
 
@@ -1516,6 +1539,234 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* SUB TAB: LAPORAN DIVOID (Requirement 6: Tampilkan Menu Lama dan Menu Pengganti untuk Audit Owner & Admin) */}
+      {activeSubTab === 'divoid' && (
+        <div className="space-y-4">
+          {/* Ringkasan Akuntansi Void */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-4 bg-white rounded-2xl border border-purple-200 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
+                  Total Transaksi Di-VOID
+                </span>
+                <span className="text-xl font-black text-purple-950">
+                  {divoidTrxList.length} Transaksi
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-white rounded-2xl border border-emerald-200 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <DollarSign className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
+                  Total Uang Kembalian (Kasir ➔ Pelanggan)
+                </span>
+                <span className="text-xl font-black text-emerald-700">
+                  {formatRupiah(
+                    divoidTrxList
+                      .filter((t) => (t.selisihVoid || 0) < 0)
+                      .reduce((acc, t) => acc + Math.abs(t.selisihVoid || 0), 0)
+                  )}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-white rounded-2xl border border-amber-200 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
+                  Total Tagihan Tambahan (Pelanggan ➔ Kasir)
+                </span>
+                <span className="text-xl font-black text-amber-700">
+                  {formatRupiah(
+                    divoidTrxList
+                      .filter((t) => (t.selisihVoid || 0) > 0)
+                      .reduce((acc, t) => acc + (t.selisihVoid || 0), 0)
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Banner SOP Audit Void */}
+          <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-2xl text-xs text-purple-900 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-purple-600 shrink-0" />
+              <div>
+                <span className="font-bold block">Audit Transparansi Pesanan DIVOID</span>
+                <span className="text-[11px] text-purple-700">
+                  Pesanan lama yang di-VOID dikunci dan tidak dihapus dari Firebase untuk rekam jejak akuntansi, selisih uang kas, dan pengembalian stok.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* List Kartu Perbandingan Menu Lama vs Menu Pengganti */}
+          {divoidTrxList.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 space-y-2">
+              <RotateCcw className="w-10 h-10 mx-auto text-slate-300" />
+              <p className="font-bold text-sm">Tidak ada transaksi DIVOID</p>
+              <p className="text-xs">
+                {filterCabang === 'Semua'
+                  ? 'Belum ada transaksi yang di-VOID di seluruh cabang.'
+                  : `Tidak ada transaksi yang di-VOID di cabang ${filterCabang}.`}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {divoidTrxList
+                .slice()
+                .reverse()
+                .map((trx) => {
+                  const replacementTrx = transaksiList.find(
+                    (t) => t.invoiceNo === trx.voidKeInvoice || t.voidDariInvoice === trx.invoiceNo
+                  );
+                  const oldItems = trx.items || [];
+                  const newItems = trx.itemsPengganti || replacementTrx?.items || [];
+                  const oldTotal = trx.total || 0;
+                  const newTotal = trx.totalPengganti || replacementTrx?.total || (oldTotal + (trx.selisihVoid || 0));
+                  const selisih = trx.selisihVoid !== undefined ? trx.selisihVoid : (newTotal - oldTotal);
+
+                  return (
+                    <div
+                      key={trx.id}
+                      className="bg-white rounded-2xl border border-purple-200 shadow-xs overflow-hidden"
+                    >
+                      {/* Card Header */}
+                      <div className="p-3.5 bg-purple-50/70 border-b border-purple-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-0.5 rounded-lg bg-purple-600 text-white font-black text-xs">
+                            VOID #{trx.invoiceNo}
+                          </span>
+                          <span className="text-purple-400 font-bold">➔</span>
+                          <span className="px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white font-black text-xs">
+                            PENGGANTI #{trx.voidKeInvoice || replacementTrx?.invoiceNo || '-'}
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-bold text-[10px]">
+                            {trx.cabang}
+                          </span>
+                        </div>
+
+                        <div className="text-right text-[11px] text-slate-500 font-medium">
+                          <span>{trx.tanggal} {trx.jam}</span> • <span className="font-bold text-slate-700">Kasir: {trx.kasirNama || '-'}</span>
+                        </div>
+                      </div>
+
+                      {/* Card Body: Perbandingan Dua Kolom */}
+                      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                        {/* Kolom 1: Menu Lama */}
+                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                            <span className="font-black text-slate-700 uppercase tracking-wide text-[11px]">
+                              1. Menu Lama yang Dibatalkan:
+                            </span>
+                            <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded">
+                              Dibatalkan
+                            </span>
+                          </div>
+
+                          <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                            {oldItems.map((it, idx) => (
+                              <div key={idx} className="flex justify-between items-center text-slate-700 text-[11px]">
+                                <span className="truncate pr-2">
+                                  <strong>{it.qty}x</strong> {it.nama}
+                                </span>
+                                <span className="font-bold text-slate-900 shrink-0">
+                                  {formatRupiah(it.subtotal)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-200 flex justify-between items-center font-black text-xs text-slate-800">
+                            <span>Total Pesanan Lama:</span>
+                            <span className="text-sm">{formatRupiah(oldTotal)}</span>
+                          </div>
+                        </div>
+
+                        {/* Kolom 2: Menu Pengganti */}
+                        <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-200 space-y-2">
+                          <div className="flex items-center justify-between border-b border-purple-200 pb-1.5">
+                            <span className="font-black text-purple-900 uppercase tracking-wide text-[11px]">
+                              2. Menu Pengganti yang Dibuat:
+                            </span>
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                              Aktif Baru
+                            </span>
+                          </div>
+
+                          {newItems.length > 0 ? (
+                            <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                              {newItems.map((it, idx) => (
+                                <div key={idx} className="flex justify-between items-center text-purple-950 text-[11px]">
+                                  <span className="truncate pr-2">
+                                    <strong>{it.qty}x</strong> {it.nama}
+                                  </span>
+                                  <span className="font-bold text-purple-900 shrink-0">
+                                    {formatRupiah(it.subtotal)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-slate-400 italic text-[11px] py-4 text-center">
+                              Rincian item ada di invoice #{trx.voidKeInvoice}
+                            </p>
+                          )}
+
+                          <div className="pt-2 border-t border-purple-200 flex justify-between items-center font-black text-xs text-purple-950">
+                            <span>Total Pesanan Baru:</span>
+                            <span className="text-sm">{formatRupiah(newTotal)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card Footer: Status Selisih (Kembalian atau Tagihan Tambahan) */}
+                      <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-500">Alasan Void:</span>
+                          <span className="font-semibold text-slate-800 italic">
+                            "{trx.keteranganVoid || trx.alasanRetur || 'Perubahan menu pelanggan'}"
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {selisih < 0 ? (
+                            <div className="px-3 py-1 bg-emerald-100 text-emerald-950 border border-emerald-300 rounded-xl font-black text-xs flex items-center gap-1.5">
+                              <span>KEMBALIAN (Uang ke Pelanggan):</span>
+                              <span className="text-sm font-black text-emerald-800">
+                                {formatRupiah(Math.abs(selisih))}
+                              </span>
+                            </div>
+                          ) : selisih > 0 ? (
+                            <div className="px-3 py-1 bg-amber-100 text-amber-950 border border-amber-300 rounded-xl font-black text-xs flex items-center gap-1.5">
+                              <span>TAGIHAN (Kekurangan Dibayar):</span>
+                              <span className="text-sm font-black text-amber-900">
+                                {formatRupiah(selisih)}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="px-3 py-1 bg-blue-100 text-blue-900 border border-blue-300 rounded-xl font-black text-xs">
+                              SELISIH: Rp 0 (Harga Sama Pas)
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
         </div>
       )}
     </div>

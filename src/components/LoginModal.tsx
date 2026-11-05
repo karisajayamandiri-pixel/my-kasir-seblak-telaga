@@ -33,11 +33,24 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onLoginSuccess,
   onUpdateKaryawan,
 }) => {
-  // Filter active branches from dataCabang
+  // Filter active branches from dataCabang (with safe fallback for fresh empty DB)
   const activeCabangList = dataCabangList.filter((c) => c.status === 'Aktif');
+  const effectiveCabangList =
+    activeCabangList.length > 0
+      ? activeCabangList
+      : [
+          {
+            id: 'cb-dc',
+            nama: 'DC PUSAT',
+            alamat: 'Kantor Pusat Logistik',
+            noHp: '081234567890',
+            status: 'Aktif' as const,
+            isPusat: true,
+          },
+        ];
 
   const [selectedCabang, setSelectedCabang] = useState<string>(() => {
-    return activeCabangList[0]?.nama || 'PADAHERANG 01';
+    return effectiveCabangList[0]?.nama || 'DC PUSAT';
   });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -99,7 +112,25 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       cleanUsername === 'telaga2' ? 'banjarsari02' :
       cleanUsername === 'telaga3' ? 'ciawtali03' : cleanUsername;
 
-    const found = karyawanList.find(
+    const effectiveKaryawanList: Karyawan[] =
+      karyawanList.length > 0
+        ? karyawanList
+        : [
+            {
+              id: 'kry-owner-default',
+              nama: 'Rizal (Owner)',
+              hp: '081234567890',
+              alamat: 'Padaherang',
+              cabang: 'DC PUSAT',
+              jabatan: 'Owner',
+              username: 'rizal',
+              password: '990002',
+              status: 'Aktif',
+              nib: '1902240012345',
+            },
+          ];
+
+    const found = effectiveKaryawanList.find(
       (k) => k.username.trim().toLowerCase() === resolvedUsername || k.username.trim().toLowerCase() === cleanUsername
     );
 

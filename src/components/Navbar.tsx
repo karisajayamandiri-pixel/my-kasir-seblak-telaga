@@ -121,6 +121,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       { id: 'karyawan', label: 'Data Karyawan', dcOnly: true }, // REQUIREMENT 5: Ubah jadi Data Karyawan
       { id: 'dataOwner', label: 'Data Owner & NIB', ownerOnly: true }, // REQUIREMENT 2: Menu terpisah khusus Owner
       { id: 'laporan', label: 'Laporan & Print' },
+      { id: 'pengaturan', label: 'Pengaturan', dcOnly: true },
     ];
 
     visibleNavItems = allItems.filter((item) => {

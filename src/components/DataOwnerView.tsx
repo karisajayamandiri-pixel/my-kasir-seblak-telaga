@@ -39,17 +39,20 @@ export const DataOwnerView: React.FC<DataOwnerViewProps> = ({
 
   const [nama, setNama] = useState(currentUser.nama);
   const [nib, setNib] = useState(currentUser.nib || '1902240012345');
+  const [email, setEmail] = useState(currentUser.email || 'karisajayamandiri@gmail.com');
   const [hp, setHp] = useState(currentUser.hp);
   const [alamat, setAlamat] = useState(currentUser.alamat);
   const [username, setUsername] = useState(currentUser.username);
   const [password, setPassword] = useState(currentUser.password);
   const [showPassword, setShowPassword] = useState(false);
   const [successMsg, setSuccessMsg] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nama.trim() || !nib.trim() || !username.trim() || !password.trim()) {
-      alert('Nama, Nomor Induk Berusaha (NIB), Username, dan Password wajib diisi!');
+    setErrorMsg(null);
+    if (!nama.trim() || !nib.trim() || !username.trim() || !password.trim() || !email.trim()) {
+      setErrorMsg('Nama, Email Owner, Nomor Induk Berusaha (NIB), Username, dan Password wajib diisi!');
       return;
     }
 
@@ -57,6 +60,7 @@ export const DataOwnerView: React.FC<DataOwnerViewProps> = ({
       ...currentUser,
       nama: nama.trim(),
       nib: nib.trim(),
+      email: email.trim(),
       hp: hp.trim(),
       alamat: alamat.trim(),
       username: username.trim(),
@@ -183,6 +187,30 @@ export const DataOwnerView: React.FC<DataOwnerViewProps> = ({
             />
           </div>
 
+          {/* Email Owner (Otorisasi Security Firestore) */}
+          <div className="md:col-span-2">
+            <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                <span>Email Owner (Otorisasi Firestore & Reset Demo) <span className="text-red-500">*</span></span>
+              </span>
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                OTORISASI UTAMA
+              </span>
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-slate-800 focus:bg-white"
+              placeholder="karisajayamandiri@gmail.com"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">
+              Fungsi reset demo data dan izin delete dokumen demo di Cloud Firestore hanya diizinkan untuk email: <strong>karisajayamandiri@gmail.com</strong>.
+            </p>
+          </div>
+
           {/* Username */}
           <div>
             <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1.5">
@@ -237,6 +265,19 @@ export const DataOwnerView: React.FC<DataOwnerViewProps> = ({
           </button>
         </div>
       </form>
+
+      {/* Info Pengaturan Sistem */}
+      <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+            <Building className="w-4 h-4 text-amber-600" />
+            <span>Pengaturan Database & Data Demo</span>
+          </h4>
+          <p className="text-xs text-slate-500 max-w-xl">
+            Auto-seeding data demo dinonaktifkan secara permanen. Untuk memuat ulang data demo secara manual atau melihat status sinkronisasi Cloud Firestore, Anda dapat membuka halaman <strong>Pengaturan</strong>.
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

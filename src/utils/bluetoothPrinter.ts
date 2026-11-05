@@ -388,6 +388,10 @@ export const buildKitchenTicketEscPos = (trx: Transaksi, branchInfo?: DataCabang
   b.align('center');
   b.bold(true).size('double').line(`NO: ${orderNumber}`);
   b.bold(false).size('normal');
+  if (trx.voidDariInvoice) {
+    b.bold(true).line(`[ MENU PENGGANTI - VOID #${trx.voidDariInvoice.slice(-6)} ]`);
+    b.bold(false);
+  }
   b.divider('-');
 
   // INFO PESANAN

@@ -23,6 +23,11 @@ import {
   PengeluaranToko,
   StatusPengeluaran,
   StatusPesanan,
+  TransaksiItem,
+  TipePesanan,
+  OWNER_EMAIL,
+  FullResetOptions,
+  FullResetResult,
 } from './types';
 import {
   INITIAL_KARYAWAN,
@@ -47,9 +52,12 @@ import {
   getNowShortTime,
   getNowTimeStr,
   formatRupiah,
+  generateInvoiceNo,
 } from './utils/storage';
 import {
-  seedInitialFirestoreDataIfEmpty,
+  resetToDemoDataInFirestore,
+  executeFullResetInFirestore,
+  executeQuickOrdersReset,
   subscribeToRealtimeFirestore,
   firestoreSaveCabang,
   firestoreDeleteCabang,
@@ -64,6 +72,7 @@ import {
   firestoreSaveTransaksi,
   firestoreSavePengeluaran,
   firestoreSaveAbsensi,
+  firestoreDeleteAbsensi,
   firestoreSaveSuratJalan,
   firestoreSavePermintaan,
   firestoreSaveLaporanHarian,
@@ -88,9 +97,11 @@ import { DataOwnerView } from './components/DataOwnerView';
 import { PengirimanDriverView } from './components/PengirimanDriverView';
 import { DataCabangView } from './components/DataCabangView';
 import { LaporanView } from './components/LaporanView';
-import { PesananView } from './components/PesananView';
+import { PesananView, normalizeStatusPesanan, getStatusRank } from './components/PesananView';
+import { PengaturanView } from './components/PengaturanView';
 import { PrintModal, PrintDocumentType } from './components/PrintModal';
-import { RotateCcw, AlertTriangle, LogOut } from 'lucide-react';
+import { ResetTotalModal } from './components/ResetTotalModal';
+import { RotateCcw, AlertTriangle, LogOut, CheckCircle, X } from 'lucide-react';
 import { getBranchName } from './utils/branchHelper';
 
 export default function App() {
@@ -101,20 +112,20 @@ export default function App() {
   // Active Navigation Tab
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
 
-  // Master Data Cabang (Requirement 1: Simpan LocalStorage 'dataCabang')
+  // Master Data Cabang (Load from storage cache, fallback to empty array if none)
   const [dataCabangList, setDataCabangList] = useState<DataCabang[]>(() =>
-    loadFromStorage<DataCabang[]>(STORAGE_KEYS.CABANG, INITIAL_DATA_CABANG)
+    loadFromStorage<DataCabang[]>(STORAGE_KEYS.CABANG, [])
   );
 
-  // Master & Operational Datasets
+  // Master & Operational Datasets: persistent from Firestore (cached in storage)
   const [karyawanList, setKaryawanList] = useState<Karyawan[]>(() => {
-    const loaded = loadFromStorage<Karyawan[]>(STORAGE_KEYS.KARYAWAN, INITIAL_KARYAWAN);
+    const loaded = loadFromStorage<Karyawan[]>(STORAGE_KEYS.KARYAWAN, []);
     return loaded.map((k) => {
       if (k.jabatan === 'Owner') {
         return {
           ...k,
-          username: 'rizal',
-          password: '990002',
+          username: k.username || 'rizal',
+          password: k.password || '990002',
         };
       }
       return k;
@@ -122,44 +133,44 @@ export default function App() {
   });
 
   const [bahanBakuList, setBahanBakuList] = useState<BahanBaku[]>(() =>
-    loadFromStorage<BahanBaku[]>(STORAGE_KEYS.BAHAN_BAKU, INITIAL_BAHAN_BAKU)
+    loadFromStorage<BahanBaku[]>(STORAGE_KEYS.BAHAN_BAKU, [])
   );
 
   const [katalogList, setKatalogList] = useState<KatalogMenu[]>(() =>
-    loadFromStorage<KatalogMenu[]>(STORAGE_KEYS.KATALOG, INITIAL_KATALOG)
+    loadFromStorage<KatalogMenu[]>(STORAGE_KEYS.KATALOG, [])
   );
 
   const [stokCabang, setStokCabang] = useState<StokCabangMap>(() =>
-    loadFromStorage<StokCabangMap>(STORAGE_KEYS.STOK_CABANG, INITIAL_STOK_CABANG)
+    loadFromStorage<StokCabangMap>(STORAGE_KEYS.STOK_CABANG, {})
   );
 
   const [transaksiList, setTransaksiList] = useState<Transaksi[]>(() =>
-    loadFromStorage<Transaksi[]>(STORAGE_KEYS.TRANSAKSI, INITIAL_TRANSAKSI)
+    loadFromStorage<Transaksi[]>(STORAGE_KEYS.TRANSAKSI, [])
   );
 
   const [permintaanList, setPermintaanList] = useState<PermintaanBarang[]>(() =>
-    loadFromStorage<PermintaanBarang[]>(STORAGE_KEYS.PERMINTAAN_BARANG, INITIAL_PERMINTAAN)
+    loadFromStorage<PermintaanBarang[]>(STORAGE_KEYS.PERMINTAAN_BARANG, [])
   );
 
   const [suratJalanList, setSuratJalanList] = useState<SuratJalan[]>(() =>
-    loadFromStorage<SuratJalan[]>(STORAGE_KEYS.SURAT_JALAN, INITIAL_SURAT_JALAN)
+    loadFromStorage<SuratJalan[]>(STORAGE_KEYS.SURAT_JALAN, [])
   );
 
   const [absensiList, setAbsensiList] = useState<Absensi[]>(() =>
-    loadFromStorage<Absensi[]>(STORAGE_KEYS.ABSENSI, INITIAL_ABSENSI)
+    loadFromStorage<Absensi[]>(STORAGE_KEYS.ABSENSI, [])
   );
 
   const [laporanHarianList, setLaporanHarianList] = useState<LaporanHarian[]>(() =>
-    loadFromStorage<LaporanHarian[]>(STORAGE_KEYS.LAPORAN_HARIAN, INITIAL_LAPORAN_HARIAN)
+    loadFromStorage<LaporanHarian[]>(STORAGE_KEYS.LAPORAN_HARIAN, [])
   );
 
   const [tokoState, setTokoState] = useState<AllTokoState>(() =>
-    loadFromStorage<AllTokoState>(STORAGE_KEYS.TOKO_STATE, INITIAL_TOKO_STATE)
+    loadFromStorage<AllTokoState>(STORAGE_KEYS.TOKO_STATE, {})
   );
 
   // Requirement 3: Permanent Audit Log (Anti-fraud, append-only, LocalStorage)
   const [auditLogList, setAuditLogList] = useState<AuditLog[]>(() =>
-    loadFromStorage<AuditLog[]>(STORAGE_KEYS.AUDIT_LOG, INITIAL_AUDIT_LOG)
+    loadFromStorage<AuditLog[]>(STORAGE_KEYS.AUDIT_LOG, [])
   );
 
   // Requirement 2: Used Nota Hashes (Anti-Fraud: reject duplicate receipt photos)
@@ -169,7 +180,7 @@ export default function App() {
 
   // Requirement 2 & 5: Pengeluaran Toko & 1-Click ACC Owner
   const [pengeluaranList, setPengeluaranList] = useState<PengeluaranToko[]>(() =>
-    loadFromStorage<PengeluaranToko[]>(STORAGE_KEYS.PENGELUARAN, INITIAL_PENGELUARAN)
+    loadFromStorage<PengeluaranToko[]>(STORAGE_KEYS.PENGELUARAN, [])
   );
 
   // Print Modal State
@@ -186,6 +197,15 @@ export default function App() {
   // Logout Confirm Modal
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
+  // Footer Reset Demo Modal (Replaces browser confirm)
+  const [showFooterResetModal, setShowFooterResetModal] = useState(false);
+  const [isResettingFooter, setIsResettingFooter] = useState(false);
+  const [footerResetMsg, setFooterResetMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Full Reset Modal State (Owner Total Reset)
+  const [showFullResetModal, setShowFullResetModal] = useState(false);
+  const [resetToastMessage, setResetToastMessage] = useState<string | null>(null);
+
   // Sync route in browser address bar & enforce login check on every route
   useEffect(() => {
     try {
@@ -199,48 +219,85 @@ export default function App() {
     }
   }, [currentUser, activeTab]);
 
-  // Realtime Firestore synchronization for all master data across all devices/phones
+  // Realtime Firestore synchronization for all data (AUTO-SEED PERMANENTLY DISABLED)
   useEffect(() => {
-    // 1. Remove obsolete local master keys from localStorage
-    try {
-      localStorage.removeItem(STORAGE_KEYS.CABANG);
-      localStorage.removeItem(STORAGE_KEYS.KARYAWAN);
-      localStorage.removeItem(STORAGE_KEYS.BAHAN_BAKU);
-      localStorage.removeItem(STORAGE_KEYS.KATALOG);
-      localStorage.removeItem(STORAGE_KEYS.STOK_CABANG);
-      localStorage.removeItem(STORAGE_KEYS.TOKO_STATE);
-    } catch {}
-
-    // 2. Check and seed initial data if Firestore collections are empty
-    seedInitialFirestoreDataIfEmpty().catch((err) => {
-      console.warn('Initial Firestore seed check notice:', err);
-    });
-
-    // 3. Listen to real-time changes on Firestore collections
+    // Listen to real-time changes directly from Firestore
     const unsubscribe = subscribeToRealtimeFirestore({
-      onCabang: (list) => setDataCabangList(list),
-      onKatalog: (list) => setKatalogList(list),
+      onCabang: (list) => {
+        setDataCabangList(list);
+        saveToStorage(STORAGE_KEYS.CABANG, list);
+      },
+      onKatalog: (list) => {
+        setKatalogList(list);
+        saveToStorage(STORAGE_KEYS.KATALOG, list);
+      },
       onKaryawan: (list) => {
         const formatted = list.map((k) =>
           k.jabatan === 'Owner'
-            ? { ...k, username: 'rizal', password: '990002' }
+            ? { ...k, username: k.username || 'rizal', password: k.password || '990002' }
             : k
         );
         setKaryawanList(formatted);
+        saveToStorage(STORAGE_KEYS.KARYAWAN, formatted);
       },
-      onBahanBaku: (list) => setBahanBakuList(list),
-      onStokCabang: (map) => setStokCabang(map),
-      onStatusToko: (state) => setTokoState(state),
+      onBahanBaku: (list) => {
+        setBahanBakuList(list);
+        saveToStorage(STORAGE_KEYS.BAHAN_BAKU, list);
+      },
+      onStokCabang: (map) => {
+        setStokCabang(map);
+        saveToStorage(STORAGE_KEYS.STOK_CABANG, map);
+      },
+      onStatusToko: (state) => {
+        setTokoState(state);
+        saveToStorage(STORAGE_KEYS.TOKO_STATE, state);
+      },
       onTransaksi: (list) => {
-        setTransaksiList(list);
-        saveToStorage(STORAGE_KEYS.TRANSAKSI, list);
+        setTransaksiList((prev) => {
+          const prevMap = new Map(prev.map((t) => [t.id, t]));
+          const merged = list.map((incoming) => {
+            const existing = prevMap.get(incoming.id);
+            if (!existing) return incoming;
+            const incRank = getStatusRank(incoming.statusPesanan);
+            const existRank = getStatusRank(existing.statusPesanan);
+            // Status hanya boleh maju, tidak boleh mundur
+            const isSpecialStatus =
+              incoming.status === 'Retur' ||
+              incoming.statusPesanan === 'DIVOID' ||
+              incoming.statusPesanan === 'DIBATALKAN';
+            if (!isSpecialStatus && existRank > incRank) {
+              return { ...incoming, statusPesanan: existing.statusPesanan };
+            }
+            return incoming;
+          });
+          saveToStorage(STORAGE_KEYS.TRANSAKSI, merged);
+          return merged;
+        });
       },
-      onPengeluaran: (list) => setPengeluaranList(list),
-      onAbsensi: (list) => setAbsensiList(list),
-      onSuratJalan: (list) => setSuratJalanList(list),
-      onPermintaan: (list) => setPermintaanList(list),
-      onLaporanHarian: (list) => setLaporanHarianList(list),
-      onAuditLog: (list) => setAuditLogList(list),
+      onPengeluaran: (list) => {
+        setPengeluaranList(list);
+        saveToStorage(STORAGE_KEYS.PENGELUARAN, list);
+      },
+      onAbsensi: (list) => {
+        setAbsensiList(list);
+        saveToStorage(STORAGE_KEYS.ABSENSI, list);
+      },
+      onSuratJalan: (list) => {
+        setSuratJalanList(list);
+        saveToStorage(STORAGE_KEYS.SURAT_JALAN, list);
+      },
+      onPermintaan: (list) => {
+        setPermintaanList(list);
+        saveToStorage(STORAGE_KEYS.PERMINTAAN_BARANG, list);
+      },
+      onLaporanHarian: (list) => {
+        setLaporanHarianList(list);
+        saveToStorage(STORAGE_KEYS.LAPORAN_HARIAN, list);
+      },
+      onAuditLog: (list) => {
+        setAuditLogList(list);
+        saveToStorage(STORAGE_KEYS.AUDIT_LOG, list);
+      },
     });
 
     return () => unsubscribe();
@@ -497,42 +554,26 @@ export default function App() {
     });
   };
 
-  // Batalkan Pesanan Handler (Kembalikan stok bahan & kemasan cabang, update statusPesanan = 'DIBATALKAN', catat ke audit log)
-  const handleBatalkanPesanan = (trxId: string, alasan: string) => {
-    const targetTrx = transaksiList.find((t) => t.id === trxId);
-    if (!targetTrx || targetTrx.status === 'Retur' || targetTrx.statusPesanan === 'DIBATALKAN') return;
-
-    // Proteksi: Pesanan yang sudah lunas hanya bisa dibatalkan oleh Owner atau Admin DC Pusat
-    const isLunas =
-      targetTrx.statusPembayaran === 'LUNAS' ||
-      targetTrx.statusPesanan === 'LUNAS' ||
-      targetTrx.statusPesanan === 'Selesai';
-    const isOwnerOrAdminPusat =
-      currentUser?.jabatan === 'Owner' ||
-      currentUser?.cabang === 'DC PUSAT' ||
-      currentUser?.jabatan === 'Admin DC Pusat';
-
-    if (isLunas && !isOwnerOrAdminPusat) {
-      alert(
-        'Peringatan: Pesanan yang sudah lunas pembayaran TIDAK BISA dibatalkan oleh Kasir/Crew Store!\nHanya Owner atau Admin DC Pusat yang memiliki hak akses untuk membatalkan pesanan lunas.'
-      );
-      return;
-    }
-
-    const currentCabang = targetTrx.cabang as Exclude<Cabang, 'DC PUSAT'>;
+  // Helper: Kembalikan stok bahan & kemasan ke stok cabang
+  const restoreStockItems = (
+    cabang: Cabang,
+    items: TransaksiItem[],
+    tipePesanan?: TipePesanan
+  ) => {
+    if (cabang === 'DC PUSAT') return;
+    const currentCabang = cabang as Exclude<Cabang, 'DC PUSAT'>;
     const branchStock = { ...(stokCabang[currentCabang] || {}) };
 
-    // 1. Kembalikan stok bahan makanan dan minuman
-    targetTrx.items.forEach((cartItem) => {
+    // 1. Kembalikan stok bahan makanan/minuman
+    items.forEach((cartItem) => {
       cartItem.resep.forEach((recipe) => {
         const returnedQty = recipe.qtyPakai * cartItem.qty;
-        const current = branchStock[recipe.bahanId] || 0;
-        branchStock[recipe.bahanId] = current + returnedQty;
+        branchStock[recipe.bahanId] = (branchStock[recipe.bahanId] || 0) + returnedQty;
       });
     });
 
-    // 2. Kembalikan stok kemasan jika pesanan Take Away atau Delivery
-    if (targetTrx.tipePesanan !== 'Dine In') {
+    // 2. Kembalikan stok kemasan jika Take Away atau Delivery
+    if (tipePesanan !== 'Dine In') {
       const kemasanBowl = bahanBakuList.find(
         (b) => (b.kategori === 'Kemasan' && b.nama.toLowerCase().includes('bowl')) || b.id === 'bhn-17'
       );
@@ -543,7 +584,7 @@ export default function App() {
         (b) => (b.kategori === 'Kemasan' && b.nama.toLowerCase().includes('cup')) || b.id === 'bhn-19'
       );
 
-      targetTrx.items.forEach((cartItem) => {
+      items.forEach((cartItem) => {
         const hasKemasanInResep = cartItem.resep.some((r) => {
           const b = bahanBakuList.find((bk) => bk.id === r.bahanId);
           return b?.kategori === 'Kemasan';
@@ -574,6 +615,95 @@ export default function App() {
       [currentCabang]: branchStock,
     }));
     firestoreSaveStokCabang(currentCabang, branchStock);
+  };
+
+  // Helper: Kurangi stok bahan & kemasan dari cabang
+  const deductStockItems = (
+    cabang: Cabang,
+    items: TransaksiItem[],
+    tipePesanan?: TipePesanan
+  ) => {
+    if (cabang === 'DC PUSAT') return;
+    const currentCabang = cabang as Exclude<Cabang, 'DC PUSAT'>;
+    const branchStock = { ...(stokCabang[currentCabang] || {}) };
+
+    // 1. Kurangi stok bahan makanan & resep
+    items.forEach((cartItem) => {
+      cartItem.resep.forEach((recipe) => {
+        const usedQty = recipe.qtyPakai * cartItem.qty;
+        branchStock[recipe.bahanId] = Math.max(0, (branchStock[recipe.bahanId] || 0) - usedQty);
+      });
+    });
+
+    // 2. Kurangi stok kemasan jika Take Away atau Delivery
+    if (tipePesanan !== 'Dine In') {
+      const kemasanBowl = bahanBakuList.find(
+        (b) => (b.kategori === 'Kemasan' && b.nama.toLowerCase().includes('bowl')) || b.id === 'bhn-17'
+      );
+      const kemasanPlastik = bahanBakuList.find(
+        (b) => (b.kategori === 'Kemasan' && b.nama.toLowerCase().includes('plastik')) || b.id === 'bhn-18'
+      );
+      const kemasanCup = bahanBakuList.find(
+        (b) => (b.kategori === 'Kemasan' && b.nama.toLowerCase().includes('cup')) || b.id === 'bhn-19'
+      );
+
+      items.forEach((cartItem) => {
+        const hasKemasanInResep = cartItem.resep.some((r) => {
+          const b = bahanBakuList.find((bk) => bk.id === r.bahanId);
+          return b?.kategori === 'Kemasan';
+        });
+
+        if (!hasKemasanInResep) {
+          const isDrink =
+            cartItem.nama.toLowerCase().includes('teh') ||
+            cartItem.nama.toLowerCase().includes('jeruk') ||
+            cartItem.kode.startsWith('MN');
+
+          if (isDrink && kemasanCup) {
+            branchStock[kemasanCup.id] = Math.max(0, (branchStock[kemasanCup.id] || 0) - cartItem.qty);
+          } else {
+            if (kemasanBowl) {
+              branchStock[kemasanBowl.id] = Math.max(0, (branchStock[kemasanBowl.id] || 0) - cartItem.qty);
+            }
+            if (kemasanPlastik) {
+              branchStock[kemasanPlastik.id] = Math.max(0, (branchStock[kemasanPlastik.id] || 0) - 1);
+            }
+          }
+        }
+      });
+    }
+
+    setStokCabang((prev) => ({
+      ...prev,
+      [currentCabang]: branchStock,
+    }));
+    firestoreSaveStokCabang(currentCabang, branchStock);
+  };
+
+  // Batalkan Pesanan: Pesanan belum bayar bisa dibatalkan, pesanan lunas TIDAK BISA dibatalkan (harus divoid)
+  const handleBatalkanPesanan = (trxId: string, alasan: string) => {
+    const targetTrx = transaksiList.find((t) => t.id === trxId);
+    if (!targetTrx || targetTrx.status === 'Retur' || targetTrx.statusPesanan === 'DIBATALKAN') return;
+
+    const isLunas =
+      targetTrx.statusPembayaran === 'LUNAS' ||
+      targetTrx.statusPesanan === 'LUNAS' ||
+      targetTrx.statusPesanan === 'Selesai';
+
+    const isOwnerOrAdminPusat =
+      currentUser?.jabatan === 'Owner' ||
+      currentUser?.cabang === 'DC PUSAT' ||
+      currentUser?.jabatan === 'Admin DC Pusat';
+
+    if (isLunas && !isOwnerOrAdminPusat) {
+      alert(
+        '⛔ Pesanan yang SUDAH LUNAS tidak bisa dibatalkan oleh Crew Store!\nHanya Owner atau Admin DC Pusat yang berhak membatalkan pesanan lunas. Untuk pelanggan yang ingin ubah menu, silakan gunakan fitur Void & Ganti.'
+      );
+      return;
+    }
+
+    // Kembalikan stok bahan & kemasan
+    restoreStockItems(targetTrx.cabang, targetTrx.items, targetTrx.tipePesanan);
 
     const updatedTrx: Transaksi = {
       ...targetTrx,
@@ -590,10 +720,257 @@ export default function App() {
     handleAddAuditLog({
       siapa: currentUser ? `${currentUser.nama} (${currentUser.jabatan})` : 'Petugas Kasir',
       cabang: targetTrx.cabang,
-      aksi: 'Pembatalan Pesanan',
+      aksi: isLunas ? 'Pembatalan Pesanan Lunas (Otorisasi Owner/Admin Pusat)' : 'Pembatalan Pesanan Belum Bayar',
       nominal: targetTrx.total,
-      keterangan: `Batal Pesanan #${targetTrx.nomorPesanan || targetTrx.invoiceNo}: ${alasan}`,
+      keterangan: `${isLunas ? '[BATAL PESANAN LUNAS - DANA KEMBALI KE PELANGGAN] ' : ''}Batal Pesanan #${targetTrx.nomorPesanan || targetTrx.invoiceNo}: ${alasan}`,
     });
+  };
+
+  // Ubah Pesanan Belum Bayar: Ubah menu/item, kembalikan stok lama & kurangi stok baru
+  const handleEditPesananBelumBayar = (
+    trxId: string,
+    updatedData: {
+      items: TransaksiItem[];
+      nomorMeja?: string;
+      pelangganNama?: string;
+      pelangganTelepon?: string;
+      pelangganAlamat?: string;
+      tipePesanan?: TipePesanan;
+      ongkir?: number;
+      jarakKm?: number;
+    }
+  ) => {
+    const targetTrx = transaksiList.find((t) => t.id === trxId);
+    if (!targetTrx || targetTrx.status === 'Retur' || targetTrx.statusPesanan === 'DIBATALKAN') return;
+
+    const isLunas =
+      targetTrx.statusPembayaran === 'LUNAS' ||
+      targetTrx.statusPesanan === 'LUNAS' ||
+      targetTrx.statusPesanan === 'Selesai';
+
+    if (isLunas) {
+      alert(
+        '⛔ Pesanan yang sudah lunas tidak bisa diedit secara langsung! Gunakan fitur VOID & Ganti Pesanan.'
+      );
+      return;
+    }
+
+    // 1. Kembalikan stok lama
+    restoreStockItems(targetTrx.cabang, targetTrx.items, targetTrx.tipePesanan);
+
+    // 2. Hitung total baru
+    const newItems = updatedData.items;
+    const newSubtotal = newItems.reduce((acc, i) => acc + i.subtotal, 0);
+    const newTotalModal = newItems.reduce((acc, i) => acc + i.hargaModal * i.qty, 0);
+    const newOngkir = updatedData.ongkir !== undefined ? updatedData.ongkir : (targetTrx.ongkir || 0);
+    const newTotal = newSubtotal + newOngkir;
+    const newTotalUntung = newTotal - newTotalModal;
+    const effectiveTipe = updatedData.tipePesanan || targetTrx.tipePesanan;
+
+    // 3. Kurangi stok baru
+    deductStockItems(targetTrx.cabang, newItems, effectiveTipe);
+
+    const updatedTrx: Transaksi = {
+      ...targetTrx,
+      items: newItems,
+      subtotalPesanan: newSubtotal,
+      ongkir: newOngkir,
+      jarakKm: updatedData.jarakKm !== undefined ? updatedData.jarakKm : targetTrx.jarakKm,
+      total: newTotal,
+      totalModal: newTotalModal,
+      totalUntung: newTotalUntung,
+      nomorMeja: updatedData.nomorMeja ?? targetTrx.nomorMeja,
+      pelangganNama: updatedData.pelangganNama ?? targetTrx.pelangganNama,
+      pelangganTelepon: updatedData.pelangganTelepon ?? targetTrx.pelangganTelepon,
+      pelangganAlamat: updatedData.pelangganAlamat ?? targetTrx.pelangganAlamat,
+      tipePesanan: effectiveTipe,
+    };
+
+    setTransaksiList((prev) =>
+      prev.map((t) => (t.id === trxId ? updatedTrx : t))
+    );
+    firestoreSaveTransaksi(updatedTrx);
+
+    handleAddAuditLog({
+      siapa: currentUser ? `${currentUser.nama} (${currentUser.jabatan})` : 'Petugas Kasir',
+      cabang: targetTrx.cabang,
+      aksi: 'Ubah Pesanan Belum Bayar',
+      nominal: newTotal,
+      keterangan: `Ubah Pesanan #${targetTrx.nomorPesanan || targetTrx.invoiceNo}: ${newItems.length} menu (Total baru: ${formatRupiah(newTotal)})`,
+    });
+  };
+
+  // VOID & Ganti Pesanan Lunas:
+  // Data lama TIDAK DIHAPUS di Firebase, statusnya diubah jadi DIVOID & Retur, buatkan pesanan baru
+  // Hitung selisih: jika baru lebih murah -> uang kembalian; jika baru lebih mahal -> tagihan tambahan
+  const handleVoidPesananLunas = (
+    oldTrxId: string,
+    payload: {
+      newItems: TransaksiItem[];
+      nomorMeja?: string;
+      pelangganNama?: string;
+      pelangganTelepon?: string;
+      pelangganAlamat?: string;
+      alasanVoid: string;
+      metodeBayarTambahan?: 'Cash' | 'QRIS';
+      bayarTambahan?: number;
+    }
+  ): { oldTrx: Transaksi; newTrx: Transaksi; selisih: number } | null => {
+    const oldTrx = transaksiList.find((t) => t.id === oldTrxId);
+    if (!oldTrx || oldTrx.status === 'Retur' || oldTrx.statusPesanan === 'DIVOID') {
+      alert('Pesanan tidak ditemukan atau sudah divoid/retur.');
+      return null;
+    }
+
+    const isLunas =
+      oldTrx.statusPembayaran === 'LUNAS' ||
+      oldTrx.statusPesanan === 'LUNAS' ||
+      oldTrx.statusPesanan === 'Selesai';
+
+    if (!isLunas) {
+      alert('Pesanan belum lunas dapat langsung diedit atau dibatalkan tanpa proses void!');
+      return null;
+    }
+
+    // Requirement 3: Hanya bisa di-VOID saat status masih MENUNGGU
+    const normStatus = normalizeStatusPesanan(oldTrx.statusPesanan, oldTrx.status);
+    if (normStatus !== 'MENUNGGU') {
+      alert('Sesuai aturan, pesanan lunas hanya dapat di-VOID saat masih berstatus MENUNGGU sebelum diproses/dimasak di dapur.');
+      return null;
+    }
+
+    // Requirement 7: Hanya 1 kali VOID
+    if (oldTrx.voidDariInvoice) {
+      alert('Pesanan ini sudah pernah melalui proses VOID pengganti. Pesanan hanya dapat di-VOID maksimal 1 kali.');
+      return null;
+    }
+
+    // 1. Kembalikan stok pesanan lama
+    restoreStockItems(oldTrx.cabang, oldTrx.items, oldTrx.tipePesanan);
+
+    // 2. Hitung harga dan selisih (Requirement 4: Jangan jumlahkan menu lama dengan baru, hitung selisihnya)
+    const newSubtotal = payload.newItems.reduce((acc, i) => acc + i.subtotal, 0);
+    const newTotalModal = payload.newItems.reduce((acc, i) => acc + i.hargaModal * i.qty, 0);
+    const newOngkir = oldTrx.ongkir || 0;
+    const newTotal = newSubtotal + newOngkir;
+    const newTotalUntung = newTotal - newTotalModal;
+    const selisih = newTotal - oldTrx.total; // > 0: tagihan tambahan, < 0: kembalian
+
+    // Generate Invoice Baru
+    const newInvoiceNo = generateInvoiceNo(oldTrx.cabang);
+    const nowTime = getNowTimeStr();
+    const todayDate = getTodayStr();
+
+    let newStatusPembayaran: 'LUNAS' | 'BELUM BAYAR' = 'LUNAS';
+    let newBayar = newTotal;
+    let newKembali = 0;
+
+    if (selisih > 0) {
+      // Lebih mahal: butuh tagihan tambahan
+      const tambahan = payload.bayarTambahan || 0;
+      if (tambahan >= selisih) {
+        newStatusPembayaran = 'LUNAS';
+        newBayar = oldTrx.total + tambahan;
+        newKembali = Math.max(0, tambahan - selisih);
+      } else {
+        newStatusPembayaran = 'BELUM BAYAR';
+        newBayar = oldTrx.total;
+        newKembali = 0;
+      }
+    } else if (selisih < 0) {
+      // Lebih murah: uang kembalian diserahkan kasir ke pelanggan
+      newStatusPembayaran = 'LUNAS';
+      newBayar = newTotal;
+      newKembali = 0;
+    } else {
+      // Pas
+      newStatusPembayaran = 'LUNAS';
+      newBayar = newTotal;
+      newKembali = 0;
+    }
+
+    // 3. Update transaksi lama: JANGAN DIHAPUS di Firebase, ubah status jadi DIVOID & Retur (Requirement 3 & 6)
+    const updatedOldTrx: Transaksi = {
+      ...oldTrx,
+      status: 'Retur',
+      statusPesanan: 'DIVOID',
+      voidKeInvoice: newInvoiceNo,
+      selisihVoid: selisih,
+      keteranganVoid: payload.alasanVoid,
+      alasanRetur: `Void & Ganti ke #${newInvoiceNo}: ${payload.alasanVoid}`,
+      waktuRetur: `${todayDate} ${getNowShortTime()}`,
+      itemsPengganti: payload.newItems,
+      totalPengganti: newTotal,
+    };
+
+    // 4. Buat pesanan baru (Requirement 4 & 7: total hanya menu baru, status awal MENUNGGU, max 1x void)
+    const newTrx: Transaksi = {
+      id: 'trx-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      invoiceNo: newInvoiceNo,
+      cabang: oldTrx.cabang,
+      tanggal: todayDate,
+      jam: nowTime,
+      kasirId: currentUser?.id || oldTrx.kasirId,
+      kasirNama: currentUser?.nama || oldTrx.kasirNama,
+      kasirJabatan: currentUser?.jabatan || oldTrx.kasirJabatan,
+      kasirBertugas: currentUser?.nama || oldTrx.kasirBertugas,
+      items: payload.newItems,
+      tipePesanan: oldTrx.tipePesanan,
+      subtotalPesanan: newSubtotal,
+      ongkir: newOngkir,
+      jarakKm: oldTrx.jarakKm,
+      nomorMeja: payload.nomorMeja ?? oldTrx.nomorMeja,
+      pelangganNama: payload.pelangganNama ?? oldTrx.pelangganNama,
+      pelangganTelepon: payload.pelangganTelepon ?? oldTrx.pelangganTelepon,
+      pelangganAlamat: payload.pelangganAlamat ?? oldTrx.pelangganAlamat,
+      takeAwayId: oldTrx.takeAwayId,
+      nomorPesanan: oldTrx.nomorPesanan,
+      statusPesanan: 'MENUNGGU',
+      statusPembayaran: newStatusPembayaran,
+      total: newTotal,
+      totalModal: newTotalModal,
+      totalUntung: newTotalUntung,
+      metodeBayar: payload.metodeBayarTambahan || oldTrx.metodeBayar,
+      bayar: newBayar,
+      kembali: newKembali,
+      status: 'Sukses',
+      voidDariInvoice: oldTrx.invoiceNo,
+      selisihVoid: selisih,
+      keteranganVoid: payload.alasanVoid,
+      itemsLama: oldTrx.items,
+      totalLama: oldTrx.total,
+    };
+
+    // 5. Kurangi stok baru
+    deductStockItems(oldTrx.cabang, payload.newItems, oldTrx.tipePesanan);
+
+    // 6. Simpan transaksi lama (status DIVOID) dan transaksi baru ke Firestore
+    firestoreSaveTransaksi(updatedOldTrx);
+    firestoreSaveTransaksi(newTrx);
+
+    // 7. Update state transaksiList
+    setTransaksiList((prev) => [
+      newTrx,
+      ...prev.map((t) => (t.id === oldTrxId ? updatedOldTrx : t)),
+    ]);
+
+    // 8. Catat ke Audit Log
+    const selisihDesc =
+      selisih < 0
+        ? `Kembalikan Uang: ${formatRupiah(Math.abs(selisih))}`
+        : selisih > 0
+        ? `Tagihan Tambahan: ${formatRupiah(selisih)}`
+        : 'Biaya Pas';
+
+    handleAddAuditLog({
+      siapa: currentUser ? `${currentUser.nama} (${currentUser.jabatan})` : 'Petugas Kasir',
+      cabang: oldTrx.cabang,
+      aksi: 'Void & Ganti Pesanan',
+      nominal: oldTrx.total,
+      keterangan: `Void #${oldTrx.invoiceNo} ➔ Baru #${newInvoiceNo} (${selisihDesc}) - Alasan: ${payload.alasanVoid}`,
+    });
+
+    return { oldTrx: updatedOldTrx, newTrx, selisih };
   };
 
   // Handler Update Status Pesanan (MENUNGGU -> DIPROSES -> SIAP ANTAR -> BELUM BAYAR -> LUNAS)
@@ -607,11 +984,25 @@ export default function App() {
     setTransaksiList((prev) =>
       prev.map((t) => {
         if (t.id !== trxId) return t;
-        const isDiproses = statusPesanan === 'DIPROSES' || statusPesanan === 'Sedang Dibuat';
-        const isSelesai = statusPesanan === 'LUNAS' || statusPesanan === 'Selesai';
+
+        // Requirement 2: Status hanya boleh maju, tidak boleh mundur
+        const currentRank = getStatusRank(t.statusPesanan);
+        const targetRank = getStatusRank(statusPesanan);
+        const isBatalOrVoid = statusPesanan === 'DIBATALKAN' || statusPesanan === 'DIVOID';
+
+        if (!isBatalOrVoid && currentRank > 0 && targetRank > 0 && targetRank < currentRank) {
+          console.warn(`[Status Protection] Mencegah status pesanan mundur dari ${t.statusPesanan} (rank ${currentRank}) ke ${statusPesanan} (rank ${targetRank})`);
+          updatedTarget = t;
+          return t;
+        }
+
+        const normTarget = normalizeStatusPesanan(statusPesanan);
+        const isDiproses = normTarget === 'DIPROSES';
+        const isSelesai = normTarget === 'LUNAS';
+
         const updated: Transaksi = {
           ...t,
-          statusPesanan,
+          statusPesanan: normTarget,
           ...(paymentMeta || isSelesai ? { statusPembayaran: 'LUNAS' } : {}),
           ...(paymentMeta?.metodeBayar ? { metodeBayar: paymentMeta.metodeBayar } : {}),
           ...(paymentMeta?.bayar !== undefined ? { bayar: paymentMeta.bayar } : {}),
@@ -636,8 +1027,23 @@ export default function App() {
 
   // Absensi Handlers
   const handleAddAbsensi = (newAbsen: Absensi) => {
-    setAbsensiList((prev) => [...prev, newAbsen]);
+    setAbsensiList((prev) => {
+      const idx = prev.findIndex(
+        (a) => a.id === newAbsen.id || (a.karyawanId === newAbsen.karyawanId && a.tanggal === newAbsen.tanggal)
+      );
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = newAbsen;
+        return next;
+      }
+      return [...prev, newAbsen];
+    });
     firestoreSaveAbsensi(newAbsen);
+  };
+
+  const handleDeleteAbsensi = (absenId: string) => {
+    setAbsensiList((prev) => prev.filter((a) => a.id !== absenId));
+    firestoreDeleteAbsensi(absenId);
   };
 
   const handleAbsenPulang = (absenId: string, jamPulang: string, durasi: string) => {
@@ -914,17 +1320,110 @@ export default function App() {
     });
   };
 
-  // Reset to initial demo data (Helper for user testing)
-  const handleResetData = async () => {
-    if (
-      confirm(
-        'PERINGATAN: Apakah Anda yakin ingin mereset seluruh data kembali ke setelan awal demo PADAHERANG 01, BANJARSARI 02, CIAWTALI 03 & DC PUSAT?'
-      )
-    ) {
-      localStorage.clear();
-      await seedInitialFirestoreDataIfEmpty(true);
-      setCurrentUser(null);
-      setActiveTab('dashboard');
+  // Full Reset Trigger & Execution (Owner Total Reset)
+  const handleOpenFullResetModal = () => {
+    setShowFullResetModal(true);
+  };
+
+  const handleExecuteFullReset = async (options: FullResetOptions): Promise<FullResetResult> => {
+    const userEmail = currentUser?.email || (currentUser?.jabatan === 'Owner' ? OWNER_EMAIL : '');
+    const result = await executeFullResetInFirestore(options, userEmail);
+
+    if (result.success) {
+      // 1. Pesanan & Transaksi
+      if (options.pesananTransaksi) {
+        setTransaksiList([]);
+        setPengeluaranList([]);
+        saveToStorage(STORAGE_KEYS.TRANSAKSI, []);
+        saveToStorage(STORAGE_KEYS.PENGELUARAN, []);
+      }
+
+      // 2. Menu & Kategori
+      if (options.menuKategori) {
+        setKatalogList([]);
+        saveToStorage(STORAGE_KEYS.KATALOG, []);
+      }
+
+      // 3. Bahan Baku & Stok
+      if (options.bahanBakuStok) {
+        setBahanBakuList([]);
+        setStokCabang({});
+        saveToStorage(STORAGE_KEYS.BAHAN_BAKU, []);
+        saveToStorage(STORAGE_KEYS.STOK_CABANG, {});
+      }
+
+      // 4. Laporan, Divoid, Audit, Absensi
+      if (options.laporanDivoid) {
+        setLaporanHarianList([]);
+        setAuditLogList([]);
+        setAbsensiList([]);
+        setSuratJalanList([]);
+        setPermintaanList([]);
+        saveToStorage(STORAGE_KEYS.LAPORAN_HARIAN, []);
+        saveToStorage(STORAGE_KEYS.AUDIT_LOG, []);
+        saveToStorage(STORAGE_KEYS.ABSENSI, []);
+        saveToStorage(STORAGE_KEYS.SURAT_JALAN, []);
+        saveToStorage(STORAGE_KEYS.PERMINTAAN_BARANG, []);
+      }
+
+      // 5. Karyawan Trial (Amankan Owner)
+      if (options.karyawanTrial) {
+        setKaryawanList((prev) => {
+          const preserved = prev.filter(
+            (k) =>
+              k.id === 'usr-0' ||
+              k.jabatan === 'Owner' ||
+              (k.email && k.email.toLowerCase() === OWNER_EMAIL.toLowerCase())
+          );
+          saveToStorage(STORAGE_KEYS.KARYAWAN, preserved);
+          return preserved;
+        });
+      }
+
+      setResetToastMessage(result.message);
+    }
+
+    return result;
+  };
+
+  // Reset to initial demo data (Manual Action only from Pengaturan / Owner with UI modal)
+  const handleResetData = () => {
+    setFooterResetMsg(null);
+    setShowFooterResetModal(true);
+  };
+
+  const handleExecuteFooterReset = async () => {
+    const userEmail = currentUser?.email || (currentUser?.jabatan === 'Owner' ? OWNER_EMAIL : '');
+    if (userEmail.trim().toLowerCase() !== OWNER_EMAIL.toLowerCase()) {
+      setFooterResetMsg({
+        type: 'error',
+        text: `Akses ditolak: Hanya akun Owner (${OWNER_EMAIL}) yang berhak menjalankan reset data demo.`,
+      });
+      return;
+    }
+
+    setIsResettingFooter(true);
+    setFooterResetMsg(null);
+    try {
+      const res = await resetToDemoDataInFirestore(userEmail);
+      if (res.success) {
+        setFooterResetMsg({
+          type: 'success',
+          text: 'Data demo (dengan isDemo: true) berhasil di-reset ke Firestore.',
+        });
+      } else {
+        setFooterResetMsg({
+          type: 'error',
+          text: res.message,
+        });
+      }
+    } catch (e: any) {
+      setFooterResetMsg({
+        type: 'error',
+        text: e?.message || 'Gagal mereset data demo.',
+      });
+    } finally {
+      setIsResettingFooter(false);
     }
   };
 
@@ -965,8 +1464,9 @@ export default function App() {
   const isDcPusatOrOwner = currentUser.cabang === 'DC PUSAT' || currentUser.jabatan === 'Owner';
   const userBranchName = getBranchName(currentUser.cabang, dataCabangList);
   const activeOrdersCount = transaksiList.filter((t) => {
-    if (t.status === 'Retur') return false;
-    const isOngoing = (t.statusPesanan || 'Menunggu') === 'Menunggu' || t.statusPesanan === 'Sedang Dibuat';
+    if (t.status === 'Retur' || t.statusPesanan === 'DIVOID' || t.statusPesanan === 'DIBATALKAN') return false;
+    const norm = normalizeStatusPesanan(t.statusPesanan, t.status);
+    const isOngoing = norm === 'MENUNGGU' || norm === 'DIPROSES' || norm === 'SIAP ANTAR' || norm === 'BELUM BAYAR';
     if (!isOngoing) return false;
     if (isDcPusatOrOwner) return true;
     const tBranch = getBranchName(t.cabang, dataCabangList);
@@ -1001,6 +1501,7 @@ export default function App() {
             absensiList={absensiList}
             tokoState={tokoState}
             dataCabangList={dataCabangList}
+            onOpenResetModal={handleOpenFullResetModal}
           />
         )}
 
@@ -1026,8 +1527,13 @@ export default function App() {
           <PesananView
             currentUser={currentUser}
             transaksiList={transaksiList}
+            katalogList={katalogList}
+            bahanBakuList={bahanBakuList}
+            stokCabang={stokCabang}
             onUpdateStatusPesanan={handleUpdateStatusPesanan}
             onBatalkanPesanan={handleBatalkanPesanan}
+            onEditPesananBelumBayar={handleEditPesananBelumBayar}
+            onVoidPesananLunas={handleVoidPesananLunas}
             dataCabangList={dataCabangList}
             onOpenPrintModal={openPrintModal}
             onNavigateToPos={() => setActiveTab('pos')}
@@ -1110,6 +1616,7 @@ export default function App() {
             absensiList={absensiList}
             karyawanList={karyawanList}
             onAddAbsensi={handleAddAbsensi}
+            onDeleteAbsensi={handleDeleteAbsensi}
             onAbsenPulang={handleAbsenPulang}
             onOpenPrintModal={openPrintModal}
             dataCabangList={dataCabangList}
@@ -1191,6 +1698,23 @@ export default function App() {
             onOpenPrintModal={openPrintModal}
           />
         )}
+
+        {activeTab === 'pengaturan' && isDcPusatOrOwner && (
+          <PengaturanView
+            currentUser={currentUser}
+            dataCabangList={dataCabangList}
+            karyawanList={karyawanList}
+            katalogList={katalogList}
+            bahanBakuList={bahanBakuList}
+            transaksiList={transaksiList}
+            pengeluaranList={pengeluaranList}
+            absensiList={absensiList}
+            onManualResetSuccess={() => {
+              // demo reset completed
+            }}
+            onOpenResetModal={handleOpenFullResetModal}
+          />
+        )}
       </main>
 
       {/* Footer & Reset Data Helper */}
@@ -1257,6 +1781,133 @@ export default function App() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* RESET DATA DEMO UI MODAL (Bukan confirm() browser) */}
+      {showFooterResetModal && (() => {
+        const userEmail = currentUser?.email || (currentUser?.jabatan === 'Owner' ? OWNER_EMAIL : '');
+        const isOwnerEmail = userEmail.trim().toLowerCase() === OWNER_EMAIL.toLowerCase();
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200">
+              <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full mx-auto flex items-center justify-center">
+                <RotateCcw className="w-7 h-7" />
+              </div>
+
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  Konfirmasi Reset Data Demo
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Security Check: Otorisasi Akun Owner
+                </p>
+              </div>
+
+              {/* Status Message */}
+              {footerResetMsg ? (
+                <div
+                  className={`p-3 rounded-2xl text-xs font-bold text-left ${
+                    footerResetMsg.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-900 border border-emerald-300'
+                      : 'bg-red-50 text-red-900 border border-red-300'
+                  }`}
+                >
+                  {footerResetMsg.text}
+                </div>
+              ) : (
+                <div className="text-left text-xs space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                  <div className="flex items-center justify-between text-[11px] pb-1 border-b border-slate-200">
+                    <span className="text-slate-500 font-semibold">Email Pengguna:</span>
+                    <span className="font-mono font-bold text-slate-800">{userEmail || 'Tidak terdeteksi'}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] pb-1 border-b border-slate-200">
+                    <span className="text-slate-500 font-semibold">Email Wajib (Owner):</span>
+                    <span className="font-mono font-bold text-red-600">{OWNER_EMAIL}</span>
+                  </div>
+
+                  {isOwnerEmail ? (
+                    <p className="text-slate-600 pt-1 leading-relaxed">
+                      Apakah Anda yakin ingin mengisi ulang database Firestore dengan data contoh demo Seblak Telaga?
+                      Dokumen demo akan diberi tanda <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">isDemo: true</code> dan hanya dapat dihapus oleh Owner.
+                    </p>
+                  ) : (
+                    <div className="p-2.5 bg-red-100/80 border border-red-300 text-red-800 rounded-xl font-bold text-center">
+                      ⛔ Akses Ditolak: Hanya akun dengan email <strong>{OWNER_EMAIL}</strong> yang berhak menjalankan reset data demo.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowFooterResetModal(false)}
+                  disabled={isResettingFooter}
+                  className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer transition"
+                >
+                  {footerResetMsg ? 'Tutup' : 'Batal'}
+                </button>
+                {!footerResetMsg && isOwnerEmail && (
+                  <button
+                    type="button"
+                    onClick={handleExecuteFooterReset}
+                    disabled={isResettingFooter}
+                    className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-extrabold rounded-xl text-xs cursor-pointer shadow-md transition flex items-center justify-center gap-1.5"
+                  >
+                    {isResettingFooter ? 'Mereset Data...' : 'Ya, Reset Sekarang'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* FULL RESET TOTAL MODAL (Owner Total Reset) */}
+      {currentUser && (
+        <ResetTotalModal
+          isOpen={showFullResetModal}
+          onClose={() => setShowFullResetModal(false)}
+          userEmail={currentUser.email || (currentUser.jabatan === 'Owner' ? OWNER_EMAIL : '')}
+          isOwner={currentUser.jabatan === 'Owner'}
+          onExecuteReset={handleExecuteFullReset}
+          dataCounts={{
+            pesananTransaksi: transaksiList.length + pengeluaranList.length,
+            menuKategori: katalogList.length,
+            pelanggan: new Set(transaksiList.map((t) => t.pelangganNama).filter(Boolean)).size,
+            bahanBakuStok: bahanBakuList.length + Object.keys(stokCabang).length,
+            laporanDivoid:
+              laporanHarianList.length +
+              auditLogList.length +
+              absensiList.length +
+              suratJalanList.length +
+              permintaanList.length,
+            karyawanTrial: karyawanList.filter(
+              (k) =>
+                k.id !== 'usr-0' &&
+                k.jabatan !== 'Owner' &&
+                (!k.email || k.email.toLowerCase() !== OWNER_EMAIL.toLowerCase())
+            ).length,
+          }}
+        />
+      )}
+
+      {/* FLOATING SUCCESS TOAST NOTIFICATION */}
+      {resetToastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-md bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border-2 border-emerald-500 flex items-start gap-3 animate-in slide-in-from-bottom duration-300">
+          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+          <div className="text-xs space-y-1">
+            <div className="font-extrabold text-white">Full Reset Berhasil!</div>
+            <div className="text-slate-300">{resetToastMessage}</div>
+          </div>
+          <button
+            onClick={() => setResetToastMessage(null)}
+            className="text-slate-400 hover:text-white p-1 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>

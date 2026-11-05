@@ -12,6 +12,7 @@ import {
   Flame,
   UserCheck,
   ShoppingBag,
+  Trash2,
 } from 'lucide-react';
 import {
   Karyawan,
@@ -38,6 +39,7 @@ interface DashboardViewProps {
   absensiList: Absensi[];
   tokoState: AllTokoState;
   dataCabangList?: DataCabang[];
+  onOpenResetModal?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -50,6 +52,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   absensiList,
   tokoState,
   dataCabangList = [],
+  onOpenResetModal,
 }) => {
   const isDcPusat = currentUser.cabang === 'DC PUSAT';
   const today = getTodayStr();
@@ -154,6 +157,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <Package className="w-4 h-4" />
                   Katalog & HPP Menu
                 </button>
+
+                {/* Tombol Khusus Owner: Reset Total */}
+                {currentUser.jabatan === 'Owner' && onOpenResetModal && (
+                  <div className="pt-1 sm:pt-0 sm:border-l sm:border-white/20 sm:pl-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpenResetModal()}
+                      className="bg-rose-900 hover:bg-black text-white font-black px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-rose-950/50 border border-rose-600/80 transition cursor-pointer active:scale-95"
+                      title="Buka dialog pilih koleksi yang mau dihapus total"
+                    >
+                      <Trash2 className="w-4 h-4 text-rose-300 stroke-[2.5]" />
+                      <span>🗑️ RESET TOTAL - HAPUS SEMUA DATA TRIAL</span>
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>

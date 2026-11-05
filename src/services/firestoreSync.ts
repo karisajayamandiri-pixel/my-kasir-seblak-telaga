@@ -23,6 +23,9 @@ import {
   LaporanHarian,
   AuditLog,
   TokoState,
+  OWNER_EMAIL,
+  FullResetOptions,
+  FullResetResult,
 } from '../types';
 import {
   INITIAL_DATA_CABANG,
@@ -59,38 +62,29 @@ export const FIRESTORE_COLLECTIONS = {
 };
 
 /**
- * Check if initial seeding is needed and populate Firestore if empty.
+ * Auto-seeding otomatis saat aplikasi dibuka dimatikan permanen (Sesuai instruksi).
+ * Fungsi ini HANYA mengeksekusi jika dipanggil secara manual dari tombol 'Reset Data Demo' di Pengaturan oleh Owner.
  */
-export async function seedInitialFirestoreDataIfEmpty(force = false): Promise<boolean> {
-  try {
-    if (!force) {
-      const branchSnap = await getDocs(collection(db, FIRESTORE_COLLECTIONS.BRANCHES));
-      if (!branchSnap.empty) {
-        return false; // Already seeded
-      }
+export async function seedInitialFirestoreDataIfEmpty(force = false, callerEmail?: string): Promise<boolean> {
+  if (!force) {
+    // AUTO-SEED MATI PERMANEN. Tidak pernah mengisi data otomatis saat app dibuka/refresh/publish.
+    return false;
+  }
+  return (await resetToDemoDataInFirestore(callerEmail)).success;
+}
 
-      // Check legacy cabang collection to migrate if exists
-      const oldCabangSnap = await getDocs(collection(db, 'cabang'));
-      if (!oldCabangSnap.empty) {
-        console.log('Migrating branches from legacy cabang collection...');
-        const migrateBatch = writeBatch(db);
-        oldCabangSnap.forEach((d) => {
-          const data = d.data();
-          const branchId = data.id || data.branchId || d.id;
-          migrateBatch.set(doc(db, FIRESTORE_COLLECTIONS.BRANCHES, branchId), {
-            ...data,
-            id: branchId,
-            branchId,
-            nama: data.nama || data.name || '',
-            name: data.name || data.nama || '',
-          });
-        });
-        await migrateBatch.commit();
-        return true;
-      }
+export async function resetToDemoDataInFirestore(callerEmail?: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const emailToCheck = (callerEmail || '').trim().toLowerCase();
+    if (emailToCheck !== OWNER_EMAIL.toLowerCase()) {
+      console.warn(`Unauthorized reset attempt by email: "${emailToCheck}". Expected: "${OWNER_EMAIL}"`);
+      return {
+        success: false,
+        message: `Akses Ditolak: Fungsi reset hanya bisa dijalankan jika user.email == ${OWNER_EMAIL}. Akun saat ini: ${emailToCheck || '(tidak terdaftar email)'}.`,
+      };
     }
 
-    console.log('Seeding initial data into Firestore...');
+    console.log(`Security check passed for Owner (${emailToCheck}). Seeding demo data with isDemo=true into Firestore...`);
     const batch = writeBatch(db);
 
     // 1. Branches
@@ -102,90 +96,290 @@ export async function seedInitialFirestoreDataIfEmpty(force = false): Promise<bo
         id: branchId,
         branchId,
         name: c.nama,
+        isDemo: true,
       }));
     });
 
     // 2. Katalog
     INITIAL_KATALOG.forEach((k) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.KATALOG, k.id);
-      batch.set(ref, sanitizeForFirestore(k));
+      batch.set(ref, sanitizeForFirestore({ ...k, isDemo: true }));
     });
 
     // 3. Karyawan
     INITIAL_KARYAWAN.forEach((k) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.KARYAWAN, k.id);
-      batch.set(ref, sanitizeForFirestore(k));
+      batch.set(ref, sanitizeForFirestore({ ...k, isDemo: true }));
     });
 
     // 4. Bahan Baku
     INITIAL_BAHAN_BAKU.forEach((b) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.BAHAN_BAKU, b.id);
-      batch.set(ref, sanitizeForFirestore(b));
+      batch.set(ref, sanitizeForFirestore({ ...b, isDemo: true }));
     });
 
     // 5. Stok Cabang
     Object.entries(INITIAL_STOK_CABANG).forEach(([cabangName, stok]) => {
       const safeId = encodeURIComponent(cabangName);
       const ref = doc(db, FIRESTORE_COLLECTIONS.STOK_CABANG, safeId);
-      batch.set(ref, sanitizeForFirestore({ cabang: cabangName, stok }));
+      batch.set(ref, sanitizeForFirestore({ cabang: cabangName, stok, isDemo: true }));
     });
 
     // 6. Status Toko
     Object.entries(INITIAL_TOKO_STATE).forEach(([cabangName, state]) => {
       const safeId = encodeURIComponent(cabangName);
       const ref = doc(db, FIRESTORE_COLLECTIONS.STATUS_TOKO, safeId);
-      batch.set(ref, sanitizeForFirestore({ cabang: cabangName, ...state }));
+      batch.set(ref, sanitizeForFirestore({ cabang: cabangName, ...state, isDemo: true }));
     });
 
     // 7. Transaksi
     INITIAL_TRANSAKSI.forEach((t) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.TRANSAKSI, t.id);
-      batch.set(ref, sanitizeForFirestore(t));
+      batch.set(ref, sanitizeForFirestore({ ...t, isDemo: true }));
     });
 
     // 8. Pengeluaran
     INITIAL_PENGELUARAN.forEach((p) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.PENGELUARAN, p.id);
-      batch.set(ref, sanitizeForFirestore(p));
+      batch.set(ref, sanitizeForFirestore({ ...p, isDemo: true }));
     });
 
     // 9. Absensi
     INITIAL_ABSENSI.forEach((a) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.ABSENSI, a.id);
-      batch.set(ref, sanitizeForFirestore(a));
+      batch.set(ref, sanitizeForFirestore({ ...a, isDemo: true }));
     });
 
     // 10. Surat Jalan
     INITIAL_SURAT_JALAN.forEach((sj) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.SURAT_JALAN, sj.id);
-      batch.set(ref, sanitizeForFirestore(sj));
+      batch.set(ref, sanitizeForFirestore({ ...sj, isDemo: true }));
     });
 
     // 11. Permintaan
     INITIAL_PERMINTAAN.forEach((req) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.PERMINTAAN, req.id);
-      batch.set(ref, sanitizeForFirestore(req));
+      batch.set(ref, sanitizeForFirestore({ ...req, isDemo: true }));
     });
 
     // 12. Laporan Harian
     INITIAL_LAPORAN_HARIAN.forEach((lap) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.LAPORAN_HARIAN, lap.id);
-      batch.set(ref, sanitizeForFirestore(lap));
+      batch.set(ref, sanitizeForFirestore({ ...lap, isDemo: true }));
     });
 
     // 13. Audit Log
     INITIAL_AUDIT_LOG.forEach((log) => {
       const ref = doc(db, FIRESTORE_COLLECTIONS.AUDIT_LOG, log.id);
-      batch.set(ref, sanitizeForFirestore(log));
+      batch.set(ref, sanitizeForFirestore({ ...log, isDemo: true }));
     });
 
     await batch.commit();
-    console.log('Seeding initial data into Firestore complete!');
-    return true;
+    console.log('Seeding initial data into Firestore complete with isDemo=true!');
+    return { success: true, message: 'Data demo berhasil di-reset ke Firestore.' };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, 'seed');
-    return false;
+    return { success: false, message: 'Gagal mereset data demo ke Firestore.' };
   }
+}
+
+/**
+ * Helper: Menghapus seluruh dokumen dalam collection menggunakan writeBatch dalam kelipatan 400 dokumen
+ * Menjamin tidak melebihi limit 500 operasi Firestore per batch.
+ */
+async function deleteCollectionInBatches(
+  collectionName: string,
+  filterFn?: (docData: any, docId: string) => boolean
+): Promise<number> {
+  let count = 0;
+  try {
+    const colRef = collection(db, collectionName);
+    const snap = await getDocs(colRef);
+    if (snap.empty) {
+      console.log(`Menghapus collection ${collectionName}: 0 dokumen`);
+      return 0;
+    }
+
+    const docsToDelete = snap.docs.filter((d) => {
+      if (!filterFn) return true;
+      return filterFn(d.data(), d.id);
+    });
+
+    console.log(`Menghapus collection ${collectionName}: ${docsToDelete.length} dokumen`);
+
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < docsToDelete.length; i += CHUNK_SIZE) {
+      const chunk = docsToDelete.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      for (const d of chunk) {
+        batch.delete(d.ref);
+      }
+      await batch.commit();
+      count += chunk.length;
+    }
+  } catch (err) {
+    console.warn(`Gagal menghapus dokumen dari collection ${collectionName}:`, err);
+  }
+  return count;
+}
+
+/**
+ * FUNGSI FULL RESET TOTAL:
+ * Menghapus data trial/uji coba berdasarkan kategori yang dicentang oleh Owner.
+ * Menjamin akun Owner dan konfigurasi toko tidak terhapus.
+ */
+export async function executeFullResetInFirestore(
+  options: FullResetOptions,
+  callerEmail?: string
+): Promise<FullResetResult> {
+  const emailToCheck = (callerEmail || '').trim().toLowerCase();
+  if (emailToCheck !== OWNER_EMAIL.toLowerCase()) {
+    console.warn(`Akses ditolak: Full reset hanya diizinkan untuk email ${OWNER_EMAIL}. Akun saat ini: ${emailToCheck || 'anonim'}`);
+    return {
+      success: false,
+      totalDeleted: 0,
+      collectionCount: 0,
+      message: `Akses Ditolak: Hanya akun Owner (${OWNER_EMAIL}) yang berhak menjalankan Full Reset Total.`,
+      affectedCategories: [],
+    };
+  }
+
+  let totalDeleted = 0;
+  const affectedCollections: string[] = [];
+  const affectedCategories: string[] = [];
+
+  try {
+    // 1. Pesanan & Transaksi (transaksi, orders, pesanan, transactions, sales, pengeluaran)
+    if (options.pesananTransaksi) {
+      affectedCategories.push('Pesanan & Transaksi');
+      const collectionsToClean = ['transaksi', 'orders', 'pesanan', 'transactions', 'sales', 'pengeluaran'];
+      for (const col of collectionsToClean) {
+        const deleted = await deleteCollectionInBatches(col);
+        if (deleted > 0) {
+          totalDeleted += deleted;
+          if (!affectedCollections.includes(col)) affectedCollections.push(col);
+        }
+      }
+    }
+
+    // 2. Menu & Kategori (katalog, menus, products, categories)
+    if (options.menuKategori) {
+      affectedCategories.push('Menu & Kategori');
+      const collectionsToClean = ['katalog', 'menus', 'products', 'categories'];
+      for (const col of collectionsToClean) {
+        const deleted = await deleteCollectionInBatches(col);
+        if (deleted > 0) {
+          totalDeleted += deleted;
+          if (!affectedCollections.includes(col)) affectedCollections.push(col);
+        }
+      }
+    }
+
+    // 3. Pelanggan (pelanggan, customers)
+    if (options.pelanggan) {
+      affectedCategories.push('Pelanggan');
+      const collectionsToClean = ['pelanggan', 'customers'];
+      for (const col of collectionsToClean) {
+        const deleted = await deleteCollectionInBatches(col);
+        if (deleted > 0) {
+          totalDeleted += deleted;
+          if (!affectedCollections.includes(col)) affectedCollections.push(col);
+        }
+      }
+    }
+
+    // 4. Bahan Baku & Stok (bahanBaku, ingredients, bahan, stokCabang, stocks)
+    if (options.bahanBakuStok) {
+      affectedCategories.push('Bahan Baku & Stok');
+      const collectionsToClean = ['bahanBaku', 'ingredients', 'bahan', 'stokCabang', 'stocks'];
+      for (const col of collectionsToClean) {
+        const deleted = await deleteCollectionInBatches(col);
+        if (deleted > 0) {
+          totalDeleted += deleted;
+          if (!affectedCollections.includes(col)) affectedCollections.push(col);
+        }
+      }
+    }
+
+    // 5. Laporan & Divoid (laporanHarian, auditLog, divoid, dibatalkan, logs, reports, absensi, suratJalan, permintaan)
+    if (options.laporanDivoid) {
+      affectedCategories.push('Laporan & Divoid');
+      const collectionsToClean = [
+        'laporanHarian',
+        'auditLog',
+        'divoid',
+        'dibatalkan',
+        'logs',
+        'reports',
+        'absensi',
+        'suratJalan',
+        'permintaan',
+      ];
+      for (const col of collectionsToClean) {
+        const deleted = await deleteCollectionInBatches(col);
+        if (deleted > 0) {
+          totalDeleted += deleted;
+          if (!affectedCollections.includes(col)) affectedCollections.push(col);
+        }
+      }
+    }
+
+    // 6. Karyawan Trial (employees, karyawan)
+    // KECUALI: JANGAN HAPUS akun Owner (Haji Hendra, usr-0, jabatan Owner, email OWNER_EMAIL)
+    if (options.karyawanTrial) {
+      affectedCategories.push('Karyawan Trial');
+      const collectionsToClean = ['karyawan', 'employees'];
+      for (const col of collectionsToClean) {
+        const deleted = await deleteCollectionInBatches(col, (data, docId) => {
+          const isOwnerDoc =
+            docId === 'usr-0' ||
+            data?.jabatan === 'Owner' ||
+            data?.role === 'owner' ||
+            (data?.email && data.email.toLowerCase() === OWNER_EMAIL.toLowerCase());
+          return !isOwnerDoc; // Hanya hapus jika BUKAN akun Owner
+        });
+        if (deleted > 0) {
+          totalDeleted += deleted;
+          if (!affectedCollections.includes(col)) affectedCollections.push(col);
+        }
+      }
+    }
+
+    console.log(`FULL RESET SELESAI: ${totalDeleted} dokumen dihapus dari ${affectedCollections.length} koleksi.`);
+    return {
+      success: true,
+      totalDeleted,
+      collectionCount: affectedCollections.length,
+      message: `✅ ${totalDeleted} data trial berhasil dihapus di ${affectedCollections.length || 1} koleksi (${affectedCategories.join(', ')}).`,
+      affectedCategories,
+    };
+  } catch (error: any) {
+    console.error('Error saat menjalankan full reset:', error);
+    return {
+      success: false,
+      totalDeleted,
+      collectionCount: affectedCollections.length,
+      message: `Gagal menjalankan reset: ${error?.message || String(error)}`,
+      affectedCategories,
+    };
+  }
+}
+
+/**
+ * FUNGSI HAPUS CEPAT: CUMA PESANAN & TRANSAKSI
+ */
+export async function executeQuickOrdersReset(callerEmail?: string): Promise<FullResetResult> {
+  return executeFullResetInFirestore(
+    {
+      pesananTransaksi: true,
+      menuKategori: false,
+      pelanggan: false,
+      bahanBakuStok: false,
+      laporanDivoid: false,
+      karyawanTrial: false,
+    },
+    callerEmail
+  );
 }
 
 /**
@@ -225,7 +419,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
             name: branchName,
           } as DataCabang;
         });
-        if (items.length > 0) callbacks.onCabang(items);
+        callbacks.onCabang(items);
       },
       (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.BRANCHES)
     )
@@ -237,7 +431,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
       collection(db, FIRESTORE_COLLECTIONS.KATALOG),
       (snap) => {
         const items = snap.docs.map((d) => d.data() as KatalogMenu);
-        if (items.length > 0) callbacks.onKatalog(items);
+        callbacks.onKatalog(items);
       },
       (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.KATALOG)
     )
@@ -249,7 +443,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
       collection(db, FIRESTORE_COLLECTIONS.KARYAWAN),
       (snap) => {
         const items = snap.docs.map((d) => d.data() as Karyawan);
-        if (items.length > 0) callbacks.onKaryawan(items);
+        callbacks.onKaryawan(items);
       },
       (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.KARYAWAN)
     )
@@ -261,7 +455,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
       collection(db, FIRESTORE_COLLECTIONS.BAHAN_BAKU),
       (snap) => {
         const items = snap.docs.map((d) => d.data() as BahanBaku);
-        if (items.length > 0) callbacks.onBahanBaku(items);
+        callbacks.onBahanBaku(items);
       },
       (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.BAHAN_BAKU)
     )
@@ -279,7 +473,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
             map[data.cabang] = data.stok;
           }
         });
-        if (Object.keys(map).length > 0) callbacks.onStokCabang(map);
+        callbacks.onStokCabang(map);
       },
       (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.STOK_CABANG)
     )
@@ -306,7 +500,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
             };
           }
         });
-        if (Object.keys(state).length > 0) callbacks.onStatusToko(state);
+        callbacks.onStatusToko(state);
       },
       (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.STATUS_TOKO)
     )
@@ -544,6 +738,14 @@ export async function firestoreSaveAbsensi(absensi: Absensi) {
     await setDoc(doc(db, FIRESTORE_COLLECTIONS.ABSENSI, absensi.id), sanitizeForFirestore(absensi), { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.ABSENSI}/${absensi.id}`);
+  }
+}
+
+export async function firestoreDeleteAbsensi(id: string) {
+  try {
+    await deleteDoc(doc(db, FIRESTORE_COLLECTIONS.ABSENSI, id));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `${FIRESTORE_COLLECTIONS.ABSENSI}/${id}`);
   }
 }
 
