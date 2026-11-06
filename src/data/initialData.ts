@@ -262,6 +262,7 @@ export const INITIAL_KATALOG: KatalogMenu[] = [
     harga_promo: 10000,
     free_minuman: 'Es Teh Manis Jumbo Telaga',
     free_minuman_id: 'ktl-10',
+    promo_cabang_ids: [], // Kosong = berlaku di semua cabang
   },
   {
     id: 'ktl-2',

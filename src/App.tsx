@@ -1574,6 +1574,7 @@ export default function App() {
             katalogList={katalogList}
             bahanBakuList={bahanBakuList}
             stokCabang={stokCabang}
+            dataCabangList={dataCabangList}
             onAddKatalog={handleAddKatalog}
             onUpdateKatalog={handleUpdateKatalog}
             onDeleteKatalog={handleDeleteKatalog}

@@ -53,7 +53,7 @@ import {
   generateInvoiceNo,
 } from '../utils/storage';
 import { printReceiptViaBluetooth, isWebBluetoothSupported } from '../utils/bluetoothPrinter';
-import { getBranchName, getBranchById } from '../utils/branchHelper';
+import { getBranchName, getBranchById, isPromoActiveForBranch } from '../utils/branchHelper';
 
 interface PosViewProps {
   currentUser: Karyawan;
@@ -286,11 +286,21 @@ export const PosView: React.FC<PosViewProps> = ({
       return;
     }
 
+    // Cek apakah promo (harga_promo & free_minuman) aktif untuk cabang kasir saat ini
+    const isPromoActive = isPromoActiveForBranch(
+      menu.promo_cabang_ids,
+      currentUser.branchId || currentUser.cabang,
+      dataCabangList
+    );
+
     const hasPromoPrice =
+      isPromoActive &&
       typeof menu.harga_promo === 'number' &&
       menu.harga_promo > 0 &&
       menu.harga_promo < menu.hargaJual;
     const effectivePrice = hasPromoPrice ? menu.harga_promo! : menu.hargaJual;
+    const effectiveFreeMinuman = isPromoActive ? menu.free_minuman : undefined;
+    const effectiveFreeMinumanId = isPromoActive ? menu.free_minuman_id : undefined;
 
     setCart((prev) => {
       const existing = prev.find((item) => item.katalogId === menu.id);
@@ -316,8 +326,8 @@ export const PosView: React.FC<PosViewProps> = ({
           resep: menu.resep,
           hargaAsli: menu.hargaJual,
           harga_promo: hasPromoPrice ? menu.harga_promo : undefined,
-          free_minuman: menu.free_minuman,
-          free_minuman_id: menu.free_minuman_id,
+          free_minuman: effectiveFreeMinuman,
+          free_minuman_id: effectiveFreeMinumanId,
         },
       ];
     });
@@ -715,6 +725,18 @@ export const PosView: React.FC<PosViewProps> = ({
                 const stockCheck = checkStockAvailability(menu);
                 const inCart = cart.find((c) => c.katalogId === menu.id);
 
+                const isPromoActive = isPromoActiveForBranch(
+                  menu.promo_cabang_ids,
+                  currentUser.branchId || currentUser.cabang,
+                  dataCabangList
+                );
+                const hasPromoPrice =
+                  isPromoActive &&
+                  typeof menu.harga_promo === 'number' &&
+                  menu.harga_promo > 0 &&
+                  menu.harga_promo < menu.hargaJual;
+                const hasFreeMinuman = isPromoActive && Boolean(menu.free_minuman && menu.free_minuman.trim() !== '');
+
                 return (
                   <div
                     key={menu.id}
@@ -729,12 +751,12 @@ export const PosView: React.FC<PosViewProps> = ({
                           <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-orange-100 text-orange-800">
                             {menu.kode}
                           </span>
-                          {menu.harga_promo && menu.harga_promo > 0 && menu.harga_promo < menu.hargaJual && (
+                          {hasPromoPrice && (
                             <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-red-600 text-white shadow-xs">
                               PROMO
                             </span>
                           )}
-                          {menu.free_minuman && (
+                          {hasFreeMinuman && (
                             <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500 text-white shadow-xs">
                               FREE + {menu.free_minuman}
                             </span>
@@ -760,7 +782,7 @@ export const PosView: React.FC<PosViewProps> = ({
                         <span className="text-[10px] text-slate-400 block font-semibold">
                           HARGA MENU
                         </span>
-                        {menu.harga_promo && menu.harga_promo > 0 && menu.harga_promo < menu.hargaJual ? (
+                        {hasPromoPrice ? (
                           <div className="flex items-baseline gap-1.5 flex-wrap">
                             <span className="text-xs text-slate-400 line-through font-semibold">
                               {formatRupiah(menu.hargaJual)}
@@ -774,7 +796,7 @@ export const PosView: React.FC<PosViewProps> = ({
                             {formatRupiah(menu.hargaJual)}
                           </span>
                         )}
-                        {menu.free_minuman && (
+                        {hasFreeMinuman && (
                           <span className="block text-[10px] font-bold text-amber-700">
                             + Free {menu.free_minuman}
                           </span>

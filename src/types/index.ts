@@ -67,6 +67,7 @@ export interface KatalogMenu {
   harga_promo?: number; // Promo potongan harga (misal 7000, 8000, jika < hargaJual coret harga asli)
   free_minuman?: string; // Promo gratis minuman (misal Es Teh, Es Jeruk)
   free_minuman_id?: string; // ID menu minuman dari katalog_menu kategori Minuman Segar
+  promo_cabang_ids?: string[]; // Array branch ID / cabang target promo. Kosong [] = semua cabang, jika diisi hanya aktif di cabang terpilih
 }
 
 export type LevelPedas =

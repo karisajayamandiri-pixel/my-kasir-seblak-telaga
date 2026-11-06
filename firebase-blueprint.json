@@ -55,6 +55,7 @@
         "harga_promo": { "type": "number", "description": "Harga promo potongan harga menu" },
         "free_minuman": { "type": "string", "description": "Keterangan minuman gratis promo (e.g. Es Teh, Es Jeruk)" },
         "free_minuman_id": { "type": "string", "description": "ID menu minuman dari katalog kategori Minuman Segar" },
+        "promo_cabang_ids": { "type": "array", "description": "Daftar ID cabang target promo. Kosong [] artinya berlaku di semua cabang" },
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "nama", "hargaJual"]

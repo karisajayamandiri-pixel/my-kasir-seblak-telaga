@@ -25,8 +25,10 @@ import {
   StokCabangMap,
   Cabang,
   AllTokoState,
+  DataCabang,
 } from '../types';
 import { formatRupiah } from '../utils/storage';
+import { getStoreBranches } from '../utils/branchHelper';
 
 interface KatalogMenuViewProps {
   currentUser: Karyawan;
@@ -34,6 +36,7 @@ interface KatalogMenuViewProps {
   bahanBakuList: BahanBaku[];
   stokCabang: StokCabangMap;
   tokoState?: AllTokoState;
+  dataCabangList?: DataCabang[];
   onAddKatalog: (menu: KatalogMenu) => void;
   onUpdateKatalog: (menu: KatalogMenu) => void;
   onDeleteKatalog: (id: string) => void;
@@ -47,6 +50,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
   bahanBakuList,
   stokCabang,
   tokoState,
+  dataCabangList = [],
   onAddKatalog,
   onUpdateKatalog,
   onDeleteKatalog,
@@ -77,6 +81,10 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
   const [freeMinumanId, setFreeMinumanId] = useState<string>('');
   const [searchMinuman, setSearchMinuman] = useState<string>('');
   const [isMinumanDropdownOpen, setIsMinumanDropdownOpen] = useState<boolean>(false);
+  const [promoCabangIds, setPromoCabangIds] = useState<string[]>([]); // Multi-select target cabang promo
+
+  // Active store branches for promo multi-select (excluding DC Pusat)
+  const availableStoreBranches = getStoreBranches(dataCabangList);
 
   // Filter katalog for beverage category (Minuman Segar or containing 'minuman')
   const beverageOptions = katalogList.filter(
@@ -154,6 +162,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
     setFreeMinumanId('');
     setSearchMinuman('');
     setIsMinumanDropdownOpen(false);
+    setPromoCabangIds([]);
     setEditingMenu(null);
     setShowModal(true);
   };
@@ -178,6 +187,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
     setFreeMinumanId(foundDrink ? foundDrink.id : (menu.free_minuman_id || ''));
     setSearchMinuman('');
     setIsMinumanDropdownOpen(false);
+    setPromoCabangIds(Array.isArray(menu.promo_cabang_ids) ? [...menu.promo_cabang_ids] : []);
     setShowModal(true);
   };
 
@@ -212,6 +222,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
     const selectedDrink = freeMinumanId ? beverageOptions.find((b) => b.id === freeMinumanId) : null;
     const finalFreeMinumanId = selectedDrink ? selectedDrink.id : undefined;
     const finalFreeMinumanName = selectedDrink ? selectedDrink.nama : (freeMinuman.trim() || undefined);
+    const finalPromoCabangIds = promoCabangIds.length > 0 ? promoCabangIds : [];
 
     if (editingMenu) {
       onUpdateKatalog({
@@ -227,6 +238,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
         harga_promo: parsedPromo,
         free_minuman: finalFreeMinumanName,
         free_minuman_id: finalFreeMinumanId,
+        promo_cabang_ids: finalPromoCabangIds,
       });
     } else {
       const newMenu: KatalogMenu = {
@@ -242,6 +254,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
         harga_promo: parsedPromo,
         free_minuman: finalFreeMinumanName,
         free_minuman_id: finalFreeMinumanId,
+        promo_cabang_ids: finalPromoCabangIds,
       };
       onAddKatalog(newMenu);
     }
@@ -404,6 +417,13 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                       {hasFreeMinuman && (
                         <span className="px-2.5 py-0.5 rounded-md bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs">
                           FREE + {menu.free_minuman}
+                        </span>
+                      )}
+                      {(hasPromoPrice || hasFreeMinuman) && (
+                        <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
+                          {menu.promo_cabang_ids && menu.promo_cabang_ids.length > 0
+                            ? `📍 ${menu.promo_cabang_ids.length} Cabang Target`
+                            : '🌐 Semua Cabang'}
                         </span>
                       )}
                     </div>
@@ -948,6 +968,86 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                       Data otomatis diambil dari kategori <strong>Minuman Segar</strong>. Disimpan sebagai <code>free_minuman_id</code> dan stok bahan baku minuman akan dipotong saat transaksi.
                     </p>
                   </div>
+                </div>
+
+                {/* 3. Multi-Select Target Cabang Promo (Firebase: promo_cabang_ids) */}
+                <div className="pt-3 border-t border-rose-200/80 space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-800">
+                        3. Target Cabang Promo (Multi-Select)
+                      </label>
+                      <span className="text-[10px] text-slate-500">
+                        {promoCabangIds.length === 0
+                          ? '🌟 Berlaku untuk SEMUA CABANG (array kosong / default)'
+                          : `🎯 Khusus ${promoCabangIds.length} cabang terpilih`}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPromoCabangIds([])}
+                        className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition ${
+                          promoCabangIds.length === 0
+                            ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                            : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        Semua Cabang
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allBranchIds = availableStoreBranches.map((b) => b.branchId || b.id);
+                          setPromoCabangIds(allBranchIds);
+                        }}
+                        className="px-2 py-1 text-[10px] font-bold rounded-lg border bg-white text-slate-600 border-slate-300 hover:bg-slate-100 transition"
+                      >
+                        Pilih Semua Cabang
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {availableStoreBranches.map((branch) => {
+                      const branchKey = branch.branchId || branch.id;
+                      const isChecked = promoCabangIds.includes(branchKey);
+                      return (
+                        <label
+                          key={branch.id}
+                          className={`flex items-center gap-2.5 p-2 rounded-xl border cursor-pointer transition select-none ${
+                            isChecked
+                              ? 'bg-rose-100/70 border-rose-400 font-bold text-rose-950'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setPromoCabangIds((prev) => [...prev, branchKey]);
+                              } else {
+                                setPromoCabangIds((prev) => prev.filter((id) => id !== branchKey));
+                              }
+                            }}
+                            className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs truncate font-bold">{branch.nama}</div>
+                            <div className="text-[10px] text-slate-500 truncate">
+                              ID: {branchKey} {branch.kode ? `• ${branch.kode}` : ''}
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  <p className="text-[10px] text-slate-500 italic">
+                    * Disimpan di Firestore <code>katalog_menu.promo_cabang_ids</code>. Jika kosong <code>[]</code>, promo otomatis tampil di semua cabang. Jika diisi, kasir POS hanya menampilkan harga promo/free minuman di cabang yang dicentang.
+                  </p>
                 </div>
               </div>
 
