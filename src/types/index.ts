@@ -64,6 +64,9 @@ export interface KatalogMenu {
   hargaJual: number; // HARGA MENU
   keuntungan: number; // hargaJual - hargaModal
   deskripsi?: string;
+  harga_promo?: number; // Promo potongan harga (misal 7000, 8000, jika < hargaJual coret harga asli)
+  free_minuman?: string; // Promo gratis minuman (misal Es Teh, Es Jeruk)
+  free_minuman_id?: string; // ID menu minuman dari katalog_menu kategori Minuman Segar
 }
 
 export type LevelPedas =
@@ -85,13 +88,17 @@ export interface CartItem {
   katalogId: string;
   kode: string;
   nama: string;
-  harga: number; // Harga Menu
+  harga: number; // Harga Menu (atau harga_promo jika aktif)
   hargaModal: number;
   qty: number;
   levelPedas?: LevelPedas | string | number;
   catatan?: string;
   subtotal: number;
   resep: ResepItem[];
+  hargaAsli?: number;
+  harga_promo?: number;
+  free_minuman?: string;
+  free_minuman_id?: string;
 }
 
 export interface TransaksiItem {
@@ -105,6 +112,10 @@ export interface TransaksiItem {
   catatan?: string;
   subtotal: number;
   resep: ResepItem[];
+  hargaAsli?: number;
+  harga_promo?: number;
+  free_minuman?: string;
+  free_minuman_id?: string;
 }
 
 export type TipePesanan = 'Dine In' | 'Take Away' | 'Delivery Order';
@@ -346,12 +357,17 @@ export type ActiveTab =
   | 'pengaturan';
 
 export interface FullResetOptions {
-  pesananTransaksi: boolean; // orders, pesanan, transactions, sales, transaksi, pengeluaran
-  menuKategori: boolean; // menus, products, categories, katalog
-  pelanggan: boolean; // customers, pelanggan
-  bahanBakuStok: boolean; // ingredients, stocks, bahan, bahanBaku, stokCabang
-  laporanDivoid: boolean; // divoid, dibatalkan, logs, reports, laporanHarian, auditLog, absensi, suratJalan, permintaan
-  karyawanTrial: boolean; // employees trial, karyawan (kecuali akun Owner)
+  pesanan: boolean; // 1. Pesanan (transaksi, orders, pesanan, sales)
+  pengeluaran: boolean; // 2. Pengeluaran Toko (pengeluaran)
+  permintaanStokCabang: boolean; // 3. Permintaan & Stock Cabang (permintaan, stokCabang)
+  suratJalan: boolean; // 4. Surat Jalan DC (suratJalan)
+  absensi: boolean; // 5. Absensi (absensi)
+  bukaTutupToko: boolean; // 6. Buka/Tutup Toko (statusToko)
+  laporan: boolean; // 7. Laporan (laporanHarian, auditLog, divoid)
+  bahanBakuDc: boolean; // 8. Bahan Baku & DC (bahanBaku, ingredients)
+  katalogMenu: boolean; // 9. Katalog Menu (katalog, menus, products)
+  dataCabang: boolean; // 10. Data Cabang (branches, dataCabang)
+  dataKaryawan: boolean; // 11. Data Karyawan (jangan hapus Owner) (karyawan, employees - kecuali Owner)
 }
 
 export interface FullResetResult {

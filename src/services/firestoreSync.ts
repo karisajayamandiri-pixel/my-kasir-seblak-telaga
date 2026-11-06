@@ -249,10 +249,10 @@ export async function executeFullResetInFirestore(
   const affectedCategories: string[] = [];
 
   try {
-    // 1. Pesanan & Transaksi (transaksi, orders, pesanan, transactions, sales, pengeluaran)
-    if (options.pesananTransaksi) {
-      affectedCategories.push('Pesanan & Transaksi');
-      const collectionsToClean = ['transaksi', 'orders', 'pesanan', 'transactions', 'sales', 'pengeluaran'];
+    // 1. Pesanan
+    if (options.pesanan) {
+      affectedCategories.push('Pesanan');
+      const collectionsToClean = ['transaksi', 'orders', 'pesanan', 'transactions', 'sales'];
       for (const col of collectionsToClean) {
         const deleted = await deleteCollectionInBatches(col);
         if (deleted > 0) {
@@ -262,10 +262,10 @@ export async function executeFullResetInFirestore(
       }
     }
 
-    // 2. Menu & Kategori (katalog, menus, products, categories)
-    if (options.menuKategori) {
-      affectedCategories.push('Menu & Kategori');
-      const collectionsToClean = ['katalog', 'menus', 'products', 'categories'];
+    // 2. Pengeluaran Toko
+    if (options.pengeluaran) {
+      affectedCategories.push('Pengeluaran Toko');
+      const collectionsToClean = ['pengeluaran'];
       for (const col of collectionsToClean) {
         const deleted = await deleteCollectionInBatches(col);
         if (deleted > 0) {
@@ -275,10 +275,10 @@ export async function executeFullResetInFirestore(
       }
     }
 
-    // 3. Pelanggan (pelanggan, customers)
-    if (options.pelanggan) {
-      affectedCategories.push('Pelanggan');
-      const collectionsToClean = ['pelanggan', 'customers'];
+    // 3. Permintaan & Stock Cabang
+    if (options.permintaanStokCabang) {
+      affectedCategories.push('Permintaan & Stock Cabang');
+      const collectionsToClean = ['permintaan', 'stokCabang', 'stocks'];
       for (const col of collectionsToClean) {
         const deleted = await deleteCollectionInBatches(col);
         if (deleted > 0) {
@@ -288,10 +288,10 @@ export async function executeFullResetInFirestore(
       }
     }
 
-    // 4. Bahan Baku & Stok (bahanBaku, ingredients, bahan, stokCabang, stocks)
-    if (options.bahanBakuStok) {
-      affectedCategories.push('Bahan Baku & Stok');
-      const collectionsToClean = ['bahanBaku', 'ingredients', 'bahan', 'stokCabang', 'stocks'];
+    // 4. Surat Jalan DC
+    if (options.suratJalan) {
+      affectedCategories.push('Surat Jalan DC');
+      const collectionsToClean = ['suratJalan'];
       for (const col of collectionsToClean) {
         const deleted = await deleteCollectionInBatches(col);
         if (deleted > 0) {
@@ -301,9 +301,35 @@ export async function executeFullResetInFirestore(
       }
     }
 
-    // 5. Laporan & Divoid (laporanHarian, auditLog, divoid, dibatalkan, logs, reports, absensi, suratJalan, permintaan)
-    if (options.laporanDivoid) {
-      affectedCategories.push('Laporan & Divoid');
+    // 5. Absensi
+    if (options.absensi) {
+      affectedCategories.push('Absensi');
+      const collectionsToClean = ['absensi'];
+      for (const col of collectionsToClean) {
+        const deleted = await deleteCollectionInBatches(col);
+        if (deleted > 0) {
+          totalDeleted += deleted;
+          if (!affectedCollections.includes(col)) affectedCollections.push(col);
+        }
+      }
+    }
+
+    // 6. Buka/Tutup Toko
+    if (options.bukaTutupToko) {
+      affectedCategories.push('Buka/Tutup Toko');
+      const collectionsToClean = ['statusToko'];
+      for (const col of collectionsToClean) {
+        const deleted = await deleteCollectionInBatches(col);
+        if (deleted > 0) {
+          totalDeleted += deleted;
+          if (!affectedCollections.includes(col)) affectedCollections.push(col);
+        }
+      }
+    }
+
+    // 7. Laporan
+    if (options.laporan) {
+      affectedCategories.push('Laporan');
       const collectionsToClean = [
         'laporanHarian',
         'auditLog',
@@ -311,9 +337,6 @@ export async function executeFullResetInFirestore(
         'dibatalkan',
         'logs',
         'reports',
-        'absensi',
-        'suratJalan',
-        'permintaan',
       ];
       for (const col of collectionsToClean) {
         const deleted = await deleteCollectionInBatches(col);
@@ -324,10 +347,49 @@ export async function executeFullResetInFirestore(
       }
     }
 
-    // 6. Karyawan Trial (employees, karyawan)
+    // 8. Bahan Baku & DC
+    if (options.bahanBakuDc) {
+      affectedCategories.push('Bahan Baku & DC');
+      const collectionsToClean = ['bahanBaku', 'ingredients', 'bahan'];
+      for (const col of collectionsToClean) {
+        const deleted = await deleteCollectionInBatches(col);
+        if (deleted > 0) {
+          totalDeleted += deleted;
+          if (!affectedCollections.includes(col)) affectedCollections.push(col);
+        }
+      }
+    }
+
+    // 9. Katalog Menu
+    if (options.katalogMenu) {
+      affectedCategories.push('Katalog Menu');
+      const collectionsToClean = ['katalog', 'menus', 'products', 'categories'];
+      for (const col of collectionsToClean) {
+        const deleted = await deleteCollectionInBatches(col);
+        if (deleted > 0) {
+          totalDeleted += deleted;
+          if (!affectedCollections.includes(col)) affectedCollections.push(col);
+        }
+      }
+    }
+
+    // 10. Data Cabang
+    if (options.dataCabang) {
+      affectedCategories.push('Data Cabang');
+      const collectionsToClean = ['branches', 'cabang', 'dataCabang'];
+      for (const col of collectionsToClean) {
+        const deleted = await deleteCollectionInBatches(col);
+        if (deleted > 0) {
+          totalDeleted += deleted;
+          if (!affectedCollections.includes(col)) affectedCollections.push(col);
+        }
+      }
+    }
+
+    // 11. Data Karyawan (jangan hapus Owner)
     // KECUALI: JANGAN HAPUS akun Owner (Haji Hendra, usr-0, jabatan Owner, email OWNER_EMAIL)
-    if (options.karyawanTrial) {
-      affectedCategories.push('Karyawan Trial');
+    if (options.dataKaryawan) {
+      affectedCategories.push('Data Karyawan');
       const collectionsToClean = ['karyawan', 'employees'];
       for (const col of collectionsToClean) {
         const deleted = await deleteCollectionInBatches(col, (data, docId) => {
@@ -366,17 +428,22 @@ export async function executeFullResetInFirestore(
 }
 
 /**
- * FUNGSI HAPUS CEPAT: CUMA PESANAN & TRANSAKSI
+ * FUNGSI HAPUS CEPAT: CUMA PESANAN
  */
 export async function executeQuickOrdersReset(callerEmail?: string): Promise<FullResetResult> {
   return executeFullResetInFirestore(
     {
-      pesananTransaksi: true,
-      menuKategori: false,
-      pelanggan: false,
-      bahanBakuStok: false,
-      laporanDivoid: false,
-      karyawanTrial: false,
+      pesanan: true,
+      pengeluaran: false,
+      permintaanStokCabang: false,
+      suratJalan: false,
+      absensi: false,
+      bukaTutupToko: false,
+      laporan: false,
+      bahanBakuDc: false,
+      katalogMenu: false,
+      dataCabang: false,
+      dataKaryawan: false,
     },
     callerEmail
   );

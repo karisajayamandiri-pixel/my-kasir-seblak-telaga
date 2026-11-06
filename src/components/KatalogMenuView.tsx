@@ -72,6 +72,22 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
   const [deskripsi, setDeskripsi] = useState('');
   const [resepRows, setResepRows] = useState<ResepItem[]>([]);
   const [hargaJual, setHargaJual] = useState<number>(15000);
+  const [hargaPromo, setHargaPromo] = useState<string>('');
+  const [freeMinuman, setFreeMinuman] = useState<string>('');
+  const [freeMinumanId, setFreeMinumanId] = useState<string>('');
+  const [searchMinuman, setSearchMinuman] = useState<string>('');
+  const [isMinumanDropdownOpen, setIsMinumanDropdownOpen] = useState<boolean>(false);
+
+  // Filter katalog for beverage category (Minuman Segar or containing 'minuman')
+  const beverageOptions = katalogList.filter(
+    (item) => item.kategori === 'Minuman Segar' || item.kategori.toLowerCase().includes('minuman')
+  );
+
+  const filteredBeverageOptions = beverageOptions.filter((item) => {
+    const q = searchMinuman.toLowerCase().trim();
+    if (!q) return true;
+    return item.nama.toLowerCase().includes(q) || item.kode.toLowerCase().includes(q);
+  });
 
   const categories = [
     'Semua',
@@ -133,6 +149,11 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
       { bahanId: bahanBakuList[6]?.id || bahanBakuList[1]?.id || '', qtyPakai: 1 },
     ]);
     setHargaJual(15000);
+    setHargaPromo('');
+    setFreeMinuman('');
+    setFreeMinumanId('');
+    setSearchMinuman('');
+    setIsMinumanDropdownOpen(false);
     setEditingMenu(null);
     setShowModal(true);
   };
@@ -146,6 +167,17 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
     setDeskripsi(menu.deskripsi || '');
     setResepRows(menu.resep.length > 0 ? [...menu.resep] : []);
     setHargaJual(menu.hargaJual);
+    setHargaPromo(menu.harga_promo !== undefined && menu.harga_promo !== null ? String(menu.harga_promo) : '');
+    setFreeMinuman(menu.free_minuman || '');
+    // If free_minuman_id exists use it, or fallback to lookup by name
+    const foundDrink = menu.free_minuman_id
+      ? beverageOptions.find((b) => b.id === menu.free_minuman_id)
+      : menu.free_minuman
+      ? beverageOptions.find((b) => b.nama.toLowerCase() === menu.free_minuman?.toLowerCase())
+      : undefined;
+    setFreeMinumanId(foundDrink ? foundDrink.id : (menu.free_minuman_id || ''));
+    setSearchMinuman('');
+    setIsMinumanDropdownOpen(false);
     setShowModal(true);
   };
 
@@ -174,6 +206,12 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
 
     const finalHpp = Math.round(calculatedHpp);
     const finalKeuntungan = Math.round(hargaJual - finalHpp);
+    const parsedPromo = hargaPromo.trim() !== '' && !isNaN(Number(hargaPromo)) ? Number(hargaPromo) : undefined;
+    
+    // Resolve free beverage name and ID
+    const selectedDrink = freeMinumanId ? beverageOptions.find((b) => b.id === freeMinumanId) : null;
+    const finalFreeMinumanId = selectedDrink ? selectedDrink.id : undefined;
+    const finalFreeMinumanName = selectedDrink ? selectedDrink.nama : (freeMinuman.trim() || undefined);
 
     if (editingMenu) {
       onUpdateKatalog({
@@ -186,6 +224,9 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
         hargaModal: finalHpp,
         hargaJual: Number(hargaJual),
         keuntungan: finalKeuntungan,
+        harga_promo: parsedPromo,
+        free_minuman: finalFreeMinumanName,
+        free_minuman_id: finalFreeMinumanId,
       });
     } else {
       const newMenu: KatalogMenu = {
@@ -198,6 +239,9 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
         hargaModal: finalHpp,
         hargaJual: Number(hargaJual),
         keuntungan: finalKeuntungan,
+        harga_promo: parsedPromo,
+        free_minuman: finalFreeMinumanName,
+        free_minuman_id: finalFreeMinumanId,
       };
       onAddKatalog(newMenu);
     }
@@ -330,6 +374,11 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                 : 0;
 
             const portions = getPortionsAvailable(menu);
+            const hasPromoPrice =
+              typeof menu.harga_promo === 'number' &&
+              menu.harga_promo > 0 &&
+              menu.harga_promo < menu.hargaJual;
+            const hasFreeMinuman = Boolean(menu.free_minuman && menu.free_minuman.trim() !== '');
 
             return (
               <div
@@ -346,6 +395,17 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                       <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-bold">
                         {menu.kategori}
                       </span>
+                      {hasPromoPrice && (
+                        <span className="px-2.5 py-0.5 rounded-md bg-red-600 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                          <Flame className="w-3 h-3" />
+                          PROMO
+                        </span>
+                      )}
+                      {hasFreeMinuman && (
+                        <span className="px-2.5 py-0.5 rounded-md bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                          FREE + {menu.free_minuman}
+                        </span>
+                      )}
                     </div>
                     <h3 className="text-base sm:text-lg font-black text-slate-800 break-words whitespace-normal">
                       {menu.nama}
@@ -426,9 +486,32 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                     <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
                       Harga Menu
                     </span>
-                    <span className="text-sm sm:text-base font-black text-slate-900 break-words">
-                      {formatRupiah(menu.hargaJual)}
-                    </span>
+                    {hasPromoPrice ? (
+                      <div className="space-y-0.5">
+                        <span className="text-xs text-slate-400 line-through block font-semibold">
+                          {formatRupiah(menu.hargaJual)}
+                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-base sm:text-lg font-black text-red-600 break-words">
+                            {formatRupiah(menu.harga_promo!)}
+                          </span>
+                          <span className="bg-red-100 text-red-700 text-[9px] font-black px-1.5 py-0.5 rounded border border-red-200">
+                            PROMO
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-sm sm:text-base font-black text-slate-900 break-words block">
+                        {formatRupiah(menu.hargaJual)}
+                      </span>
+                    )}
+                    {hasFreeMinuman && (
+                      <div className="mt-1">
+                        <span className="inline-block bg-amber-100 text-amber-900 text-[10px] font-extrabold px-1.5 py-0.5 rounded border border-amber-300">
+                          FREE + {menu.free_minuman}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {isPrivileged && (
@@ -707,6 +790,163 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                       <span>{formatRupiah(calculatedKeuntungan)}</span>
                       <span className="text-[10px] font-bold">({marginPercentage}%)</span>
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* FITUR PROMO MENU (OPSIONAL) */}
+              <div className="bg-rose-50/70 p-4 rounded-xl border border-rose-200 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-rose-600" />
+                  <h4 className="font-black text-slate-800 text-xs">
+                    Fitur Promo Menu (Opsional)
+                  </h4>
+                  <span className="text-[10px] text-slate-500">
+                    Bisa aktif salah satu atau dua-duanya
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      1. Harga Promo (Rp)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Misal: 7000, 8000 (Kosongkan jika normal)"
+                      value={hargaPromo}
+                      onChange={(e) => setHargaPromo(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-rose-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 font-bold text-rose-700 placeholder:font-normal placeholder:text-slate-400 text-xs"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Jika diisi lebih murah dari harga normal, harga normal dicoret dan harga promo tampil merah besar + label PROMO.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      2. Free Minuman (Dropdown Searchable)
+                    </label>
+
+                    {/* Searchable Combobox */}
+                    <div className="relative">
+                      <div
+                        className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl flex items-center justify-between cursor-pointer focus-within:ring-2 focus-within:ring-amber-500"
+                        onClick={() => setIsMinumanDropdownOpen((prev) => !prev)}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          {freeMinumanId ? (
+                            <>
+                              <span className="font-bold text-amber-800 text-xs">
+                                {beverageOptions.find((b) => b.id === freeMinumanId)?.nama || freeMinuman || 'Minuman Dipilih'}
+                              </span>
+                              <span className="text-[10px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.5 rounded">
+                                {beverageOptions.find((b) => b.id === freeMinumanId)?.kode || ''}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-slate-400 text-xs font-normal">
+                              -- Pilih Free Minuman (Kosong) --
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          {freeMinumanId && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setFreeMinumanId('');
+                                setFreeMinuman('');
+                                setSearchMinuman('');
+                              }}
+                              className="text-slate-400 hover:text-red-500 p-0.5"
+                              title="Hapus Pilihan"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <ChevronRight
+                            className={`w-4 h-4 text-slate-400 transition-transform ${
+                              isMinumanDropdownOpen ? 'rotate-90 text-amber-600' : ''
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Dropdown Menu Popup */}
+                      {isMinumanDropdownOpen && (
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-300 rounded-xl shadow-xl z-50 p-2 space-y-2 max-h-56 overflow-y-auto">
+                          <div className="relative">
+                            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+                            <input
+                              type="text"
+                              autoFocus
+                              placeholder="Cari minuman (Es Teh, Es Jeruk...)"
+                              value={searchMinuman}
+                              onChange={(e) => setSearchMinuman(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full pl-8 pr-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            {/* Option Tanpa Free Minuman */}
+                            <div
+                              onClick={() => {
+                                setFreeMinumanId('');
+                                setFreeMinuman('');
+                                setIsMinumanDropdownOpen(false);
+                              }}
+                              className={`p-2 rounded-lg text-xs cursor-pointer flex items-center justify-between hover:bg-slate-100 ${
+                                !freeMinumanId ? 'bg-amber-50 font-bold text-amber-900' : 'text-slate-600'
+                              }`}
+                            >
+                              <span>🚫 Tanpa Free Minuman (Kosong)</span>
+                              {!freeMinumanId && <Check className="w-3.5 h-3.5 text-amber-600" />}
+                            </div>
+
+                            {/* List Minuman dari Katalog */}
+                            {filteredBeverageOptions.length > 0 ? (
+                              filteredBeverageOptions.map((drink) => (
+                                <div
+                                  key={drink.id}
+                                  onClick={() => {
+                                    setFreeMinumanId(drink.id);
+                                    setFreeMinuman(drink.nama);
+                                    setIsMinumanDropdownOpen(false);
+                                  }}
+                                  className={`p-2 rounded-lg text-xs cursor-pointer flex items-center justify-between hover:bg-amber-50 ${
+                                    freeMinumanId === drink.id
+                                      ? 'bg-amber-100/70 font-bold text-amber-900'
+                                      : 'text-slate-700'
+                                  }`}
+                                >
+                                  <div>
+                                    <div className="font-semibold">{drink.nama}</div>
+                                    <div className="text-[10px] text-slate-500">
+                                      {drink.kode} • Normal {formatRupiah(drink.hargaJual)}
+                                    </div>
+                                  </div>
+                                  {freeMinumanId === drink.id && (
+                                    <Check className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  )}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="p-2 text-center text-slate-400 text-xs italic">
+                                Minuman tidak ditemukan di katalog
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Data otomatis diambil dari kategori <strong>Minuman Segar</strong>. Disimpan sebagai <code>free_minuman_id</code> dan stok bahan baku minuman akan dipotong saat transaksi.
+                    </p>
                   </div>
                 </div>
               </div>

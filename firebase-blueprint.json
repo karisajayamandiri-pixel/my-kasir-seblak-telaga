@@ -52,6 +52,9 @@
         "hargaModal": { "type": "number" },
         "hargaJual": { "type": "number" },
         "keuntungan": { "type": "number" },
+        "harga_promo": { "type": "number", "description": "Harga promo potongan harga menu" },
+        "free_minuman": { "type": "string", "description": "Keterangan minuman gratis promo (e.g. Es Teh, Es Jeruk)" },
+        "free_minuman_id": { "type": "string", "description": "ID menu minuman dari katalog kategori Minuman Segar" },
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "nama", "hargaJual"]

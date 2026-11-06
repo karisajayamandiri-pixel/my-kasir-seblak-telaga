@@ -330,6 +330,10 @@ export const buildReceiptEscPos = (trx: Transaksi, branchInfo?: DataCabang): Uin
     const subtotal = formatRupiah(item.subtotal);
     b.twoColumn(qtyPrice, subtotal);
 
+    if (item.free_minuman) {
+      b.line(`  [+ FREE ${item.free_minuman}]`);
+    }
+
     if (item.catatan) {
       b.line(`  *Catatan: ${item.catatan}`);
     }
@@ -428,6 +432,9 @@ export const buildKitchenTicketEscPos = (trx: Transaksi, branchInfo?: DataCabang
     b.bold(false);
     if (item.levelPedas !== undefined && item.levelPedas !== '') {
       b.line(`  * Level: ${item.levelPedas}`);
+    }
+    if (item.free_minuman) {
+      b.line(`  * FREE: ${item.free_minuman}`);
     }
     if (item.catatan) {
       b.line(`  * Catatan: ${item.catatan}`);

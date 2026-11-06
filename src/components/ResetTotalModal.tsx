@@ -6,10 +6,15 @@ import {
   X,
   RefreshCw,
   ShoppingBag,
-  UtensilsCrossed,
-  Users,
-  Package,
+  Receipt,
+  Layers,
+  Truck,
+  CalendarCheck,
+  Store,
   FileText,
+  Package,
+  UtensilsCrossed,
+  Building2,
   UserCheck,
   ShieldAlert,
   CheckSquare,
@@ -22,12 +27,17 @@ import { db } from '../firebase';
 import { FullResetOptions, FullResetResult, OWNER_EMAIL } from '../types';
 
 export interface ResetCollectionCounts {
-  pesananTransaksi: number;
-  menuKategori: number;
-  pelanggan: number;
-  bahanBakuStok: number;
-  laporanDivoid: number;
-  karyawanTrial: number; // strictly excluding Owner
+  pesanan: number;
+  pengeluaran: number;
+  permintaanStokCabang: number;
+  suratJalan: number;
+  absensi: number;
+  bukaTutupToko: number;
+  laporan: number;
+  bahanBakuDc: number;
+  katalogMenu: number;
+  dataCabang: number;
+  dataKaryawan: number; // strictly excluding Owner
 }
 
 interface ResetTotalModalProps {
@@ -51,12 +61,17 @@ export const ResetTotalModal: React.FC<ResetTotalModalProps> = ({
     userEmail.trim().toLowerCase() === OWNER_EMAIL.toLowerCase() || isOwner;
 
   const [options, setOptions] = useState<FullResetOptions>({
-    pesananTransaksi: true,
-    menuKategori: true,
-    pelanggan: true,
-    bahanBakuStok: true,
-    laporanDivoid: true,
-    karyawanTrial: true,
+    pesanan: true,
+    pengeluaran: true,
+    permintaanStokCabang: true,
+    suratJalan: true,
+    absensi: true,
+    bukaTutupToko: true,
+    laporan: true,
+    bahanBakuDc: true,
+    katalogMenu: true,
+    dataCabang: true,
+    dataKaryawan: true,
   });
 
   const [confirmInput, setConfirmInput] = useState<string>('');
@@ -64,15 +79,20 @@ export const ResetTotalModal: React.FC<ResetTotalModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<FullResetResult | null>(null);
 
-  // Live counts state (initialized from props, updated via direct Firestore query on open)
+  // Live counts state (initialized from props, refreshed via direct Firestore query on open)
   const [counts, setCounts] = useState<ResetCollectionCounts>(
     dataCounts || {
-      pesananTransaksi: 0,
-      menuKategori: 0,
-      pelanggan: 0,
-      bahanBakuStok: 0,
-      laporanDivoid: 0,
-      karyawanTrial: 0,
+      pesanan: 0,
+      pengeluaran: 0,
+      permintaanStokCabang: 0,
+      suratJalan: 0,
+      absensi: 0,
+      bukaTutupToko: 0,
+      laporan: 0,
+      bahanBakuDc: 0,
+      katalogMenu: 0,
+      dataCabang: 0,
+      dataKaryawan: 0,
     }
   );
   const [isLoadingCounts, setIsLoadingCounts] = useState<boolean>(false);
@@ -95,55 +115,51 @@ export const ResetTotalModal: React.FC<ResetTotalModalProps> = ({
         const [
           trxSnap,
           pengeluaranSnap,
-          katalogSnap,
-          pelangganSnap,
-          bahanSnap,
+          permintaanSnap,
           stokCabangSnap,
+          suratJalanSnap,
+          absensiSnap,
+          statusTokoSnap,
           laporanSnap,
           auditSnap,
-          absensiSnap,
-          suratJalanSnap,
-          permintaanSnap,
+          bahanSnap,
+          katalogSnap,
+          branchesSnap,
           karyawanSnap,
         ] = await Promise.allSettled([
           getDocs(collection(db, 'transaksi')),
           getDocs(collection(db, 'pengeluaran')),
-          getDocs(collection(db, 'katalog')),
-          getDocs(collection(db, 'pelanggan')),
-          getDocs(collection(db, 'bahanBaku')),
+          getDocs(collection(db, 'permintaan')),
           getDocs(collection(db, 'stokCabang')),
+          getDocs(collection(db, 'suratJalan')),
+          getDocs(collection(db, 'absensi')),
+          getDocs(collection(db, 'statusToko')),
           getDocs(collection(db, 'laporanHarian')),
           getDocs(collection(db, 'auditLog')),
-          getDocs(collection(db, 'absensi')),
-          getDocs(collection(db, 'suratJalan')),
-          getDocs(collection(db, 'permintaan')),
+          getDocs(collection(db, 'bahanBaku')),
+          getDocs(collection(db, 'katalog')),
+          getDocs(collection(db, 'branches')),
           getDocs(collection(db, 'karyawan')),
         ]);
 
         if (!isMounted) return;
 
-        const trxCount =
-          (trxSnap.status === 'fulfilled' ? trxSnap.value.size : 0) +
-          (pengeluaranSnap.status === 'fulfilled' ? pengeluaranSnap.value.size : 0);
-
-        const katalogCount =
-          katalogSnap.status === 'fulfilled' ? katalogSnap.value.size : (dataCounts?.menuKategori ?? 0);
-
-        const pelangganCount =
-          pelangganSnap.status === 'fulfilled' ? pelangganSnap.value.size : (dataCounts?.pelanggan ?? 0);
-
-        const bahanStokCount =
-          (bahanSnap.status === 'fulfilled' ? bahanSnap.value.size : 0) +
+        const pesananCount = trxSnap.status === 'fulfilled' ? trxSnap.value.size : (dataCounts?.pesanan ?? 0);
+        const pengeluaranCount = pengeluaranSnap.status === 'fulfilled' ? pengeluaranSnap.value.size : (dataCounts?.pengeluaran ?? 0);
+        const permintaanStokCount =
+          (permintaanSnap.status === 'fulfilled' ? permintaanSnap.value.size : 0) +
           (stokCabangSnap.status === 'fulfilled' ? stokCabangSnap.value.size : 0);
-
-        const laporanDivoidCount =
+        const suratJalanCount = suratJalanSnap.status === 'fulfilled' ? suratJalanSnap.value.size : (dataCounts?.suratJalan ?? 0);
+        const absensiCount = absensiSnap.status === 'fulfilled' ? absensiSnap.value.size : (dataCounts?.absensi ?? 0);
+        const bukaTutupCount = statusTokoSnap.status === 'fulfilled' ? statusTokoSnap.value.size : (dataCounts?.bukaTutupToko ?? 0);
+        const laporanCount =
           (laporanSnap.status === 'fulfilled' ? laporanSnap.value.size : 0) +
-          (auditSnap.status === 'fulfilled' ? auditSnap.value.size : 0) +
-          (absensiSnap.status === 'fulfilled' ? absensiSnap.value.size : 0) +
-          (suratJalanSnap.status === 'fulfilled' ? suratJalanSnap.value.size : 0) +
-          (permintaanSnap.status === 'fulfilled' ? permintaanSnap.value.size : 0);
+          (auditSnap.status === 'fulfilled' ? auditSnap.value.size : 0);
+        const bahanDcCount = bahanSnap.status === 'fulfilled' ? bahanSnap.value.size : (dataCounts?.bahanBakuDc ?? 0);
+        const katalogCount = katalogSnap.status === 'fulfilled' ? katalogSnap.value.size : (dataCounts?.katalogMenu ?? 0);
+        const cabangCount = branchesSnap.status === 'fulfilled' ? branchesSnap.value.size : (dataCounts?.dataCabang ?? 0);
 
-        // Karyawan Trial: Strictly EXCLUDE Owner (usr-0, Owner, OWNER_EMAIL)
+        // Karyawan: Strictly EXCLUDE Owner (usr-0, Owner, OWNER_EMAIL)
         let karyawanTrialCount = 0;
         if (karyawanSnap.status === 'fulfilled') {
           karyawanTrialCount = karyawanSnap.value.docs.filter((d) => {
@@ -155,17 +171,22 @@ export const ResetTotalModal: React.FC<ResetTotalModalProps> = ({
               (data?.email && data.email.toLowerCase() === OWNER_EMAIL.toLowerCase());
             return !isOwnerDoc;
           }).length;
-        } else if (dataCounts?.karyawanTrial !== undefined) {
-          karyawanTrialCount = dataCounts.karyawanTrial;
+        } else if (dataCounts?.dataKaryawan !== undefined) {
+          karyawanTrialCount = dataCounts.dataKaryawan;
         }
 
         setCounts({
-          pesananTransaksi: trxCount || dataCounts?.pesananTransaksi || 0,
-          menuKategori: katalogCount || dataCounts?.menuKategori || 0,
-          pelanggan: pelangganCount || dataCounts?.pelanggan || 0,
-          bahanBakuStok: bahanStokCount || dataCounts?.bahanBakuStok || 0,
-          laporanDivoid: laporanDivoidCount || dataCounts?.laporanDivoid || 0,
-          karyawanTrial: karyawanTrialCount,
+          pesanan: pesananCount,
+          pengeluaran: pengeluaranCount,
+          permintaanStokCabang: permintaanStokCount || dataCounts?.permintaanStokCabang || 0,
+          suratJalan: suratJalanCount,
+          absensi: absensiCount,
+          bukaTutupToko: bukaTutupCount || dataCounts?.bukaTutupToko || 0,
+          laporan: laporanCount || dataCounts?.laporan || 0,
+          bahanBakuDc: bahanDcCount,
+          katalogMenu: katalogCount,
+          dataCabang: cabangCount,
+          dataKaryawan: karyawanTrialCount,
         });
       } catch (err) {
         console.warn('Gagal membaca count dokumen Firestore:', err);
@@ -188,23 +209,33 @@ export const ResetTotalModal: React.FC<ResetTotalModalProps> = ({
 
   const handleSelectAll = () => {
     setOptions({
-      pesananTransaksi: true,
-      menuKategori: true,
-      pelanggan: true,
-      bahanBakuStok: true,
-      laporanDivoid: true,
-      karyawanTrial: true,
+      pesanan: true,
+      pengeluaran: true,
+      permintaanStokCabang: true,
+      suratJalan: true,
+      absensi: true,
+      bukaTutupToko: true,
+      laporan: true,
+      bahanBakuDc: true,
+      katalogMenu: true,
+      dataCabang: true,
+      dataKaryawan: true,
     });
   };
 
   const handleDeselectAll = () => {
     setOptions({
-      pesananTransaksi: false,
-      menuKategori: false,
-      pelanggan: false,
-      bahanBakuStok: false,
-      laporanDivoid: false,
-      karyawanTrial: false,
+      pesanan: false,
+      pengeluaran: false,
+      permintaanStokCabang: false,
+      suratJalan: false,
+      absensi: false,
+      bukaTutupToko: false,
+      laporan: false,
+      bahanBakuDc: false,
+      katalogMenu: false,
+      dataCabang: false,
+      dataKaryawan: false,
     });
   };
 
@@ -223,7 +254,7 @@ export const ResetTotalModal: React.FC<ResetTotalModalProps> = ({
     }
 
     if (!hasAnySelected) {
-      setErrorMsg('Pilih minimal satu kategori data yang ingin dihapus.');
+      setErrorMsg('Pilih minimal satu kategori data yang ingin direset.');
       return;
     }
 
@@ -251,6 +282,107 @@ export const ResetTotalModal: React.FC<ResetTotalModalProps> = ({
     }
   };
 
+  // 11 Specific Items Config
+  const checklistItems: Array<{
+    key: keyof FullResetOptions;
+    title: string;
+    count: number;
+    badgeUnit: string;
+    collections: string;
+    icon: React.ReactNode;
+    isProtectedOwner?: boolean;
+  }> = [
+    {
+      key: 'pesanan',
+      title: '1. Pesanan',
+      count: counts.pesanan,
+      badgeUnit: 'Data',
+      collections: 'transaksi, orders, pesanan',
+      icon: <ShoppingBag className="w-4 h-4" />,
+    },
+    {
+      key: 'pengeluaran',
+      title: '2. Pengeluaran Toko',
+      count: counts.pengeluaran,
+      badgeUnit: 'Data',
+      collections: 'pengeluaran',
+      icon: <Receipt className="w-4 h-4" />,
+    },
+    {
+      key: 'permintaanStokCabang',
+      title: '3. Permintaan & Stock Cabang',
+      count: counts.permintaanStokCabang,
+      badgeUnit: 'Data',
+      collections: 'permintaan, stokCabang, stocks',
+      icon: <Layers className="w-4 h-4" />,
+    },
+    {
+      key: 'suratJalan',
+      title: '4. Surat Jalan DC',
+      count: counts.suratJalan,
+      badgeUnit: 'Data',
+      collections: 'suratJalan',
+      icon: <Truck className="w-4 h-4" />,
+    },
+    {
+      key: 'absensi',
+      title: '5. Absensi',
+      count: counts.absensi,
+      badgeUnit: 'Data',
+      collections: 'absensi',
+      icon: <CalendarCheck className="w-4 h-4" />,
+    },
+    {
+      key: 'bukaTutupToko',
+      title: '6. Buka/Tutup Toko',
+      count: counts.bukaTutupToko,
+      badgeUnit: 'Status Cabang',
+      collections: 'statusToko',
+      icon: <Store className="w-4 h-4" />,
+    },
+    {
+      key: 'laporan',
+      title: '7. Laporan',
+      count: counts.laporan,
+      badgeUnit: 'Data',
+      collections: 'laporanHarian, auditLog, divoid',
+      icon: <FileText className="w-4 h-4" />,
+    },
+    {
+      key: 'bahanBakuDc',
+      title: '8. Bahan Baku & DC',
+      count: counts.bahanBakuDc,
+      badgeUnit: 'Item',
+      collections: 'bahanBaku, ingredients, bahan',
+      icon: <Package className="w-4 h-4" />,
+    },
+    {
+      key: 'katalogMenu',
+      title: '9. Katalog Menu',
+      count: counts.katalogMenu,
+      badgeUnit: 'Menu',
+      collections: 'katalog, menus, products',
+      icon: <UtensilsCrossed className="w-4 h-4" />,
+    },
+    {
+      key: 'dataCabang',
+      title: '10. Data Cabang',
+      count: counts.dataCabang,
+      badgeUnit: 'Cabang',
+      collections: 'branches, cabang, dataCabang',
+      icon: <Building2 className="w-4 h-4" />,
+    },
+    {
+      key: 'dataKaryawan',
+      title: '11. Data Karyawan (jangan hapus Owner)',
+      count: counts.dataKaryawan,
+      badgeUnit: 'Staf/Crew',
+      collections: 'karyawan, employees (Kecuali Owner)',
+      icon: <UserCheck className="w-4 h-4" />,
+      isProtectedOwner: true,
+    },
+  ];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in duration-200 overflow-y-auto">
       <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border-2 border-red-300 space-y-4 my-8">
@@ -271,10 +403,10 @@ export const ResetTotalModal: React.FC<ResetTotalModalProps> = ({
                 </span>
               </div>
               <h3 className="font-black text-slate-900 text-lg leading-tight mt-0.5">
-                Pilih Data Yang Mau Dihapus
+                Modal RESET TOTAL (11 Kategori)
               </h3>
               <p className="text-xs text-slate-500">
-                Pilih koleksi Firebase yang akan dikosongkan secara total pakai batch write agar sistem bersih seperti toko baru.
+                Centang item yang ingin direset menjadi <strong>0 data</strong>. Data akan dikosongkan total pakai Firestore batch delete.
               </p>
             </div>
           </div>
@@ -334,12 +466,12 @@ export const ResetTotalModal: React.FC<ResetTotalModalProps> = ({
           </div>
         </div>
 
-        {/* Selection Category Cards */}
+        {/* Selection Category Cards - Exactly 11 Items */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex items-center justify-between text-xs pt-1">
             <div className="flex items-center gap-2">
               <span className="font-extrabold text-slate-800">
-                Pilih Koleksi Firebase yang Mau Dihapus:
+                Pilih Dari 11 Data Yang Mau Direset (0 Data):
               </span>
               {isLoadingCounts && (
                 <span className="text-[10px] text-slate-400 flex items-center gap-1 font-medium">
@@ -366,305 +498,70 @@ export const ResetTotalModal: React.FC<ResetTotalModalProps> = ({
           </div>
 
           <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-            {/* 1. Pesanan & Transaksi */}
-            <div
-              onClick={() => handleToggle('pesananTransaksi')}
-              className={`p-3 rounded-2xl border-2 transition cursor-pointer flex items-center justify-between ${
-                options.pesananTransaksi
-                  ? 'bg-rose-50/70 border-rose-500 text-rose-950 shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`p-2 rounded-xl shrink-0 ${
-                    options.pesananTransaksi
-                      ? 'bg-rose-200 text-rose-800'
-                      : 'bg-slate-100 text-slate-400'
-                  }`}
-                >
-                  <ShoppingBag className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-extrabold text-xs flex items-center gap-2">
-                    <span>Pesanan & Transaksi Kasir</span>
-                    <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                        counts.pesananTransaksi > 0
-                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {counts.pesananTransaksi} Data
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 font-medium">
-                    Koleksi: <code className="bg-black/5 px-1 rounded">transaksi</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">orders</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">pesanan</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">pengeluaran</code>
-                  </div>
-                </div>
-              </div>
-              <div className="shrink-0 ml-2">
-                {options.pesananTransaksi ? (
-                  <CheckSquare className="w-5 h-5 text-rose-600" />
-                ) : (
-                  <Square className="w-5 h-5 text-slate-300" />
-                )}
-              </div>
-            </div>
+            {checklistItems.map((item) => {
+              const isChecked = options[item.key];
 
-            {/* 2. Menu & Kategori */}
-            <div
-              onClick={() => handleToggle('menuKategori')}
-              className={`p-3 rounded-2xl border-2 transition cursor-pointer flex items-center justify-between ${
-                options.menuKategori
-                  ? 'bg-rose-50/70 border-rose-500 text-rose-950 shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <div className="flex items-center gap-3">
+              return (
                 <div
-                  className={`p-2 rounded-xl shrink-0 ${
-                    options.menuKategori
-                      ? 'bg-rose-200 text-rose-800'
-                      : 'bg-slate-100 text-slate-400'
+                  key={item.key}
+                  onClick={() => handleToggle(item.key)}
+                  className={`p-3 rounded-2xl border-2 transition cursor-pointer flex items-center justify-between ${
+                    isChecked
+                      ? 'bg-rose-50/70 border-rose-500 text-rose-950 shadow-xs'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  <UtensilsCrossed className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-extrabold text-xs flex items-center gap-2">
-                    <span>Menu & Kategori Produk Seblak</span>
-                    <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                        counts.menuKategori > 0
-                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                          : 'bg-slate-100 text-slate-500'
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`p-2 rounded-xl shrink-0 ${
+                        isChecked
+                          ? 'bg-rose-200 text-rose-800'
+                          : 'bg-slate-100 text-slate-400'
                       }`}
                     >
-                      {counts.menuKategori} Data
-                    </span>
+                      {item.icon}
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-xs flex items-center gap-2">
+                        <span>{item.title}</span>
+                        <span
+                          className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                            item.count > 0
+                              ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          {item.count} {item.badgeUnit}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium">
+                        Koleksi: <code className="bg-black/5 px-1 rounded">{item.collections}</code>
+                      </div>
+                      {item.isProtectedOwner && (
+                        <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-lg border border-emerald-300 w-fit">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                          <span>Data Owner (Haji Hendra / DC PUSAT) TIDAK ditampilkan & TIDAK akan dihapus</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-500 font-medium">
-                    Koleksi: <code className="bg-black/5 px-1 rounded">katalog</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">menus</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">products</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">categories</code>
-                  </div>
-                </div>
-              </div>
-              <div className="shrink-0 ml-2">
-                {options.menuKategori ? (
-                  <CheckSquare className="w-5 h-5 text-rose-600" />
-                ) : (
-                  <Square className="w-5 h-5 text-slate-300" />
-                )}
-              </div>
-            </div>
-
-            {/* 3. Pelanggan */}
-            <div
-              onClick={() => handleToggle('pelanggan')}
-              className={`p-3 rounded-2xl border-2 transition cursor-pointer flex items-center justify-between ${
-                options.pelanggan
-                  ? 'bg-rose-50/70 border-rose-500 text-rose-950 shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`p-2 rounded-xl shrink-0 ${
-                    options.pelanggan ? 'bg-rose-200 text-rose-800' : 'bg-slate-100 text-slate-400'
-                  }`}
-                >
-                  <Users className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-extrabold text-xs flex items-center gap-2">
-                    <span>Data Pelanggan Trial</span>
-                    <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                        counts.pelanggan > 0
-                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {counts.pelanggan} Data
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 font-medium">
-                    Koleksi: <code className="bg-black/5 px-1 rounded">pelanggan</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">customers</code>
+                  <div className="shrink-0 ml-2">
+                    {isChecked ? (
+                      <CheckSquare className="w-5 h-5 text-rose-600" />
+                    ) : (
+                      <Square className="w-5 h-5 text-slate-300" />
+                    )}
                   </div>
                 </div>
-              </div>
-              <div className="shrink-0 ml-2">
-                {options.pelanggan ? (
-                  <CheckSquare className="w-5 h-5 text-rose-600" />
-                ) : (
-                  <Square className="w-5 h-5 text-slate-300" />
-                )}
-              </div>
-            </div>
-
-            {/* 4. Bahan Baku & Stok */}
-            <div
-              onClick={() => handleToggle('bahanBakuStok')}
-              className={`p-3 rounded-2xl border-2 transition cursor-pointer flex items-center justify-between ${
-                options.bahanBakuStok
-                  ? 'bg-rose-50/70 border-rose-500 text-rose-950 shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`p-2 rounded-xl shrink-0 ${
-                    options.bahanBakuStok
-                      ? 'bg-rose-200 text-rose-800'
-                      : 'bg-slate-100 text-slate-400'
-                  }`}
-                >
-                  <Package className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-extrabold text-xs flex items-center gap-2">
-                    <span>Bahan Baku & Stok Cabang</span>
-                    <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                        counts.bahanBakuStok > 0
-                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {counts.bahanBakuStok} Data
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 font-medium">
-                    Koleksi: <code className="bg-black/5 px-1 rounded">bahanBaku</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">ingredients</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">stokCabang</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">stocks</code>
-                  </div>
-                </div>
-              </div>
-              <div className="shrink-0 ml-2">
-                {options.bahanBakuStok ? (
-                  <CheckSquare className="w-5 h-5 text-rose-600" />
-                ) : (
-                  <Square className="w-5 h-5 text-slate-300" />
-                )}
-              </div>
-            </div>
-
-            {/* 5. Laporan & Divoid */}
-            <div
-              onClick={() => handleToggle('laporanDivoid')}
-              className={`p-3 rounded-2xl border-2 transition cursor-pointer flex items-center justify-between ${
-                options.laporanDivoid
-                  ? 'bg-rose-50/70 border-rose-500 text-rose-950 shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`p-2 rounded-xl shrink-0 ${
-                    options.laporanDivoid
-                      ? 'bg-rose-200 text-rose-800'
-                      : 'bg-slate-100 text-slate-400'
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-extrabold text-xs flex items-center gap-2">
-                    <span>Laporan Harian, Divoid & Audit Log</span>
-                    <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                        counts.laporanDivoid > 0
-                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {counts.laporanDivoid} Data
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 font-medium">
-                    Koleksi: <code className="bg-black/5 px-1 rounded">laporanHarian</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">auditLog</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">absensi</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">suratJalan</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">permintaan</code>
-                  </div>
-                </div>
-              </div>
-              <div className="shrink-0 ml-2">
-                {options.laporanDivoid ? (
-                  <CheckSquare className="w-5 h-5 text-rose-600" />
-                ) : (
-                  <Square className="w-5 h-5 text-slate-300" />
-                )}
-              </div>
-            </div>
-
-            {/* 6. Karyawan Trial - DIPROTEKSI: OWNER TIDAK DITAMPILKAN & TIDAK AKAN DIHAPUS */}
-            <div
-              onClick={() => handleToggle('karyawanTrial')}
-              className={`p-3 rounded-2xl border-2 transition cursor-pointer flex items-center justify-between ${
-                options.karyawanTrial
-                  ? 'bg-rose-50/70 border-rose-500 text-rose-950 shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`p-2 rounded-xl shrink-0 ${
-                    options.karyawanTrial
-                      ? 'bg-rose-200 text-rose-800'
-                      : 'bg-slate-100 text-slate-400'
-                  }`}
-                >
-                  <UserCheck className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-extrabold text-xs flex items-center gap-2">
-                    <span>Karyawan Trial (Staf Kasir & Crew)</span>
-                    <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                        counts.karyawanTrial > 0
-                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {counts.karyawanTrial} Data Staf
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 font-medium">
-                    Koleksi: <code className="bg-black/5 px-1 rounded">karyawan</code>,{' '}
-                    <code className="bg-black/5 px-1 rounded">employees</code>
-                  </div>
-                  <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-lg border border-emerald-300 w-fit">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                    <span>Data Owner (Haji Hendra / DC PUSAT) TIDAK ditampilkan & TIDAK akan dihapus</span>
-                  </div>
-                </div>
-              </div>
-              <div className="shrink-0 ml-2">
-                {options.karyawanTrial ? (
-                  <CheckSquare className="w-5 h-5 text-rose-600" />
-                ) : (
-                  <Square className="w-5 h-5 text-slate-300" />
-                )}
-              </div>
-            </div>
+              );
+            })}
           </div>
 
           {/* Double Confirm Input Section */}
           <div className="bg-red-50/80 p-4 rounded-2xl border border-red-200 space-y-2.5">
             <div className="text-xs text-red-950 font-bold flex items-center gap-1.5">
               <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-              <span>Konfirmasi Keamanan: Ketik persis kata di bawah untuk menghapus</span>
+              <span>Konfirmasi Keamanan: Ketik persis kata di bawah untuk mereset</span>
             </div>
             <div className="text-[11px] text-red-800">
               Ketik:{' '}
@@ -705,7 +602,7 @@ export const ResetTotalModal: React.FC<ResetTotalModalProps> = ({
               {isResetting ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Sedang Menghapus Koleksi Firestore via Batch...</span>
+                  <span>Sedang Mereset Koleksi Firestore via Batch...</span>
                 </>
               ) : (
                 <>

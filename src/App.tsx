@@ -1330,44 +1330,72 @@ export default function App() {
     const result = await executeFullResetInFirestore(options, userEmail);
 
     if (result.success) {
-      // 1. Pesanan & Transaksi
-      if (options.pesananTransaksi) {
+      // 1. Pesanan
+      if (options.pesanan) {
         setTransaksiList([]);
-        setPengeluaranList([]);
         saveToStorage(STORAGE_KEYS.TRANSAKSI, []);
+      }
+
+      // 2. Pengeluaran Toko
+      if (options.pengeluaran) {
+        setPengeluaranList([]);
         saveToStorage(STORAGE_KEYS.PENGELUARAN, []);
       }
 
-      // 2. Menu & Kategori
-      if (options.menuKategori) {
+      // 3. Permintaan & Stock Cabang
+      if (options.permintaanStokCabang) {
+        setPermintaanList([]);
+        setStokCabang({});
+        saveToStorage(STORAGE_KEYS.PERMINTAAN_BARANG, []);
+        saveToStorage(STORAGE_KEYS.STOK_CABANG, {});
+      }
+
+      // 4. Surat Jalan DC
+      if (options.suratJalan) {
+        setSuratJalanList([]);
+        saveToStorage(STORAGE_KEYS.SURAT_JALAN, []);
+      }
+
+      // 5. Absensi
+      if (options.absensi) {
+        setAbsensiList([]);
+        saveToStorage(STORAGE_KEYS.ABSENSI, []);
+      }
+
+      // 6. Buka/Tutup Toko
+      if (options.bukaTutupToko) {
+        setTokoState({});
+        saveToStorage(STORAGE_KEYS.TOKO_STATE, {});
+      }
+
+      // 7. Laporan
+      if (options.laporan) {
+        setLaporanHarianList([]);
+        setAuditLogList([]);
+        saveToStorage(STORAGE_KEYS.LAPORAN_HARIAN, []);
+        saveToStorage(STORAGE_KEYS.AUDIT_LOG, []);
+      }
+
+      // 8. Bahan Baku & DC
+      if (options.bahanBakuDc) {
+        setBahanBakuList([]);
+        saveToStorage(STORAGE_KEYS.BAHAN_BAKU, []);
+      }
+
+      // 9. Katalog Menu
+      if (options.katalogMenu) {
         setKatalogList([]);
         saveToStorage(STORAGE_KEYS.KATALOG, []);
       }
 
-      // 3. Bahan Baku & Stok
-      if (options.bahanBakuStok) {
-        setBahanBakuList([]);
-        setStokCabang({});
-        saveToStorage(STORAGE_KEYS.BAHAN_BAKU, []);
-        saveToStorage(STORAGE_KEYS.STOK_CABANG, {});
+      // 10. Data Cabang
+      if (options.dataCabang) {
+        setDataCabangList([]);
+        saveToStorage(STORAGE_KEYS.DATA_CABANG, []);
       }
 
-      // 4. Laporan, Divoid, Audit, Absensi
-      if (options.laporanDivoid) {
-        setLaporanHarianList([]);
-        setAuditLogList([]);
-        setAbsensiList([]);
-        setSuratJalanList([]);
-        setPermintaanList([]);
-        saveToStorage(STORAGE_KEYS.LAPORAN_HARIAN, []);
-        saveToStorage(STORAGE_KEYS.AUDIT_LOG, []);
-        saveToStorage(STORAGE_KEYS.ABSENSI, []);
-        saveToStorage(STORAGE_KEYS.SURAT_JALAN, []);
-        saveToStorage(STORAGE_KEYS.PERMINTAAN_BARANG, []);
-      }
-
-      // 5. Karyawan Trial (Amankan Owner)
-      if (options.karyawanTrial) {
+      // 11. Data Karyawan (Amankan Owner)
+      if (options.dataKaryawan) {
         setKaryawanList((prev) => {
           const preserved = prev.filter(
             (k) =>
@@ -1874,17 +1902,17 @@ export default function App() {
           isOwner={currentUser.jabatan === 'Owner'}
           onExecuteReset={handleExecuteFullReset}
           dataCounts={{
-            pesananTransaksi: transaksiList.length + pengeluaranList.length,
-            menuKategori: katalogList.length,
-            pelanggan: new Set(transaksiList.map((t) => t.pelangganNama).filter(Boolean)).size,
-            bahanBakuStok: bahanBakuList.length + Object.keys(stokCabang).length,
-            laporanDivoid:
-              laporanHarianList.length +
-              auditLogList.length +
-              absensiList.length +
-              suratJalanList.length +
-              permintaanList.length,
-            karyawanTrial: karyawanList.filter(
+            pesanan: transaksiList.length,
+            pengeluaran: pengeluaranList.length,
+            permintaanStokCabang: permintaanList.length + Object.keys(stokCabang).length,
+            suratJalan: suratJalanList.length,
+            absensi: absensiList.length,
+            bukaTutupToko: Object.keys(tokoState).length,
+            laporan: laporanHarianList.length + auditLogList.length,
+            bahanBakuDc: bahanBakuList.length,
+            katalogMenu: katalogList.length,
+            dataCabang: dataCabangList.length,
+            dataKaryawan: karyawanList.filter(
               (k) =>
                 k.id !== 'usr-0' &&
                 k.jabatan !== 'Owner' &&

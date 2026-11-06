@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
   ABSENSI: 'seblak_absensi',
   LAPORAN_HARIAN: 'seblak_laporanHarian',
   CABANG: 'dataCabang',
+  DATA_CABANG: 'dataCabang',
   TOKO_STATE: 'seblak_statusToko',
   SESSION: 'seblak_session',
   AUDIT_LOG: 'seblak_audit_log',

@@ -286,6 +286,12 @@ export const PosView: React.FC<PosViewProps> = ({
       return;
     }
 
+    const hasPromoPrice =
+      typeof menu.harga_promo === 'number' &&
+      menu.harga_promo > 0 &&
+      menu.harga_promo < menu.hargaJual;
+    const effectivePrice = hasPromoPrice ? menu.harga_promo! : menu.hargaJual;
+
     setCart((prev) => {
       const existing = prev.find((item) => item.katalogId === menu.id);
       if (existing) {
@@ -301,13 +307,17 @@ export const PosView: React.FC<PosViewProps> = ({
           katalogId: menu.id,
           kode: menu.kode,
           nama: menu.nama,
-          harga: menu.hargaJual,
+          harga: effectivePrice,
           hargaModal: menu.hargaModal,
           qty: 1,
           levelPedas: menu.kategori.includes('Seblak') ? 'Sedang' : undefined,
           catatan: '',
-          subtotal: menu.hargaJual,
+          subtotal: effectivePrice,
           resep: menu.resep,
+          hargaAsli: menu.hargaJual,
+          harga_promo: hasPromoPrice ? menu.harga_promo : undefined,
+          free_minuman: menu.free_minuman,
+          free_minuman_id: menu.free_minuman_id,
         },
       ];
     });
@@ -434,6 +444,26 @@ export const PosView: React.FC<PosViewProps> = ({
         const currentQty = currentBranchStock[recipe.bahanId] || 0;
         currentBranchStock[recipe.bahanId] = Math.max(0, currentQty - required);
       });
+
+      // KURANGI BAHAN BAKU KEDUA MENU (Free Minuman jika ada promo free_minuman_id)
+      if (cartItem.free_minuman_id) {
+        const freeDrink = katalogList.find((k) => k.id === cartItem.free_minuman_id);
+        if (freeDrink && freeDrink.resep && freeDrink.resep.length > 0) {
+          freeDrink.resep.forEach((drinkRecipe) => {
+            const drinkBhn = bahanBakuList.find((b) => b.id === drinkRecipe.bahanId);
+            const drinkKat = drinkBhn?.kategori || 'Bahan Makanan';
+
+            // Dine In tidak mengurangi kemasan
+            if (tipePesanan === 'Dine In' && drinkKat === 'Kemasan') {
+              return;
+            }
+
+            const requiredDrinkBahan = drinkRecipe.qtyPakai * cartItem.qty;
+            const curDrinkQty = currentBranchStock[drinkRecipe.bahanId] || 0;
+            currentBranchStock[drinkRecipe.bahanId] = Math.max(0, curDrinkQty - requiredDrinkBahan);
+          });
+        }
+      }
     });
 
     // Jika Take Away atau Delivery Order, pastikan kemasan utama juga berkurang jika belum ada di resep menu
@@ -694,10 +724,22 @@ export const PosView: React.FC<PosViewProps> = ({
                     }`}
                   >
                     <div>
-                      <div className="flex items-start justify-between gap-1.5 mb-1.5">
-                        <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-orange-100 text-orange-800">
-                          {menu.kode}
-                        </span>
+                      <div className="flex items-start justify-between gap-1.5 mb-1.5 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-orange-100 text-orange-800">
+                            {menu.kode}
+                          </span>
+                          {menu.harga_promo && menu.harga_promo > 0 && menu.harga_promo < menu.hargaJual && (
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-red-600 text-white shadow-xs">
+                              PROMO
+                            </span>
+                          )}
+                          {menu.free_minuman && (
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500 text-white shadow-xs">
+                              FREE + {menu.free_minuman}
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[10px] font-semibold text-slate-400">
                           {menu.kategori}
                         </span>
@@ -718,9 +760,25 @@ export const PosView: React.FC<PosViewProps> = ({
                         <span className="text-[10px] text-slate-400 block font-semibold">
                           HARGA MENU
                         </span>
-                        <span className="text-sm font-black text-orange-600">
-                          {formatRupiah(menu.hargaJual)}
-                        </span>
+                        {menu.harga_promo && menu.harga_promo > 0 && menu.harga_promo < menu.hargaJual ? (
+                          <div className="flex items-baseline gap-1.5 flex-wrap">
+                            <span className="text-xs text-slate-400 line-through font-semibold">
+                              {formatRupiah(menu.hargaJual)}
+                            </span>
+                            <span className="text-sm font-black text-red-600">
+                              {formatRupiah(menu.harga_promo)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm font-black text-orange-600">
+                            {formatRupiah(menu.hargaJual)}
+                          </span>
+                        )}
+                        {menu.free_minuman && (
+                          <span className="block text-[10px] font-bold text-amber-700">
+                            + Free {menu.free_minuman}
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-1.5">
@@ -1212,9 +1270,28 @@ export const PosView: React.FC<PosViewProps> = ({
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className="font-bold text-slate-800">{item.nama}</div>
-                        <div className="text-[11px] text-slate-500">
-                          {formatRupiah(item.harga)} / porsi
+                        <div className="font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                          <span>{item.nama}</span>
+                          {item.harga_promo && item.hargaAsli && item.harga_promo < item.hargaAsli && (
+                            <span className="text-[9px] font-black bg-red-600 text-white px-1.5 py-0.5 rounded shadow-xs">
+                              PROMO
+                            </span>
+                          )}
+                          {item.free_minuman && (
+                            <span className="text-[9px] font-black bg-amber-500 text-white px-1.5 py-0.5 rounded shadow-xs">
+                              FREE + {item.free_minuman}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                          {item.hargaAsli && item.harga_promo && item.harga_promo < item.hargaAsli && (
+                            <span className="line-through text-slate-400 text-[10px]">
+                              {formatRupiah(item.hargaAsli)}
+                            </span>
+                          )}
+                          <span className={item.harga_promo && item.hargaAsli && item.harga_promo < item.hargaAsli ? "text-red-600 font-bold" : ""}>
+                            {formatRupiah(item.harga)} / porsi
+                          </span>
                         </div>
                       </div>
                       <span className="font-extrabold text-orange-700">

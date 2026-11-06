@@ -259,6 +259,9 @@ export const INITIAL_KATALOG: KatalogMenu[] = [
     hargaModal: 6730,
     hargaJual: 14000,
     keuntungan: 7270,
+    harga_promo: 10000,
+    free_minuman: 'Es Teh Manis Jumbo Telaga',
+    free_minuman_id: 'ktl-10',
   },
   {
     id: 'ktl-2',
@@ -279,6 +282,8 @@ export const INITIAL_KATALOG: KatalogMenu[] = [
     hargaModal: 10480,
     hargaJual: 19000,
     keuntungan: 8520,
+    free_minuman: 'Es Jeruk Peras Murni',
+    free_minuman_id: 'ktl-11',
   },
   {
     id: 'ktl-3',
