@@ -28,7 +28,8 @@ export interface Karyawan {
   hp: string;
   alamat: string;
   cabang: Cabang;
-  branchId?: string; // ID dokumen cabang pada Firestore collection branches
+  cabang_id?: string; // ID dokumen cabang pada Firestore data_cabang
+  branchId?: string; // Alias ID dokumen cabang pada Firestore collection branches
   jabatan: Jabatan;
   username: string;
   password: string;
@@ -68,6 +69,15 @@ export interface KatalogMenu {
   free_minuman?: string; // Promo gratis minuman (misal Es Teh, Es Jeruk)
   free_minuman_id?: string; // ID menu minuman dari katalog_menu kategori Minuman Segar
   promo_cabang_ids?: string[]; // Array branch ID / cabang target promo. Kosong [] = semua cabang, jika diisi hanya aktif di cabang terpilih
+  cabang_ids?: string[]; // Array branch ID / cabang di mana menu ini aktif ditampilkan
+}
+
+export interface MenuCabang {
+  id: string; // `${menu_id}_${cabang_id}`
+  menu_id: string;
+  cabang_id: string;
+  is_tampil: boolean;
+  updatedAt?: string;
 }
 
 export type LevelPedas =
@@ -231,8 +241,11 @@ export interface Absensi {
   id: string;
   tanggal: string; // YYYY-MM-DD
   cabang: Cabang | string;
+  cabang_id?: string; // ID Dokumen Cabang (dinamis dari data_cabang)
   karyawanId: string;
+  karyawan_id?: string; // Alias karyawan_id
   nama: string;
+  nik?: string; // NIK Karyawan
   jabatan?: string; // 'KEPALA TOKO' | 'KASIR' | 'CREW STORE'
   kasirBertugas?: string; // Nama kasir/petugas yang bertugas
   jamMasuk: string;
@@ -240,6 +253,22 @@ export interface Absensi {
   durasi?: string;
   status: 'Tepat Waktu' | 'Terlambat' | 'Izin' | 'Sakit' | 'Off' | 'Libur';
   keterangan?: string;
+}
+
+export interface PengaturanOff {
+  id: string; // format: 'poff-' + cabangId
+  cabangId: string;
+  cabangNama: string;
+  // Kuota maks karyawan yang boleh OFF per hari: 0 = Full Team ("Tidak ada OFF"), 1-5+
+  senin: number;
+  selasa: number;
+  rabu: number;
+  kamis: number;
+  jumat: number;
+  sabtu: number;
+  minggu: number;
+  updatedAt?: string;
+  updatedBy?: string;
 }
 
 export type StatusPengeluaran = 'Menunggu ACC' | 'Disetujui' | 'Ditolak';
@@ -377,6 +406,46 @@ export interface FullResetResult {
   collectionCount: number;
   message: string;
   affectedCategories: string[];
+}
+
+export interface GajiKaryawanSetting {
+  karyawanId: string;
+  gajiPokokHarian: number; // default: 100000
+  uangMakanHarian: number; // default: 20000
+  dendaTelat: number; // default: 10000
+  bonus?: number;
+  keterangan?: string;
+  updatedAt?: string;
+}
+
+export interface SlipGajiData {
+  karyawanId: string;
+  nama: string;
+  nik?: string;
+  jabatan: string;
+  cabang: string;
+  hp?: string;
+  bulan: string; // 'YYYY-MM'
+  bulanNama: string; // e.g. 'November 2026'
+  hadirCount: number;
+  tepatWaktuCount: number;
+  telatCount: number;
+  offCount: number;
+  izinCount: number;
+  sakitCount: number;
+  liburCount: number;
+  gajiPokokHarian: number;
+  uangMakanHarian: number;
+  dendaTelat: number;
+  totalGajiPokok: number;
+  totalUangMakan: number;
+  bonus: number;
+  potonganTelat: number;
+  potonganLain: number;
+  penghasilanKotor: number;
+  totalPotongan: number;
+  totalGajiBersih: number;
+  keterangan?: string;
 }
 
 

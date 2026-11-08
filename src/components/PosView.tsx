@@ -44,6 +44,7 @@ import {
   DataCabang,
   LevelPedas,
   LEVEL_PEDAS_OPTIONS,
+  MenuCabang,
 } from '../types';
 import { PrintDocumentType } from './PrintModal';
 import {
@@ -69,6 +70,7 @@ interface PosViewProps {
   onOpenPrintModal: (type: PrintDocumentType, data: any) => void;
   onNavigateToTab: (tab: any) => void;
   dataCabangList?: DataCabang[];
+  menuCabangList?: MenuCabang[];
 }
 
 export const PosView: React.FC<PosViewProps> = ({
@@ -85,6 +87,7 @@ export const PosView: React.FC<PosViewProps> = ({
   onOpenPrintModal,
   onNavigateToTab,
   dataCabangList = [],
+  menuCabangList = [],
 }) => {
   const currentBranchName = getBranchName(currentUser.cabang, dataCabangList);
   const currentBranch = getBranchById(currentUser.branchId || currentUser.cabang, dataCabangList);
@@ -212,8 +215,38 @@ export const PosView: React.FC<PosViewProps> = ({
     'Paket Hemat',
   ];
 
-  // Filter katalog
+  // Filter katalog (mendukung filter per cabang dinamis via menu_cabang / cabang_ids)
   const filteredKatalog = katalogList.filter((item) => {
+    // Filter ketersediaan cabang dinamis
+    if (currentUser.cabang !== 'DC PUSAT' && currentUser.jabatan !== 'Owner') {
+      const activeBranchId = currentBranch?.branchId || currentBranch?.id || currentUser.branchId || currentUser.cabang;
+      const recordsForMenu = (menuCabangList || []).filter((mc) => mc.menu_id === item.id);
+
+      if (recordsForMenu.length > 0) {
+        // Cari record yang cocok dengan cabang aktif
+        const branchRecord = recordsForMenu.find(
+          (mc) =>
+            mc.cabang_id === activeBranchId ||
+            mc.cabang_id === currentBranchName ||
+            mc.cabang_id === currentUser.cabang
+        );
+        if (branchRecord) {
+          if (!branchRecord.is_tampil) return false;
+        } else {
+          // Record ada untuk cabang lain tetapi tidak untuk cabang ini
+          return false;
+        }
+      } else if (item.cabang_ids && item.cabang_ids.length > 0 && !item.cabang_ids.includes('ALL')) {
+        const isAllowed = item.cabang_ids.some(
+          (cId) =>
+            cId === activeBranchId ||
+            cId === currentBranchName ||
+            cId === currentUser.cabang
+        );
+        if (!isAllowed) return false;
+      }
+    }
+
     const matchCategory =
       selectedCategory === 'Semua' || item.kategori === selectedCategory;
     const matchSearch =
@@ -1969,7 +2002,7 @@ export const PosView: React.FC<PosViewProps> = ({
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b pb-2">
-              <h3 className="font-bold text-slate-800 text-sm">QRIS Seblak Telaga</h3>
+              <h3 className="font-bold text-slate-800 text-sm">QRIS TELAGA WARNA</h3>
               <button
                 type="button"
                 onClick={() => setShowQrisModal(false)}

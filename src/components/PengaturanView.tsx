@@ -134,7 +134,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
               Pengaturan Database & Status Sistem
             </h2>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              Sistem POS Seblak Telaga menggunakan Cloud Firestore sebagai sumber kebenaran data tunggal.
+              Sistem POS TELAGA WARNA menggunakan Cloud Firestore sebagai sumber kebenaran data tunggal.
               Auto-seed data dinonaktifkan secara permanen sehingga data Anda tidak akan pernah tertimpa
               secara otomatis saat refresh, publish, atau membuka aplikasi.
             </p>

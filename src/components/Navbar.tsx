@@ -147,7 +147,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 text-white">
               <Flame className="w-4 h-4 text-amber-200 fill-amber-300" />
             </span>
-            <span className="text-sm">MY KASIR POS SEBLAK TELAGA</span>
+            <span className="text-sm">MY KASIR POS TELAGA WARNA</span>
             <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase">
               Multi-Cabang POS
             </span>

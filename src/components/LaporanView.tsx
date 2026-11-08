@@ -67,6 +67,15 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   // Sub-tabs: 'harian' | 'bulanan' | 'grafik' | 'stokMenipis' | 'auditLog' | 'auditBulanan' | 'divoid'
   const [activeSubTab, setActiveSubTab] = useState<'harian' | 'bulanan' | 'grafik' | 'stokMenipis' | 'auditLog' | 'auditBulanan' | 'divoid'>('harian');
 
+  // Filters
+  const [filterCabang, setFilterCabang] = useState<string>('Semua');
+  const [filterTanggal, setFilterTanggal] = useState<string>(today);
+  const [filterBulan, setFilterBulan] = useState<string>(currentMonth);
+  const [auditSearchTerm, setAuditSearchTerm] = useState<string>('');
+  const [auditFilterAksi, setAuditFilterAksi] = useState<string>('Semua');
+  const [auditBulananCabang, setAuditBulananCabang] = useState<string>(storeBranchList[0] || '');
+  const [auditBulananBulan, setAuditBulananBulan] = useState<string>(currentMonth);
+
   // Filtered DIVOID Transactions (Requirement 6: Tampilkan menu lama & menu pengganti untuk audit owner/admin)
   const divoidTrxList = transaksiList.filter((t) => {
     const matchCabang = filterCabang === 'Semua' || t.cabang === filterCabang;
@@ -76,15 +85,6 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       Boolean(t.voidKeInvoice);
     return matchCabang && isDivoid;
   });
-
-  // Filters
-  const [filterCabang, setFilterCabang] = useState<string>('Semua');
-  const [filterTanggal, setFilterTanggal] = useState<string>(today);
-  const [filterBulan, setFilterBulan] = useState<string>(currentMonth);
-  const [auditSearchTerm, setAuditSearchTerm] = useState<string>('');
-  const [auditFilterAksi, setAuditFilterAksi] = useState<string>('Semua');
-  const [auditBulananCabang, setAuditBulananCabang] = useState<string>(storeBranchList[0] || '');
-  const [auditBulananBulan, setAuditBulananBulan] = useState<string>(currentMonth);
 
   useEffect(() => {
     if (!auditBulananCabang && storeBranchList.length > 0) {
@@ -922,7 +922,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             <div>
               <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                 <ShoppingBag className="w-4 h-4 text-orange-600" />
-                Grafik Batang Menu Terlaris (Katalog Seblak Telaga)
+                Grafik Batang Menu Terlaris (Katalog TELAGA WARNA)
               </h3>
               <p className="text-[11px] text-slate-400">
                 Peringkat menu favorit berdasarkan jumlah porsi terjual

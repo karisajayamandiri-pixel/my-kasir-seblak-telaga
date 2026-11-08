@@ -15,6 +15,9 @@ export const STORAGE_KEYS = {
   AUDIT_LOG: 'seblak_audit_log',
   USED_NOTA_HASHES: 'seblak_used_nota_hashes',
   PENGELUARAN: 'seblak_pengeluaran',
+  PENGATURAN_OFF: 'seblak_pengaturan_off',
+  MENU_CABANG: 'seblak_menu_cabang',
+  PENGATURAN_GAJI: 'seblak_pengaturan_gaji',
 };
 
 export function loadFromStorage<T>(key: string, defaultValue: T): T {

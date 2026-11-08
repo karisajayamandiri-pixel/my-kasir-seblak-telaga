@@ -167,7 +167,7 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
         <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
         <div className="space-y-1">
           <span className="font-black text-sm block text-amber-900">
-            SOP Serah Terima Barang untuk Driver Seblak Telaga:
+            SOP Serah Terima Barang untuk Driver TELAGA WARNA:
           </span>
           <ol className="list-decimal list-inside space-y-0.5 text-[11px] text-amber-800">
             <li>Saat tiba di cabang tujuan, tekan tombol <strong>"Tandai Terkirim"</strong>.</li>

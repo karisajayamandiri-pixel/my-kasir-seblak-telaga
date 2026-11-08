@@ -134,7 +134,7 @@ export const DataCabangView: React.FC<DataCabangViewProps> = ({
             </h2>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Kelola master cabang Seblak Telaga, alamat cetak struk, no. telepon, status, serta nomor rekening bank & E-Wallet untuk setoran kas.
+            Kelola master cabang TELAGA WARNA, alamat cetak struk, no. telepon, status, serta nomor rekening bank & E-Wallet untuk setoran kas.
           </p>
         </div>
 

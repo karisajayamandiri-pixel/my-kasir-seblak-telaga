@@ -46,7 +46,8 @@ export type PrintDocumentType =
   | 'absen'
   | 'karyawan'
   | 'closingReceipt'
-  | 'auditBulanan';
+  | 'auditBulanan'
+  | 'slipGaji';
 
 interface PrintModalProps {
   type: PrintDocumentType | null;
@@ -200,6 +201,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     ? 'Cetak Data Karyawan'
                     : type === 'closingReceipt'
                     ? 'Cetak Laporan Tutup Toko Kasir'
+                    : type === 'slipGaji'
+                    ? 'Cetak Slip Gaji Karyawan'
                     : 'Cetak Laporan Audit Bulanan Cabang'}
                 </span>
                 <span className="text-[11px] text-slate-500">
@@ -405,7 +408,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <div className="receipt-58mm bg-white p-4 shadow-lg border border-slate-300 rounded-lg w-[280px] text-black font-mono text-[11px] leading-tight printable-area">
                 <div className="text-center space-y-1 pb-2 border-b border-dashed border-black">
                   <div className="font-extrabold text-sm tracking-wider">
-                    SEBLAK TELAGA
+                    TELAGA WARNA
                   </div>
                   <div className="text-[11px] font-bold">
                     CABANG {branchNama.toUpperCase()}
@@ -543,7 +546,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 {/* Footer */}
                 <div className="pt-3 text-center text-[9px] space-y-1">
                   <div className="font-bold">*** TERIMA KASIH ***</div>
-                  <div>Selamat Menikmati Seblak Telaga!</div>
+                  <div>Selamat Menikmati Hidangan TELAGA WARNA!</div>
                   <div>Layanan Konsumen ({branchNama}): {branchNoHp}</div>
                 </div>
               </div>
@@ -567,7 +570,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     TIKET PESANAN DAPUR
                   </div>
                   <div className="text-xs font-bold uppercase">
-                    SEBLAK TELAGA - {branchNama}
+                    TELAGA WARNA - {branchNama}
                   </div>
                   <div className="text-[10px] text-slate-700">
                     Mohon segera dimasak sesuai antrean
@@ -701,13 +704,13 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <div className="border-b-2 border-black pb-3 flex justify-between items-end">
                   <div>
                     <h1 className="text-xl font-black tracking-wide text-slate-900">
-                      SEBLAK TELAGA - DC PUSAT LOGISTIK
+                      TELAGA WARNA - DC PUSAT LOGISTIK
                     </h1>
                     <p className="text-[11px] text-slate-700">
-                      Jl. Pemuda No. 12, Gudang Sentral Logistik Seblak Telaga
+                      Jl. Pemuda No. 12, Gudang Sentral Logistik TELAGA WARNA
                     </p>
                     <p className="text-[10px] text-slate-600">
-                      Telp: (021) 8876-5432 • Email: logistik@seblaktelaga.com
+                      Telp: (021) 8876-5432 • Email: logistik@telagawarna.com
                     </p>
                   </div>
                   <div className="text-right">
@@ -834,7 +837,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <div className="border-b-2 border-black pb-2 flex justify-between items-end">
                 <div>
                   <h1 className="text-lg font-black tracking-wide">
-                    SEBLAK TELAGA - LAPORAN PENJUALAN HARIAN
+                    TELAGA WARNA - LAPORAN PENJUALAN HARIAN
                   </h1>
                   <p className="text-[11px] text-slate-600">
                     Cabang: <strong>{data.cabang}</strong> • Tanggal: <strong>{data.tanggal}</strong>
@@ -938,7 +941,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <div className="border-b-2 border-black pb-2 flex justify-between items-end">
                 <div>
                   <h1 className="text-lg font-black tracking-wide">
-                    SEBLAK TELAGA - REKAPITULASI PENJUALAN BULANAN
+                    TELAGA WARNA - REKAPITULASI PENJUALAN BULANAN
                   </h1>
                   <p className="text-[11px] text-slate-600">
                     Periode Bulan: <strong>{data.bulan}</strong> • Cabang: <strong>{data.cabang}</strong>
@@ -988,7 +991,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 </thead>
                 <tbody>
                   {data.dates?.map((date: string, i: number) => {
-                    const row = data.grouped[date];
+                    const row = data.grouped?.[date] || { count: 0, omzet: 0, modal: 0, untung: 0 };
                     const margin = row.omzet > 0 ? ((row.untung / row.omzet) * 100).toFixed(1) : 0;
                     return (
                       <tr key={i} className="border-b border-slate-300">
@@ -1033,8 +1036,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <div>
                   <h1 className="text-lg font-black tracking-wide">
                     {data?.isPrivileged === false
-                      ? 'KATALOG DAFTAR HARGA MENU SEBLAK TELAGA'
-                      : 'KATALOG MENU RESMI SEBLAK TELAGA'}
+                      ? 'KATALOG DAFTAR HARGA MENU TELAGA WARNA'
+                      : 'KATALOG MENU RESMI TELAGA WARNA'}
                   </h1>
                   <p className="text-[11px] text-slate-600">
                     {data?.isPrivileged === false
@@ -1115,7 +1118,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <div className="border-b-2 border-black pb-2 flex justify-between items-end">
                 <div>
                   <h1 className="text-lg font-black tracking-wide">
-                    REKAPITULASI ABSENSI KARYAWAN SEBLAK TELAGA
+                    REKAPITULASI ABSENSI KARYAWAN TELAGA WARNA
                   </h1>
                   <p className="text-[11px] text-slate-600">
                     Laporan Presensi Kehadiran & Kedisiplinan Jam Masuk (Batas Waktu: 08:00 WIB)
@@ -1191,7 +1194,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <div className="border-b-2 border-black pb-2 flex justify-between items-end">
                 <div>
                   <h1 className="text-lg font-black tracking-wide">
-                    DAFTAR MASTER KARYAWAN SEBLAK TELAGA
+                    DAFTAR MASTER KARYAWAN TELAGA WARNA
                   </h1>
                   <p className="text-[11px] text-slate-600">
                     Penugasan Cabang, Jabatan, Kontak, dan Akun Akses Sistem
@@ -1235,7 +1238,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
               <div className="pt-8 text-right text-xs">
                 <div className="inline-block text-center space-y-12">
-                  <div className="font-bold">Manajemen Pusat Seblak Telaga</div>
+                  <div className="font-bold">Manajemen Pusat TELAGA WARNA</div>
                   <div className="border-b border-black w-44 mx-auto"></div>
                 </div>
               </div>
@@ -1250,7 +1253,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <div className="text-center border-b-2 border-black pb-3 space-y-1">
                 <div className="flex items-center justify-center gap-1.5 text-base font-black">
                   <Flame className="w-5 h-5 text-orange-600 inline" />
-                  <span>SEBLAK TELAGA</span>
+                  <span>TELAGA WARNA</span>
                 </div>
                 <div className="font-bold uppercase text-xs">
                   LAPORAN TUTUP TOKO & CLOSING KASIR
@@ -1308,7 +1311,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
               <div className="text-[10px] text-center space-y-1 pt-2">
                 <div>Status: Laporan Closing Operasional Terverifikasi Sistem</div>
-                <div className="font-bold">*** DOKUMEN CLOSING RESMI OWNER SEBLAK TELAGA ***</div>
+                <div className="font-bold">*** DOKUMEN CLOSING RESMI OWNER TELAGA WARNA ***</div>
               </div>
 
               <div className="pt-6 grid grid-cols-2 gap-4 text-center text-[10px]">
@@ -1340,7 +1343,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </h1>
                   </div>
                   <p className="text-xs font-bold text-slate-700">
-                    SEBLAK TELAGA - CABANG {data?.cabang?.toUpperCase()}
+                    TELAGA WARNA - CABANG {data?.cabang?.toUpperCase()}
                   </p>
                   <p className="text-[11px] text-slate-600">
                     Periode Audit: {data?.bulan} | Rekapitulasi Kasir, Pengeluaran Toko ACC & Setoran
@@ -1475,6 +1478,236 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   <div className="font-bold">Owner / Direktur Utama</div>
                   <div className="border-b border-black w-36 mx-auto"></div>
                   <div>(DC Pusat)</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ==============================================================
+              10. SLIP GAJI KARYAWAN A4 RESMI
+          ============================================================== */}
+          {type === 'slipGaji' && data && (
+            <div className="document-a4 bg-white p-8 shadow-lg border border-slate-300 rounded-lg max-w-[210mm] w-full text-black font-sans text-xs printable-area space-y-4">
+              {/* Header Slip Gaji */}
+              <div className="border-b-2 border-black pb-3 flex justify-between items-start">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Flame className="w-5 h-5 text-orange-600 inline" />
+                    <h1 className="text-xl font-black tracking-wide text-slate-900">
+                      TELAGA WARNA
+                    </h1>
+                  </div>
+                  <h2 className="text-xs font-black text-slate-800 mt-1 uppercase tracking-wider">
+                    SLIP GAJI & REKAPITULASI PENGHASILAN KARYAWAN
+                  </h2>
+                  <p className="text-[10px] text-slate-500">
+                    Sistem Manajemen Kehadiran & Penggajian Karyawan Resmi
+                  </p>
+                </div>
+                <div className="text-right text-[10px] space-y-1">
+                  <div className="bg-slate-100 px-3 py-1 rounded border border-slate-300 font-mono font-bold text-slate-800">
+                    PERIODE: {data.bulanNama || data.bulan || '-'}
+                  </div>
+                  <div className="text-slate-500 text-[9px]">
+                    Dicetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Data Karyawan */}
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 border border-slate-300 rounded-lg text-xs">
+                <div className="space-y-1">
+                  <div className="flex">
+                    <span className="w-28 text-slate-500 font-semibold">Nama Karyawan:</span>
+                    <span className="font-black text-slate-900">{data.nama}</span>
+                  </div>
+                  <div className="flex">
+                    <span className="w-28 text-slate-500 font-semibold">NIK:</span>
+                    <span className="font-mono font-bold text-slate-800">{data.nik || '-'}</span>
+                  </div>
+                  <div className="flex">
+                    <span className="w-28 text-slate-500 font-semibold">Jabatan:</span>
+                    <span className="font-bold text-slate-800">{data.jabatan}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex">
+                    <span className="w-28 text-slate-500 font-semibold">Cabang:</span>
+                    <span className="font-bold text-slate-800">{data.cabang}</span>
+                  </div>
+                  <div className="flex">
+                    <span className="w-28 text-slate-500 font-semibold">No. WhatsApp/HP:</span>
+                    <span className="font-mono text-slate-800">{data.hp || '-'}</span>
+                  </div>
+                  <div className="flex">
+                    <span className="w-28 text-slate-500 font-semibold">Status Slip:</span>
+                    <span className="font-black text-emerald-800 uppercase">FINAL / SIAP CAIR</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ringkasan Kehadiran */}
+              <div className="space-y-1">
+                <div className="font-black text-[11px] uppercase tracking-wide text-slate-800">
+                  1. Rincian Kehadiran & Jadwal Kerja
+                </div>
+                <div className="grid grid-cols-6 gap-2 text-center text-xs">
+                  <div className="p-2 border border-slate-300 rounded bg-emerald-50">
+                    <div className="text-[9px] text-slate-600 font-bold uppercase">Total Hadir</div>
+                    <div className="text-sm font-black text-emerald-700">{data.hadirCount || 0} Hari</div>
+                  </div>
+                  <div className="p-2 border border-slate-300 rounded bg-white">
+                    <div className="text-[9px] text-slate-600 font-bold uppercase">Tepat Waktu</div>
+                    <div className="text-sm font-bold text-slate-800">{data.tepatWaktuCount || 0} Hari</div>
+                  </div>
+                  <div className="p-2 border border-slate-300 rounded bg-amber-50">
+                    <div className="text-[9px] text-amber-700 font-bold uppercase">Terlambat</div>
+                    <div className="text-sm font-black text-amber-700">{data.telatCount || 0} Kali</div>
+                  </div>
+                  <div className="p-2 border border-slate-300 rounded bg-purple-50">
+                    <div className="text-[9px] text-purple-700 font-bold uppercase">Jadwal OFF</div>
+                    <div className="text-sm font-black text-purple-700">{data.offCount || 0} Hari</div>
+                  </div>
+                  <div className="p-2 border border-slate-300 rounded bg-blue-50">
+                    <div className="text-[9px] text-blue-700 font-bold uppercase">Izin</div>
+                    <div className="text-sm font-bold text-blue-700">{data.izinCount || 0} Hari</div>
+                  </div>
+                  <div className="p-2 border border-slate-300 rounded bg-rose-50">
+                    <div className="text-[9px] text-rose-700 font-bold uppercase">Sakit</div>
+                    <div className="text-sm font-bold text-rose-700">{data.sakitCount || 0} Hari</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabel Rincian Penghasilan & Potongan */}
+              <div className="space-y-1">
+                <div className="font-black text-[11px] uppercase tracking-wide text-slate-800">
+                  2. Rincian Penghasilan & Potongan Gaji
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Kolom Penghasilan */}
+                  <div className="border border-black rounded p-3 bg-white space-y-2">
+                    <div className="font-black text-[11px] text-emerald-900 border-b border-black pb-1 uppercase">
+                      A. Komponen Penghasilan
+                    </div>
+                    <div className="space-y-1 text-[11px]">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-bold">Gaji Pokok Harian</div>
+                          <div className="text-[9px] text-slate-500">
+                            {data.hadirCount} hari x {formatRupiah(data.gajiPokokHarian)}
+                          </div>
+                        </div>
+                        <div className="font-black text-slate-900">
+                          {formatRupiah(data.totalGajiPokok)}
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-bold">Uang Makan & Transport</div>
+                          <div className="text-[9px] text-slate-500">
+                            {data.hadirCount} hari x {formatRupiah(data.uangMakanHarian)}
+                          </div>
+                        </div>
+                        <div className="font-black text-slate-900">
+                          {formatRupiah(data.totalUangMakan)}
+                        </div>
+                      </div>
+                      {(data.bonus || 0) > 0 && (
+                        <div className="flex justify-between items-center text-emerald-800">
+                          <div>
+                            <div className="font-bold">Bonus / Insentif Tambahan</div>
+                            <div className="text-[9px] text-slate-500">Apresiasi performa</div>
+                          </div>
+                          <div className="font-black">
+                            {formatRupiah(data.bonus)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="border-t border-dashed border-slate-400 pt-2 flex justify-between font-bold text-xs bg-emerald-50 p-1.5 rounded">
+                      <span>Total Penghasilan Kotor:</span>
+                      <span className="font-black text-emerald-900">
+                        {formatRupiah(data.penghasilanKotor)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Kolom Potongan */}
+                  <div className="border border-black rounded p-3 bg-white space-y-2">
+                    <div className="font-black text-[11px] text-rose-900 border-b border-black pb-1 uppercase">
+                      B. Komponen Potongan
+                    </div>
+                    <div className="space-y-1 text-[11px]">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-bold">Denda Keterlambatan</div>
+                          <div className="text-[9px] text-slate-500">
+                            {data.telatCount}x telat (&gt;08:00) x {formatRupiah(data.dendaTelat)}
+                          </div>
+                        </div>
+                        <div className="font-black text-rose-700">
+                          {formatRupiah(data.potonganTelat)}
+                        </div>
+                      </div>
+                      {(data.potonganLain || 0) > 0 && (
+                        <div className="flex justify-between items-center text-rose-700">
+                          <div>
+                            <div className="font-bold">Potongan Lainnya</div>
+                            <div className="text-[9px] text-slate-500">Administrasi / Lainnya</div>
+                          </div>
+                          <div className="font-black">
+                            {formatRupiah(data.potonganLain)}
+                          </div>
+                        </div>
+                      )}
+                      {data.potonganTelat === 0 && (data.potonganLain || 0) === 0 && (
+                        <div className="text-slate-400 text-[10px] italic py-1">
+                          Tidak ada potongan keterlambatan. Disiplin hadir tepat waktu!
+                        </div>
+                      )}
+                    </div>
+                    <div className="border-t border-dashed border-slate-400 pt-2 flex justify-between font-bold text-xs bg-rose-50 p-1.5 rounded">
+                      <span>Total Potongan:</span>
+                      <span className="font-black text-rose-800">
+                        {formatRupiah(data.totalPotongan)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Total Bersih Diterima (Take Home Pay) */}
+              <div className="p-3 bg-slate-100 border-2 border-emerald-700 rounded-xl flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-emerald-950">
+                    TOTAL GAJI BERSIH DITERIMA (TAKE HOME PAY)
+                  </div>
+                  <div className="text-[9px] text-slate-500">
+                    * Rincian resmi hasil rekapitulasi kehadiran bulanan
+                  </div>
+                </div>
+                <div className="text-xl font-black text-emerald-900 tracking-wide font-mono">
+                  {formatRupiah(data.totalGajiBersih)}
+                </div>
+              </div>
+
+              {/* Tanda Tangan */}
+              <div className="pt-4 grid grid-cols-3 gap-4 text-center text-xs">
+                <div className="space-y-12">
+                  <div className="font-bold text-slate-700">Karyawan Penerima</div>
+                  <div className="border-b border-black w-32 mx-auto"></div>
+                  <div className="font-bold">({data.nama})</div>
+                </div>
+                <div className="space-y-12">
+                  <div className="font-bold text-slate-700">Kepala Toko / Cabang</div>
+                  <div className="border-b border-black w-32 mx-auto"></div>
+                  <div className="font-bold">({data.cabang})</div>
+                </div>
+                <div className="space-y-12">
+                  <div className="font-bold text-slate-700">Owner / Direktur Utama</div>
+                  <div className="border-b border-black w-32 mx-auto"></div>
+                  <div className="font-bold">(TELAGA WARNA PUSAT)</div>
                 </div>
               </div>
             </div>

@@ -26,6 +26,7 @@ import {
   Cabang,
   AllTokoState,
   DataCabang,
+  MenuCabang,
 } from '../types';
 import { formatRupiah } from '../utils/storage';
 import { getStoreBranches } from '../utils/branchHelper';
@@ -37,6 +38,8 @@ interface KatalogMenuViewProps {
   stokCabang: StokCabangMap;
   tokoState?: AllTokoState;
   dataCabangList?: DataCabang[];
+  menuCabangList?: MenuCabang[];
+  onToggleMenuCabang?: (menuId: string, cabangId: string, currentStatus: boolean) => void;
   onAddKatalog: (menu: KatalogMenu) => void;
   onUpdateKatalog: (menu: KatalogMenu) => void;
   onDeleteKatalog: (id: string) => void;
@@ -51,6 +54,8 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
   stokCabang,
   tokoState,
   dataCabangList = [],
+  menuCabangList = [],
+  onToggleMenuCabang,
   onAddKatalog,
   onUpdateKatalog,
   onDeleteKatalog,
@@ -82,9 +87,35 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
   const [searchMinuman, setSearchMinuman] = useState<string>('');
   const [isMinumanDropdownOpen, setIsMinumanDropdownOpen] = useState<boolean>(false);
   const [promoCabangIds, setPromoCabangIds] = useState<string[]>([]); // Multi-select target cabang promo
+  const [selectedMenuCabangIds, setSelectedMenuCabangIds] = useState<string[]>([]); // Multi-select ketersediaan menu per cabang (menu_cabang)
 
   // Active store branches for promo multi-select (excluding DC Pusat)
   const availableStoreBranches = getStoreBranches(dataCabangList);
+
+  // Helper untuk mengecek status tampil menu di cabang (dari menu_cabang atau cabang_ids)
+  const getMenuBranchStatus = (menuId: string, menuCabangIds?: string[]) => {
+    const records = (menuCabangList || []).filter((mc) => mc.menu_id === menuId);
+    if (records.length > 0) {
+      const activeRecords = records.filter((r) => r.is_tampil);
+      return {
+        isAll: activeRecords.length === dataCabangList.length && dataCabangList.length > 0,
+        activeCount: activeRecords.length,
+        isActiveForBranch: (cabangId: string, cabangNama: string) => {
+          const rec = records.find((r) => r.cabang_id === cabangId || r.cabang_id === cabangNama);
+          return rec ? rec.is_tampil : false;
+        },
+      };
+    }
+    const isAll = !menuCabangIds || menuCabangIds.length === 0 || menuCabangIds.includes('ALL');
+    return {
+      isAll,
+      activeCount: isAll ? dataCabangList.length : (menuCabangIds?.length || 0),
+      isActiveForBranch: (cabangId: string, cabangNama: string) => {
+        if (isAll) return true;
+        return (menuCabangIds || []).includes(cabangId) || (menuCabangIds || []).includes(cabangNama);
+      },
+    };
+  };
 
   // Filter katalog for beverage category (Minuman Segar or containing 'minuman')
   const beverageOptions = katalogList.filter(
@@ -163,6 +194,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
     setSearchMinuman('');
     setIsMinumanDropdownOpen(false);
     setPromoCabangIds([]);
+    setSelectedMenuCabangIds([]); // Kosong = Tampil di Semua Cabang
     setEditingMenu(null);
     setShowModal(true);
   };
@@ -188,6 +220,18 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
     setSearchMinuman('');
     setIsMinumanDropdownOpen(false);
     setPromoCabangIds(Array.isArray(menu.promo_cabang_ids) ? [...menu.promo_cabang_ids] : []);
+
+    // Set ketersediaan cabang
+    if (menu.cabang_ids && menu.cabang_ids.length > 0) {
+      setSelectedMenuCabangIds([...menu.cabang_ids]);
+    } else {
+      const activeRecords = (menuCabangList || []).filter((mc) => mc.menu_id === menu.id && mc.is_tampil);
+      if (activeRecords.length > 0) {
+        setSelectedMenuCabangIds(activeRecords.map((r) => r.cabang_id));
+      } else {
+        setSelectedMenuCabangIds([]); // Kosong = Tampil di Semua Cabang
+      }
+    }
     setShowModal(true);
   };
 
@@ -223,6 +267,10 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
     const finalFreeMinumanId = selectedDrink ? selectedDrink.id : undefined;
     const finalFreeMinumanName = selectedDrink ? selectedDrink.nama : (freeMinuman.trim() || undefined);
     const finalPromoCabangIds = promoCabangIds.length > 0 ? promoCabangIds : [];
+    
+    // Resolving cabang_ids: jika Semua Cabang dipilih atau kosong, set []
+    const isAllBranches = selectedMenuCabangIds.length === 0 || selectedMenuCabangIds.includes('ALL');
+    const finalCabangIds = isAllBranches ? [] : selectedMenuCabangIds;
 
     if (editingMenu) {
       onUpdateKatalog({
@@ -239,6 +287,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
         free_minuman: finalFreeMinumanName,
         free_minuman_id: finalFreeMinumanId,
         promo_cabang_ids: finalPromoCabangIds,
+        cabang_ids: finalCabangIds,
       });
     } else {
       const newMenu: KatalogMenu = {
@@ -255,6 +304,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
         free_minuman: finalFreeMinumanName,
         free_minuman_id: finalFreeMinumanId,
         promo_cabang_ids: finalPromoCabangIds,
+        cabang_ids: finalCabangIds,
       };
       onAddKatalog(newMenu);
     }
@@ -262,6 +312,14 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
   };
 
   const filteredKatalog = katalogList.filter((item) => {
+    // Jika mode Kasir Cabang (bukan DC Pusat / Owner), filter hanya menu yang aktif di cabang kasir
+    if (!isPrivileged) {
+      const branchStatus = getMenuBranchStatus(item.id, item.cabang_ids);
+      const activeBranchKey = currentUser.branchId || currentUser.cabang;
+      const isVisibleHere = branchStatus.isActiveForBranch(activeBranchKey, currentUser.cabang);
+      if (!isVisibleHere) return false;
+    }
+
     const matchCat =
       selectedCategory === 'Semua' || item.kategori === selectedCategory;
     const matchSearch =
@@ -306,8 +364,8 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
           </div>
           <p className="text-xs text-slate-500 mt-1">
             {isPrivileged
-              ? 'Pengaturan Master Menu Seblak Telaga. HPP otomatis dihitung dari resep bahan baku, harga jual seragam untuk semua cabang.'
-              : 'Daftar menu resmi Seblak Telaga, harga jual konsumen, dan ketersediaan stok porsi di cabang Anda.'}
+              ? 'Pengaturan Master Menu TELAGA WARNA. HPP otomatis dihitung dari resep bahan baku, harga jual seragam untuk semua cabang.'
+              : 'Daftar menu resmi TELAGA WARNA, harga jual konsumen, dan ketersediaan stok porsi di cabang Anda.'}
           </p>
         </div>
 
@@ -426,6 +484,21 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                             : '🌐 Semua Cabang'}
                         </span>
                       )}
+                      {(() => {
+                        const branchStatus = getMenuBranchStatus(menu.id, menu.cabang_ids);
+                        if (branchStatus.isAll) {
+                          return (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
+                              🌐 Tampil di Semua Cabang
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold">
+                            📍 Tampil di {branchStatus.activeCount} cabang
+                          </span>
+                        );
+                      })()}
                     </div>
                     <h3 className="text-base sm:text-lg font-black text-slate-800 break-words whitespace-normal">
                       {menu.nama}
@@ -595,6 +668,50 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                           Belum ada bahan baku dalam resep
                         </span>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Toggle Cepat Per Cabang (Admin / Owner DC Pusat) */}
+                {isPrivileged && dataCabangList.length > 0 && (
+                  <div className="pt-2.5 border-t border-slate-100 space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-1">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        Toggle Cepat Ketersediaan Cabang:
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        Klik cabang untuk langsung aktif / nonaktifkan di POS
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {dataCabangList.map((branch) => {
+                        const branchKey = branch.branchId || branch.id;
+                        const branchStatus = getMenuBranchStatus(menu.id, menu.cabang_ids);
+                        const isTampil = branchStatus.isActiveForBranch(branchKey, branch.nama);
+                        return (
+                          <button
+                            key={branch.id}
+                            type="button"
+                            onClick={() => {
+                              if (onToggleMenuCabang) {
+                                onToggleMenuCabang(menu.id, branchKey, !isTampil);
+                              }
+                            }}
+                            title={`Klik untuk ${isTampil ? 'sembunyikan' : 'tampilkan'} di ${branch.nama}`}
+                            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition cursor-pointer flex items-center gap-1.5 ${
+                              isTampil
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-xs'
+                                : 'bg-slate-100 text-slate-400 border-slate-200 line-through hover:bg-slate-200'
+                            }`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${isTampil ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                            <span>{branch.nama}</span>
+                            <span className="text-[9px] font-semibold opacity-75">
+                              {isTampil ? '(Aktif)' : '(Nonaktif)'}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -1049,6 +1166,97 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                     * Disimpan di Firestore <code>katalog_menu.promo_cabang_ids</code>. Jika kosong <code>[]</code>, promo otomatis tampil di semua cabang. Jika diisi, kasir POS hanya menampilkan harga promo/free minuman di cabang yang dicentang.
                   </p>
                 </div>
+              </div>
+
+              {/* 4. Multi-Select Cabang Ketersediaan Menu (Tabel: menu_cabang) */}
+              <div className="p-4 bg-blue-50/80 border border-blue-200 rounded-2xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <div>
+                    <label className="block text-xs font-black text-blue-950">
+                      Ketersediaan Menu Per Cabang (Multi-Select Cabang)
+                    </label>
+                    <span className="text-[11px] text-blue-800">
+                      {selectedMenuCabangIds.length === 0 || selectedMenuCabangIds.includes('ALL')
+                        ? '🌐 [✓ Semua Cabang] — Menu tampil dan bisa dipesan di semua cabang'
+                        : `📍 Khusus tampil di ${selectedMenuCabangIds.length} cabang terpilih`}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMenuCabangIds([])}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition cursor-pointer ${
+                        selectedMenuCabangIds.length === 0 || selectedMenuCabangIds.includes('ALL')
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                      }`}
+                    >
+                      [✓ Semua Cabang]
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allBranchKeys = dataCabangList.map((b) => b.branchId || b.id);
+                        setSelectedMenuCabangIds(allBranchKeys);
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg border bg-white text-slate-700 border-slate-300 hover:bg-slate-100 transition cursor-pointer"
+                    >
+                      Pilih Semua Cabang
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                  {dataCabangList.map((branch) => {
+                    const branchKey = branch.branchId || branch.id;
+                    const isAll = selectedMenuCabangIds.length === 0 || selectedMenuCabangIds.includes('ALL');
+                    const isChecked = isAll || selectedMenuCabangIds.includes(branchKey) || selectedMenuCabangIds.includes(branch.nama);
+                    return (
+                      <label
+                        key={branch.id}
+                        className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition select-none ${
+                          isChecked
+                            ? 'bg-blue-100/80 border-blue-400 font-bold text-blue-950'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (isAll) {
+                              // Transisi dari Semua Cabang ke cabang spesifik
+                              const allKeys = dataCabangList.map((b) => b.branchId || b.id);
+                              if (!e.target.checked) {
+                                setSelectedMenuCabangIds(allKeys.filter((k) => k !== branchKey && k !== branch.nama));
+                              }
+                            } else {
+                              if (e.target.checked) {
+                                setSelectedMenuCabangIds((prev) => [...prev, branchKey]);
+                              } else {
+                                setSelectedMenuCabangIds((prev) =>
+                                  prev.filter((id) => id !== branchKey && id !== branch.nama)
+                                );
+                              }
+                            }
+                          }}
+                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs truncate font-bold">{branch.nama}</div>
+                          <div className="text-[10px] text-slate-500 truncate">
+                            {branch.kode ? `Kode: ${branch.kode}` : `ID: ${branchKey}`}
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <p className="text-[10px] text-blue-700 italic">
+                  * Disimpan ke tabel <code>menu_cabang (menu_id, cabang_id, is_tampil)</code>. Saat user/kasir membuka POS di cabang tertentu, sistem memfilter menu: <code>WHERE cabang_id = cabang_aktif AND is_tampil = true</code>.
+                </p>
               </div>
 
               <div className="flex gap-2 justify-end pt-3 border-t">

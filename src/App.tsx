@@ -25,6 +25,8 @@ import {
   StatusPesanan,
   TransaksiItem,
   TipePesanan,
+  PengaturanOff,
+  MenuCabang,
   OWNER_EMAIL,
   FullResetOptions,
   FullResetResult,
@@ -77,6 +79,9 @@ import {
   firestoreSavePermintaan,
   firestoreSaveLaporanHarian,
   firestoreSaveAuditLog,
+  firestoreSavePengaturanOff,
+  firestoreSaveMenuCabang,
+  firestoreSaveMenuCabangBatch,
 } from './services/firestoreSync';
 
 // Components
@@ -183,6 +188,16 @@ export default function App() {
     loadFromStorage<PengeluaranToko[]>(STORAGE_KEYS.PENGELUARAN, [])
   );
 
+  // Fitur Jadwal OFF & Pengaturan Kuota OFF per Cabang
+  const [pengaturanOffList, setPengaturanOffList] = useState<PengaturanOff[]>(() =>
+    loadFromStorage<PengaturanOff[]>(STORAGE_KEYS.PENGATURAN_OFF, [])
+  );
+
+  // Fitur Filter Katalog Menu Per Cabang (menu_cabang)
+  const [menuCabangList, setMenuCabangList] = useState<MenuCabang[]>(() =>
+    loadFromStorage<MenuCabang[]>(STORAGE_KEYS.MENU_CABANG, [])
+  );
+
   // Print Modal State
   const [printModalState, setPrintModalState] = useState<{
     isOpen: boolean;
@@ -281,6 +296,14 @@ export default function App() {
       onAbsensi: (list) => {
         setAbsensiList(list);
         saveToStorage(STORAGE_KEYS.ABSENSI, list);
+      },
+      onPengaturanOff: (list) => {
+        setPengaturanOffList(list);
+        saveToStorage(STORAGE_KEYS.PENGATURAN_OFF, list);
+      },
+      onMenuCabang: (list) => {
+        setMenuCabangList(list);
+        saveToStorage(STORAGE_KEYS.MENU_CABANG, list);
       },
       onSuratJalan: (list) => {
         setSuratJalanList(list);
@@ -1263,14 +1286,54 @@ export default function App() {
   const handleAddKatalog = (menu: KatalogMenu) => {
     setKatalogList((prev) => [...prev, menu]);
     firestoreSaveKatalog(menu);
+    // Sync menu_cabang table
+    firestoreSaveMenuCabangBatch(menu.id, menu.cabang_ids || [], dataCabangList);
   };
   const handleUpdateKatalog = (menu: KatalogMenu) => {
     setKatalogList((prev) => prev.map((k) => (k.id === menu.id ? menu : k)));
     firestoreSaveKatalog(menu);
+    // Sync menu_cabang table
+    firestoreSaveMenuCabangBatch(menu.id, menu.cabang_ids || [], dataCabangList);
   };
   const handleDeleteKatalog = (id: string) => {
     setKatalogList((prev) => prev.filter((k) => k.id !== id));
     firestoreDeleteKatalog(id);
+  };
+
+  // Quick toggle menu visibility per branch (menu_cabang table)
+  const handleToggleMenuCabang = (menuId: string, cabangId: string, isTampil: boolean) => {
+    const docId = `${menuId}_${cabangId}`;
+    const updatedRecord: MenuCabang = {
+      id: docId,
+      menu_id: menuId,
+      cabang_id: cabangId,
+      is_tampil: isTampil,
+      updatedAt: new Date().toISOString(),
+    };
+    setMenuCabangList((prev) => {
+      const idx = prev.findIndex((m) => m.id === docId);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = updatedRecord;
+        return next;
+      }
+      return [...prev, updatedRecord];
+    });
+    firestoreSaveMenuCabang(updatedRecord);
+  };
+
+  // Pengaturan OFF Handlers
+  const handleSavePengaturanOff = (poff: PengaturanOff) => {
+    setPengaturanOffList((prev) => {
+      const idx = prev.findIndex((p) => p.cabangId === poff.cabangId);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = poff;
+        return next;
+      }
+      return [...prev, poff];
+    });
+    firestoreSavePengaturanOff(poff);
   };
 
   // Bahan Baku Handlers with Firestore Realtime Sync
@@ -1548,6 +1611,7 @@ export default function App() {
             onOpenPrintModal={openPrintModal}
             onNavigateToTab={setActiveTab}
             dataCabangList={dataCabangList}
+            menuCabangList={menuCabangList}
           />
         )}
 
@@ -1575,6 +1639,8 @@ export default function App() {
             bahanBakuList={bahanBakuList}
             stokCabang={stokCabang}
             dataCabangList={dataCabangList}
+            menuCabangList={menuCabangList}
+            onToggleMenuCabang={handleToggleMenuCabang}
             onAddKatalog={handleAddKatalog}
             onUpdateKatalog={handleUpdateKatalog}
             onDeleteKatalog={handleDeleteKatalog}
@@ -1649,6 +1715,8 @@ export default function App() {
             onAbsenPulang={handleAbsenPulang}
             onOpenPrintModal={openPrintModal}
             dataCabangList={dataCabangList}
+            pengaturanOffList={pengaturanOffList}
+            onSavePengaturanOff={handleSavePengaturanOff}
           />
         )}
 
@@ -1858,7 +1926,7 @@ export default function App() {
 
                   {isOwnerEmail ? (
                     <p className="text-slate-600 pt-1 leading-relaxed">
-                      Apakah Anda yakin ingin mengisi ulang database Firestore dengan data contoh demo Seblak Telaga?
+                      Apakah Anda yakin ingin mengisi ulang database Firestore dengan data contoh demo TELAGA WARNA?
                       Dokumen demo akan diberi tanda <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">isDemo: true</code> dan hanya dapat dihapus oleh Owner.
                     </p>
                   ) : (

@@ -250,6 +250,39 @@
         "keterangan": { "type": "string" }
       },
       "required": ["id", "tanggal", "siapa", "cabang", "aksi"]
+    },
+    "PengaturanOff": {
+      "title": "PengaturanOff",
+      "description": "Pengaturan kuota maksimal karyawan OFF harian per cabang (0 = Full Team)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "cabangId": { "type": "string" },
+        "cabangNama": { "type": "string" },
+        "senin": { "type": "number" },
+        "selasa": { "type": "number" },
+        "rabu": { "type": "number" },
+        "kamis": { "type": "number" },
+        "jumat": { "type": "number" },
+        "sabtu": { "type": "number" },
+        "minggu": { "type": "number" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["id", "cabangId", "cabangNama"]
+    },
+    "MenuCabang": {
+      "title": "MenuCabang",
+      "description": "Relasi ketersediaan menu per cabang (WHERE cabang_id = cabang_aktif AND is_tampil = true)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "menu_id": { "type": "string" },
+        "cabang_id": { "type": "string" },
+        "is_tampil": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "menu_id", "cabang_id", "is_tampil"]
     }
   },
   "firestore": {
@@ -292,6 +325,14 @@
     "/absensi/{absensiId}": {
       "schema": "Absensi",
       "description": "Catatan absensi harian"
+    },
+    "/pengaturan_off/{cabangId}": {
+      "schema": "PengaturanOff",
+      "description": "Pengaturan kuota batas OFF harian cabang"
+    },
+    "/menu_cabang/{docId}": {
+      "schema": "MenuCabang",
+      "description": "Relasi ketersediaan menu per cabang"
     },
     "/suratJalan/{sjId}": {
       "schema": "SuratJalan",

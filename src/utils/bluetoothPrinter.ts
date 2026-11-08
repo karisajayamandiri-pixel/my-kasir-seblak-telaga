@@ -254,19 +254,19 @@ class EscPosBuilder {
 }
 
 /**
- * Buat ESC/POS binary untuk Struk Transaksi Kasir Seblak Telaga
+ * Buat ESC/POS binary untuk Struk Transaksi Kasir TELAGA WARNA
  */
 export const buildReceiptEscPos = (trx: Transaksi, branchInfo?: DataCabang): Uint8Array => {
   const b = new EscPosBuilder();
-  const branchNama = branchInfo?.nama || trx.cabang || 'TELAGA';
-  const branchAlamat = branchInfo?.alamat || 'Gudang & Sentral Logistik Seblak Telaga';
+  const branchNama = branchInfo?.nama || trx.cabang || 'TELAGA WARNA';
+  const branchAlamat = branchInfo?.alamat || 'Gudang & Sentral Logistik TELAGA WARNA';
   const branchHp = branchInfo?.noHp || '0857-1234-5678';
 
   b.init();
 
   // KOP TOKO (Center, Bold, Double Size)
   b.align('center');
-  b.bold(true).size('double').line('SEBLAK TELAGA');
+  b.bold(true).size('double').line('TELAGA WARNA');
   b.bold(true).size('normal').line(`CABANG ${branchNama.toUpperCase()}`);
   b.bold(false).line(branchAlamat);
   b.line(`Telp/WA: ${branchHp}`);
@@ -384,7 +384,7 @@ export const buildKitchenTicketEscPos = (trx: Transaksi, branchInfo?: DataCabang
   // KOP TIKET DAPUR
   b.align('center');
   b.bold(true).size('double').line('TIKET DAPUR');
-  b.bold(true).size('normal').line(`SEBLAK TELAGA - ${branchNama.toUpperCase()}`);
+  b.bold(true).size('normal').line(`TELAGA WARNA - ${branchNama.toUpperCase()}`);
   b.divider('=');
 
   // NOMOR PESANAN / ANTRIAN (Besar & Tebal)
@@ -515,7 +515,7 @@ export const printTestBluetooth = async (
     const b = new EscPosBuilder();
     b.init();
     b.align('center');
-    b.bold(true).size('double').line('SEBLAK TELAGA');
+    b.bold(true).size('double').line('TELAGA WARNA');
     b.size('normal').line(`TEST PRINT PRINTER BLUETOOTH`);
     b.line(`Cabang: ${branchName}`);
     b.divider('-');

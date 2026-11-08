@@ -332,9 +332,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           <div className="w-16 h-16 bg-white/20 backdrop-blur-xs rounded-2xl mx-auto flex items-center justify-center mb-3 shadow-inner">
             <Flame className="w-10 h-10 text-amber-200 fill-amber-300" />
           </div>
-          <h1 className="text-2xl font-black tracking-wide">SEBLAK TELAGA</h1>
+          <h1 className="text-2xl font-black tracking-wide">TELAGA WARNA</h1>
           <p className="text-xs text-orange-100 mt-1 font-medium">
-            Sistem Kasir POS & Manajemen Multi-Cabang Telaga
+            Sistem Kasir POS & Manajemen Multi-Cabang TELAGA WARNA
           </p>
         </div>
 
@@ -473,7 +473,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
         {/* Footer info */}
         <div className="bg-slate-50 px-6 py-3 border-t border-slate-100 text-center text-[11px] text-slate-400">
-          My Kasir POS Seblak Telaga • Multi-Role & Multi-Cabang
+          My Kasir POS TELAGA WARNA • Multi-Role & Multi-Cabang
         </div>
       </div>
 
@@ -721,8 +721,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <a
                 href={`https://wa.me/${formatWaPhone(adminPhone)}?text=${encodeURIComponent(
                   contactUser
-                    ? `Halo ${adminNama} (Admin DC Pusat), saya ${contactUser.nama} (Jabatan: ${contactUser.jabatan}, Username: ${contactUser.username}, Cabang: ${contactUser.cabang}, NIK: ${contactUser.nik || '-'}) lupa kata sandi akun POS Seblak Telaga. Mohon bantuan untuk reset kata sandi saya.`
-                    : `Halo ${adminNama} (Admin DC Pusat), saya karyawan Seblak Telaga lupa kata sandi akun POS. Mohon bantuan untuk verifikasi dan reset kata sandi saya.`
+                    ? `Halo ${adminNama} (Admin DC Pusat), saya ${contactUser.nama} (Jabatan: ${contactUser.jabatan}, Username: ${contactUser.username}, Cabang: ${contactUser.cabang}, NIK: ${contactUser.nik || '-'}) lupa kata sandi akun POS TELAGA WARNA. Mohon bantuan untuk reset kata sandi saya.`
+                    : `Halo ${adminNama} (Admin DC Pusat), saya karyawan TELAGA WARNA lupa kata sandi akun POS. Mohon bantuan untuk verifikasi dan reset kata sandi saya.`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"

@@ -229,7 +229,7 @@ export const INITIAL_BAHAN_BAKU: BahanBaku[] = [
   { id: 'bhn-9', nama: 'Cuanki Lidah Gurih', satuan: 'biji', kategori: 'Bahan Makanan', hargaBeli: 800, stokMinimum: 100, stokDC: 1600 },
   { id: 'bhn-10', nama: 'Siomay Mini Kering', satuan: 'bks', kategori: 'Bahan Makanan', hargaBeli: 500, stokMinimum: 100, stokDC: 1300 },
   { id: 'bhn-11', nama: 'Cabe Rawit Merah Giling', satuan: 'kg', kategori: 'Bahan Makanan', hargaBeli: 45000, stokMinimum: 5, stokDC: 40 },
-  { id: 'bhn-12', nama: 'Bumbu Khas Seblak Telaga', satuan: 'kg', kategori: 'Bahan Makanan', hargaBeli: 35000, stokMinimum: 10, stokDC: 65 },
+  { id: 'bhn-12', nama: 'Bumbu Khas TELAGA WARNA', satuan: 'kg', kategori: 'Bahan Makanan', hargaBeli: 35000, stokMinimum: 10, stokDC: 65 },
   { id: 'bhn-13', nama: 'Sayur Sawi Hijau', satuan: 'ikat', kategori: 'Bahan Makanan', hargaBeli: 3000, stokMinimum: 15, stokDC: 70 },
   { id: 'bhn-14', nama: 'Daun Bawang & Bawang Goreng', satuan: 'kg', kategori: 'Bahan Makanan', hargaBeli: 25000, stokMinimum: 5, stokDC: 30 },
   { id: 'bhn-15', nama: 'Teh Sari Wangi Jumbo', satuan: 'bks', kategori: 'Bahan Minuman', hargaBeli: 10000, stokMinimum: 10, stokDC: 90 },
@@ -683,7 +683,7 @@ export const INITIAL_PERMINTAAN: PermintaanBarang[] = [
     jam: '09:30',
     items: [
       { bahanId: 'bhn-1', namaBahan: 'Kerupuk Mawar Putih', satuan: 'kg', qtyMinta: 15 },
-      { bahanId: 'bhn-12', namaBahan: 'Bumbu Khas Seblak Telaga', satuan: 'kg', qtyMinta: 8 },
+      { bahanId: 'bhn-12', namaBahan: 'Bumbu Khas TELAGA WARNA', satuan: 'kg', qtyMinta: 8 },
     ],
     catatan: 'Permintaan restock rutin',
     status: 'Menunggu',

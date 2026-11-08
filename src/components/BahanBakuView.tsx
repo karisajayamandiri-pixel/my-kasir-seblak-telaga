@@ -175,7 +175,7 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
           <span className="text-2xl font-black text-slate-800 mt-1 block">
             {totalItemGudang} Bahan
           </span>
-          <span className="text-[11px] text-slate-400">Master inventaris Seblak Telaga</span>
+          <span className="text-[11px] text-slate-400">Master inventaris TELAGA WARNA</span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">

@@ -23,6 +23,8 @@ import {
   LaporanHarian,
   AuditLog,
   TokoState,
+  PengaturanOff,
+  MenuCabang,
   OWNER_EMAIL,
   FullResetOptions,
   FullResetResult,
@@ -55,6 +57,8 @@ export const FIRESTORE_COLLECTIONS = {
   TRANSAKSI: 'transaksi',
   PENGELUARAN: 'pengeluaran',
   ABSENSI: 'absensi',
+  PENGATURAN_OFF: 'pengaturan_off',
+  MENU_CABANG: 'menu_cabang',
   SURAT_JALAN: 'suratJalan',
   PERMINTAAN: 'permintaan',
   LAPORAN_HARIAN: 'laporanHarian',
@@ -462,6 +466,8 @@ export function subscribeToRealtimeFirestore(callbacks: {
   onTransaksi: (list: Transaksi[]) => void;
   onPengeluaran: (list: PengeluaranToko[]) => void;
   onAbsensi: (list: Absensi[]) => void;
+  onPengaturanOff?: (list: PengaturanOff[]) => void;
+  onMenuCabang?: (list: MenuCabang[]) => void;
   onSuratJalan: (list: SuratJalan[]) => void;
   onPermintaan: (list: PermintaanBarang[]) => void;
   onLaporanHarian: (list: LaporanHarian[]) => void;
@@ -606,6 +612,30 @@ export function subscribeToRealtimeFirestore(callbacks: {
         callbacks.onAbsensi(items);
       },
       (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.ABSENSI)
+    )
+  );
+
+  // 9b. Pengaturan Off
+  unsubscribers.push(
+    onSnapshot(
+      collection(db, FIRESTORE_COLLECTIONS.PENGATURAN_OFF),
+      (snap) => {
+        const items = snap.docs.map((d) => d.data() as PengaturanOff);
+        if (callbacks.onPengaturanOff) callbacks.onPengaturanOff(items);
+      },
+      (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.PENGATURAN_OFF)
+    )
+  );
+
+  // 9c. Menu Cabang
+  unsubscribers.push(
+    onSnapshot(
+      collection(db, FIRESTORE_COLLECTIONS.MENU_CABANG),
+      (snap) => {
+        const items = snap.docs.map((d) => d.data() as MenuCabang);
+        if (callbacks.onMenuCabang) callbacks.onMenuCabang(items);
+      },
+      (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.MENU_CABANG)
     )
   );
 
@@ -845,5 +875,44 @@ export async function firestoreSaveAuditLog(log: AuditLog) {
     await setDoc(doc(db, FIRESTORE_COLLECTIONS.AUDIT_LOG, log.id), sanitizeForFirestore(log), { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.AUDIT_LOG}/${log.id}`);
+  }
+}
+
+export async function firestoreSavePengaturanOff(poff: PengaturanOff) {
+  try {
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.PENGATURAN_OFF, poff.cabangId), sanitizeForFirestore(poff), { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.PENGATURAN_OFF}/${poff.cabangId}`);
+  }
+}
+
+export async function firestoreSaveMenuCabang(mc: MenuCabang) {
+  try {
+    await setDoc(doc(db, FIRESTORE_COLLECTIONS.MENU_CABANG, mc.id), sanitizeForFirestore(mc), { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.MENU_CABANG}/${mc.id}`);
+  }
+}
+
+export async function firestoreSaveMenuCabangBatch(menuId: string, cabangIds: string[], allBranches: DataCabang[]) {
+  try {
+    const isAll = cabangIds.length === 0 || cabangIds.includes('ALL');
+    const batch = writeBatch(db);
+    allBranches.forEach((b) => {
+      const cId = b.branchId || b.id;
+      const docId = `${menuId}_${cId}`;
+      const isTampil = isAll || cabangIds.includes(cId) || cabangIds.includes(b.nama);
+      const record: MenuCabang = {
+        id: docId,
+        menu_id: menuId,
+        cabang_id: cId,
+        is_tampil: isTampil,
+        updatedAt: new Date().toISOString(),
+      };
+      batch.set(doc(db, FIRESTORE_COLLECTIONS.MENU_CABANG, docId), sanitizeForFirestore(record), { merge: true });
+    });
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.MENU_CABANG}/batch_${menuId}`);
   }
 }
