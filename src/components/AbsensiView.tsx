@@ -31,6 +31,7 @@ import {
 import { Karyawan, Absensi, Cabang, DataCabang, PengaturanOff, GajiKaryawanSetting, SlipGajiData } from '../types';
 import { getTodayStr, getNowTimeStr, formatRupiah, STORAGE_KEYS, loadFromStorage, saveToStorage } from '../utils/storage';
 import { getBranchName, getStoreBranchNames } from '../utils/branchHelper';
+import { BottomSheetPicker, BottomSheetPickerTrigger, BottomSheetOption } from './BottomSheetPicker';
 
 interface AbsensiViewProps {
   currentUser: Karyawan;
@@ -92,6 +93,14 @@ export const AbsensiView: React.FC<AbsensiViewProps> = ({
 
   // Search bar input for searching branch name (pengganti tombol atas)
   const [searchCabangInput, setSearchCabangInput] = useState<string>('');
+
+  // BottomSheetPicker Open States (Menggantikan semua dropdown select bawaan)
+  const [showPickerTab1Cabang, setShowPickerTab1Cabang] = useState<boolean>(false);
+  const [showPickerTab1Status, setShowPickerTab1Status] = useState<boolean>(false);
+  const [showPickerTab3Cabang, setShowPickerTab3Cabang] = useState<boolean>(false);
+  const [showPickerScheduleCabang, setShowPickerScheduleCabang] = useState<boolean>(false);
+  const [showPickerScheduleKaryawan, setShowPickerScheduleKaryawan] = useState<boolean>(false);
+  const [showPickerGajiCabang, setShowPickerGajiCabang] = useState<boolean>(false);
 
   // Pengaturan Gaji Karyawan oleh Owner
   const [gajiSettings, setGajiSettings] = useState<Record<string, GajiKaryawanSetting>>(() =>
@@ -406,7 +415,8 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
       return;
     }
 
-    const jamMasuk = useSimulationTime ? simulatedTime : getNowTimeStr();
+    const isOwner = currentUser.jabatan === 'Owner';
+    const jamMasuk = (isOwner && useSimulationTime) ? simulatedTime : getNowTimeStr();
     // Rule: Telat jika > 08:00
     const [hh, mm] = jamMasuk.split(':').map(Number);
     const isLate = hh > 8 || (hh === 8 && mm > 0);
@@ -433,7 +443,8 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
   // 2. Absen Pulang Mandiri
   const handleAbsenPulangSaya = () => {
     if (!myTodayAbsen) return;
-    const jamPulang = useSimulationTime ? '17:00:00' : getNowTimeStr();
+    const isOwner = currentUser.jabatan === 'Owner';
+    const jamPulang = (isOwner && useSimulationTime) ? '17:00:00' : getNowTimeStr();
     const durasi = calculateDuration(myTodayAbsen.jamMasuk, jamPulang);
     onAbsenPulang(myTodayAbsen.id, jamPulang, durasi);
   };
@@ -832,30 +843,46 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
             </p>
           </div>
 
-          {/* Time simulation tool for easy grading / testing */}
-          <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 text-xs flex items-center gap-2 self-start sm:self-auto">
-            <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={useSimulationTime}
-                onChange={(e) => setUseSimulationTime(e.target.checked)}
-                className="rounded text-orange-600"
-              />
-              <span>Simulasi Jam:</span>
-            </label>
-            {useSimulationTime && (
-              <select
-                value={simulatedTime}
-                onChange={(e) => setSimulatedTime(e.target.value)}
-                className="px-2 py-0.5 bg-white border border-slate-300 rounded text-xs font-bold"
-              >
-                <option value="07:45:00">07:45 (Tepat Waktu)</option>
-                <option value="07:58:00">07:58 (Tepat Waktu)</option>
-                <option value="08:15:00">08:15 (Terlambat &gt;08:00)</option>
-                <option value="08:45:00">08:45 (Terlambat &gt;08:00)</option>
-              </select>
-            )}
-          </div>
+          {/* Time simulation tool - HANYA DITAMPILKAN UNTUK JABATAN OWNER */}
+          {currentUser.jabatan === 'Owner' && (
+            <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 text-xs flex items-center gap-2 self-start sm:self-auto">
+              <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useSimulationTime}
+                  onChange={(e) => setUseSimulationTime(e.target.checked)}
+                  className="rounded text-orange-600"
+                />
+                <span>Simulasi Jam:</span>
+              </label>
+              {useSimulationTime && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setSimulatedTime('07:45:00')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
+                      simulatedTime === '07:45:00'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    07:45 (Tepat)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSimulatedTime('08:15:00')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
+                      simulatedTime === '08:15:00'
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    08:15 (Telat)
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* If user is recorded as Izin, Sakit, Off, or Libur today */}
@@ -1105,35 +1132,59 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
               />
             </div>
 
-            {/* Cabang Filter */}
-            <select
-              value={filterCabang}
-              onChange={(e) => setFilterCabang(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold"
-            >
-              <option value="Semua">Semua Cabang</option>
-              <option value="DC PUSAT">DC PUSAT</option>
-              {activeBranches.map((cName) => (
-                <option key={cName} value={cName}>
-                  {cName}
-                </option>
-              ))}
-            </select>
+            {/* Cabang Filter via BottomSheetPicker */}
+            <div className="w-auto">
+              <BottomSheetPickerTrigger
+                valueTitle={filterCabang === 'Semua' ? 'Semua Cabang' : filterCabang}
+                onClick={() => setShowPickerTab1Cabang(true)}
+                size="sm"
+                icon={<Building2 size={14} />}
+                className="w-auto min-w-[130px]"
+              />
+              <BottomSheetPicker
+                isOpen={showPickerTab1Cabang}
+                onClose={() => setShowPickerTab1Cabang(false)}
+                title="Pilih Cabang (Tabel Rekap)"
+                selectedId={filterCabang}
+                onSelect={(opt) => setFilterCabang(String(opt.id))}
+                options={[
+                  { id: 'Semua', title: 'Semua Cabang', subtitle: 'Tampilkan seluruh cabang', badge: 'Semua' },
+                  { id: 'DC PUSAT', title: 'DC PUSAT', subtitle: 'Pusat Distribusi' },
+                  ...activeBranches.map((cName) => ({
+                    id: cName,
+                    title: cName,
+                    subtitle: 'Cabang Toko Resmi',
+                  })),
+                ]}
+              />
+            </div>
 
-            {/* Status Filter */}
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold"
-            >
-              <option value="Semua">Semua Status</option>
-              <option value="Tepat Waktu">Tepat Waktu</option>
-              <option value="Terlambat">Terlambat</option>
-              <option value="Izin">Izin</option>
-              <option value="Sakit">Sakit</option>
-              <option value="Off">Off (Libur Shift)</option>
-              <option value="Libur">Libur (Toko/Nasional)</option>
-            </select>
+            {/* Status Filter via BottomSheetPicker */}
+            <div className="w-auto">
+              <BottomSheetPickerTrigger
+                valueTitle={filterStatus === 'Semua' ? 'Semua Status' : filterStatus}
+                onClick={() => setShowPickerTab1Status(true)}
+                size="sm"
+                icon={<Check size={14} />}
+                className="w-auto min-w-[130px]"
+              />
+              <BottomSheetPicker
+                isOpen={showPickerTab1Status}
+                onClose={() => setShowPickerTab1Status(false)}
+                title="Pilih Status Kehadiran"
+                selectedId={filterStatus}
+                onSelect={(opt) => setFilterStatus(String(opt.id))}
+                options={[
+                  { id: 'Semua', title: 'Semua Status', subtitle: 'Tampilkan seluruh status' },
+                  { id: 'Tepat Waktu', title: 'Tepat Waktu', subtitle: 'Hadir sebelum 08:00 WIB', badge: 'Hadir' },
+                  { id: 'Terlambat', title: 'Terlambat', subtitle: 'Hadir setelah 08:00 WIB', badge: 'Telat' },
+                  { id: 'Izin', title: 'Izin', subtitle: 'Izin tidak masuk resmi' },
+                  { id: 'Sakit', title: 'Sakit', subtitle: 'Sakit dengan keterangan' },
+                  { id: 'Off', title: 'Off (Libur Shift)', subtitle: 'Jadwal OFF berkala' },
+                  { id: 'Libur', title: 'Libur (Toko/Nasional)', subtitle: 'Hari libur toko/nasional' },
+                ]}
+              />
+            </div>
 
             {/* Date Filter */}
             <input
@@ -1587,21 +1638,38 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
           </div>
 
           <div>
-            <label className="block font-bold text-slate-700 mb-1">
-              Filter Cabang:
-            </label>
-            <select
-              value={laporanCabangFilter}
-              onChange={(e) => setLaporanCabangFilter(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
-            >
-              <option value="Semua">Semua Cabang ({dataCabangList.length})</option>
-              {dataCabangList.map((b) => (
-                <option key={b.id} value={b.nama}>
-                  {b.nama}
-                </option>
-              ))}
-            </select>
+            <BottomSheetPickerTrigger
+              label="Filter Cabang:"
+              valueTitle={
+                laporanCabangFilter === 'Semua'
+                  ? `Semua Cabang (${dataCabangList.length})`
+                  : laporanCabangFilter
+              }
+              onClick={() => setShowPickerTab3Cabang(true)}
+              icon={<Building2 size={16} />}
+              size="md"
+            />
+            <BottomSheetPicker
+              isOpen={showPickerTab3Cabang}
+              onClose={() => setShowPickerTab3Cabang(false)}
+              title="Pilih Cabang (Laporan Bulanan)"
+              selectedId={laporanCabangFilter}
+              onSelect={(opt) => setLaporanCabangFilter(String(opt.id))}
+              options={[
+                {
+                  id: 'Semua',
+                  title: `Semua Cabang (${dataCabangList.length})`,
+                  subtitle: 'Tampilkan laporan seluruh cabang',
+                  badge: 'Semua',
+                },
+                ...dataCabangList.map((b) => ({
+                  id: b.nama,
+                  title: b.nama,
+                  subtitle: `${b.isPusat ? 'DC Pusat' : 'Outlet'} • ${b.alamat || 'Operasional'}`,
+                  badge: b.isPusat ? 'Pusat' : 'Outlet',
+                })),
+              ]}
+            />
           </div>
 
           <div>
@@ -2184,49 +2252,76 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
 
             <form onSubmit={handleSaveScheduleOffLibur} className="space-y-4 text-xs">
               {/* Filter Cabang untuk Mempermudah Memilih Karyawan */}
-              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-slate-700">
-                    Filter Cabang Karyawan:
+              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="font-bold text-slate-700 text-xs shrink-0">
+                    Filter Cabang:
                   </label>
-                  <select
-                    value={scheduleFilterCabang}
-                    onChange={(e) => setScheduleFilterCabang(e.target.value)}
-                    className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
-                  >
-                    <option value="Semua">Semua Cabang</option>
-                    <option value="DC PUSAT">DC PUSAT</option>
-                    {activeBranches.map((bName) => (
-                      <option key={bName} value={bName}>
-                        {bName}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="w-auto">
+                    <BottomSheetPickerTrigger
+                      valueTitle={scheduleFilterCabang}
+                      onClick={() => setShowPickerScheduleCabang(true)}
+                      size="sm"
+                      icon={<Building2 size={13} />}
+                      className="min-w-[140px]"
+                    />
+                    <BottomSheetPicker
+                      isOpen={showPickerScheduleCabang}
+                      onClose={() => setShowPickerScheduleCabang(false)}
+                      title="Filter Cabang Karyawan"
+                      selectedId={scheduleFilterCabang}
+                      onSelect={(opt) => setScheduleFilterCabang(String(opt.id))}
+                      options={[
+                        { id: 'Semua', title: 'Semua Cabang', subtitle: 'Tampilkan semua cabang' },
+                        { id: 'DC PUSAT', title: 'DC PUSAT', subtitle: 'Pusat Distribusi' },
+                        ...activeBranches.map((bName) => ({
+                          id: bName,
+                          title: bName,
+                          subtitle: 'Cabang Toko',
+                        })),
+                      ]}
+                    />
+                  </div>
                 </div>
 
-                {/* Pilih Karyawan */}
+                {/* Pilih Karyawan via BottomSheetPicker */}
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Pilih Nama Karyawan <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={scheduleKaryawanId}
-                    onChange={(e) => setScheduleKaryawanId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 text-xs"
-                  >
-                    <option value="">-- Pilih Karyawan --</option>
-                    {karyawanList
-                      .filter(
-                        (k) =>
-                          scheduleFilterCabang === 'Semua' || k.cabang === scheduleFilterCabang
-                      )
-                      .map((k) => (
-                        <option key={k.id} value={k.id}>
-                          [{k.cabang}] {k.nama} — {k.jabatan} {k.nik ? `(${k.nik})` : ''}
-                        </option>
-                      ))}
-                  </select>
+                  {(() => {
+                    const selEmp = karyawanList.find((k) => k.id === scheduleKaryawanId);
+                    const selTitle = selEmp
+                      ? `[${selEmp.cabang}] ${selEmp.nama} (${selEmp.jabatan})`
+                      : '';
+                    const filteredEmps = karyawanList.filter(
+                      (k) => scheduleFilterCabang === 'Semua' || k.cabang === scheduleFilterCabang
+                    );
+
+                    return (
+                      <>
+                        <BottomSheetPickerTrigger
+                          label="Pilih Nama Karyawan *"
+                          placeholder="Pilih karyawan dari database..."
+                          valueTitle={selTitle}
+                          onClick={() => setShowPickerScheduleKaryawan(true)}
+                          icon={<User size={16} />}
+                          badge={selEmp?.cabang}
+                        />
+                        <BottomSheetPicker
+                          isOpen={showPickerScheduleKaryawan}
+                          onClose={() => setShowPickerScheduleKaryawan(false)}
+                          title="Pilih Karyawan untuk Jadwal OFF"
+                          selectedId={scheduleKaryawanId}
+                          onSelect={(opt) => setScheduleKaryawanId(String(opt.id))}
+                          options={filteredEmps.map((k) => ({
+                            id: k.id,
+                            title: k.nama,
+                            subtitle: `Cabang: ${k.cabang} ${k.nik ? `• NIK: ${k.nik}` : ''}`,
+                            category: k.jabatan,
+                            badge: k.cabang,
+                          }))}
+                        />
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -2725,18 +2820,22 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
             )}
 
             <form onSubmit={handleSaveGajiCabang} className="space-y-4 text-xs">
-              {/* Dropdown Pemilihan Cabang dari dataCabangList */}
+              {/* Dropdown Pemilihan Cabang via BottomSheetPicker */}
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Pilih Cabang (Filter dari Master Data Cabang) <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={selectedCabangForGaji}
-                  onChange={(e) => handleSelectCabangChange(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-orange-500 focus:outline-none"
-                  required
-                >
-                  {dataCabangList.map((branch) => {
+                <BottomSheetPickerTrigger
+                  label="Pilih Cabang (Filter dari Master Data Cabang) *"
+                  placeholder="Pilih cabang..."
+                  valueTitle={selectedCabangForGaji}
+                  onClick={() => setShowPickerGajiCabang(true)}
+                  icon={<Building2 size={16} />}
+                />
+                <BottomSheetPicker
+                  isOpen={showPickerGajiCabang}
+                  onClose={() => setShowPickerGajiCabang(false)}
+                  title="Pilih Cabang Target Gaji"
+                  selectedId={selectedCabangForGaji}
+                  onSelect={(opt) => handleSelectCabangChange(String(opt.id))}
+                  options={dataCabangList.map((branch) => {
                     const branchKey = branch.branchId || branch.id;
                     const count = karyawanList.filter(
                       (k) =>
@@ -2745,14 +2844,14 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
                         k.branchId === branchKey ||
                         k.cabang_id === branch.id
                     ).length;
-
-                    return (
-                      <option key={branch.id} value={branch.nama}>
-                        {branch.nama} ({count} Karyawan Terdaftar)
-                      </option>
-                    );
+                    return {
+                      id: branch.nama,
+                      title: branch.nama,
+                      subtitle: `${count} Karyawan Terdaftar • ${branch.isPusat ? 'DC Pusat' : 'Outlet'}`,
+                      badge: `${count} Staf`,
+                    };
                   })}
-                </select>
+                />
               </div>
 
               {/* Ringkasan Karyawan di Cabang Terpilih */}

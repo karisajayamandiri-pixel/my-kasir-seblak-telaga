@@ -17,6 +17,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { DataCabang } from '../types';
+import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
 interface DataCabangViewProps {
   dataCabangList: DataCabang[];
@@ -43,6 +44,7 @@ export const DataCabangView: React.FC<DataCabangViewProps> = ({
   const [bankOrEwallet, setBankOrEwallet] = useState('');
   const [noRekening, setNoRekening] = useState('');
   const [atasNama, setAtasNama] = useState('');
+  const [showPickerStatus, setShowPickerStatus] = useState<boolean>(false);
 
   const openAdd = () => {
     setEditingCabang(null);
@@ -353,17 +355,22 @@ export const DataCabangView: React.FC<DataCabangViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Status Cabang
-                  </label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as 'Aktif' | 'Nonaktif')}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold"
-                  >
-                    <option value="Aktif">Aktif</option>
-                    <option value="Nonaktif">Nonaktif</option>
-                  </select>
+                  <BottomSheetPickerTrigger
+                    label="Status Cabang"
+                    valueTitle={status}
+                    onClick={() => setShowPickerStatus(true)}
+                  />
+                  <BottomSheetPicker
+                    isOpen={showPickerStatus}
+                    onClose={() => setShowPickerStatus(false)}
+                    title="Pilih Status Cabang"
+                    selectedId={status}
+                    onSelect={(opt) => setStatus(opt.id as 'Aktif' | 'Nonaktif')}
+                    options={[
+                      { id: 'Aktif', title: 'Aktif', subtitle: 'Cabang aktif beroperasi & melayani order', badge: 'Aktif' },
+                      { id: 'Nonaktif', title: 'Nonaktif', subtitle: 'Cabang sementara ditutup / nonaktif', badge: 'Tutup' },
+                    ]}
+                  />
                 </div>
               </div>
 

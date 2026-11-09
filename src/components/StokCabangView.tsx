@@ -26,6 +26,7 @@ import {
   getNowShortTime,
   generatePermintaanNo,
 } from '../utils/storage';
+import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
 interface StokCabangViewProps {
   currentUser: Karyawan;
@@ -72,6 +73,10 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
   // Form minta barang state
   const [itemsMinta, setItemsMinta] = useState<PermintaanBarangItem[]>([]);
   const [catatanMinta, setCatatanMinta] = useState('');
+
+  // BottomSheetPicker states
+  const [showPickerBranch, setShowPickerBranch] = useState(false);
+  const [pickerItemRowIndex, setPickerItemRowIndex] = useState<number | null>(null);
 
   // Filtered ingredients
   const filteredBahan = bahanBakuList.filter((b) =>
@@ -165,21 +170,27 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Branch switcher for roving roles */}
+          {/* Branch switcher for roving roles via BottomSheetPicker */}
           {isRoving && (
-            <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-xl px-2.5 py-1 text-xs shadow-xs">
-              <span className="text-[11px] font-bold text-slate-500">Cabang:</span>
-              <select
-                value={activeBranch}
-                onChange={(e) => setActiveBranch(e.target.value as Exclude<Cabang, 'DC PUSAT'>)}
-                className="font-bold text-orange-700 bg-transparent focus:outline-none cursor-pointer"
-              >
-                {availableBranches.map((c) => (
-                  <option key={c.id} value={c.nama}>
-                    {c.nama}
-                  </option>
-                ))}
-              </select>
+            <div className="w-auto">
+              <BottomSheetPickerTrigger
+                valueTitle={`Cabang: ${activeBranch}`}
+                onClick={() => setShowPickerBranch(true)}
+                size="sm"
+                className="min-w-[140px]"
+              />
+              <BottomSheetPicker
+                isOpen={showPickerBranch}
+                onClose={() => setShowPickerBranch(false)}
+                title="Pilih Cabang Pantau Stok"
+                selectedId={activeBranch}
+                onSelect={(opt) => setActiveBranch(String(opt.id))}
+                options={availableBranches.map((c) => ({
+                  id: c.nama,
+                  title: c.nama,
+                  subtitle: 'Cabang Toko Operasional',
+                }))}
+              />
             </div>
           )}
 
@@ -456,19 +467,15 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
                   </span>
                 </div>
                 {isRoving && (
-                  <div className="pt-1 flex items-center gap-2">
+                  <div className="pt-1 flex items-center justify-between gap-2">
                     <span className="text-[10px] font-bold text-orange-800">Ubah Cabang Pemohon:</span>
-                    <select
-                      value={activeBranch}
-                      onChange={(e) => setActiveBranch(e.target.value as Exclude<Cabang, 'DC PUSAT'>)}
-                      className="text-xs bg-white border border-orange-300 rounded px-2 py-0.5 font-bold text-orange-900"
+                    <button
+                      type="button"
+                      onClick={() => setShowPickerBranch(true)}
+                      className="text-xs bg-white border border-orange-300 rounded-lg px-2.5 py-1 font-bold text-orange-900 hover:bg-orange-50/50 cursor-pointer"
                     >
-                      {availableBranches.map((c) => (
-                        <option key={c.id} value={c.nama}>
-                          Cabang {c.nama}
-                        </option>
-                      ))}
-                    </select>
+                      {activeBranch} ▼
+                    </button>
                   </div>
                 )}
                 <p className="text-[10px] text-orange-700 pt-0.5">
@@ -496,19 +503,21 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
                     className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200"
                   >
                     <div className="flex-1">
-                      <select
-                        value={row.bahanId}
-                        onChange={(e) =>
-                          updateItemRow(index, e.target.value, row.qtyMinta)
-                        }
-                        className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
-                      >
-                        {bahanBakuList.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.nama} (Satuan: {b.satuan})
-                          </option>
-                        ))}
-                      </select>
+                      {(() => {
+                        const selBhn = bahanBakuList.find((b) => b.id === row.bahanId);
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setPickerItemRowIndex(index)}
+                            className="w-full px-2.5 py-1.5 bg-white hover:bg-orange-50/40 border border-slate-300 hover:border-orange-400 rounded-lg text-xs text-left flex items-center justify-between"
+                          >
+                            <span className="font-semibold text-slate-800 line-clamp-1">
+                              {selBhn ? `${selBhn.nama} (${selBhn.satuan})` : 'Pilih Bahan...'}
+                            </span>
+                            <ChevronRight size={14} className="text-slate-400 shrink-0" />
+                          </button>
+                        );
+                      })()}
                     </div>
 
                     <div className="w-24">
@@ -545,6 +554,29 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
                     )}
                   </div>
                 ))}
+
+                {pickerItemRowIndex !== null && (
+                  <BottomSheetPicker
+                    isOpen={pickerItemRowIndex !== null}
+                    onClose={() => setPickerItemRowIndex(null)}
+                    title={`Pilih Bahan Baku Permintaan (Baris ${pickerItemRowIndex + 1})`}
+                    selectedId={itemsMinta[pickerItemRowIndex]?.bahanId}
+                    onSelect={(opt) => {
+                      updateItemRow(
+                        pickerItemRowIndex,
+                        String(opt.id),
+                        itemsMinta[pickerItemRowIndex]?.qtyMinta || 1
+                      );
+                      setPickerItemRowIndex(null);
+                    }}
+                    options={bahanBakuList.map((b) => ({
+                      id: b.id,
+                      title: b.nama,
+                      subtitle: `Stok DC: ${b.stokDC} ${b.satuan} • Kategori: ${b.kategori || 'Bahan'}`,
+                      category: b.kategori,
+                    }))}
+                  />
+                )}
               </div>
 
               <div>

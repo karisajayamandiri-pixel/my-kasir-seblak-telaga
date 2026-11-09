@@ -30,6 +30,7 @@ import {
   getNowShortTime,
   generateSuratJalanNo,
 } from '../utils/storage';
+import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
 interface SuratJalanDcViewProps {
   currentUser: Karyawan;
@@ -57,9 +58,9 @@ export const SuratJalanDcView: React.FC<SuratJalanDcViewProps> = ({
   const destinationBranches = (dataCabangList && dataCabangList.length > 0)
     ? dataCabangList.filter((c) => c.nama.trim().toUpperCase() !== 'DC PUSAT')
     : [
-        { id: '1', nama: 'PADAHERANG 01', status: 'Aktif' },
-        { id: '2', nama: 'BANJARSARI 02', status: 'Aktif' },
-        { id: '3', nama: 'CIAWTALI 03', status: 'Aktif' },
+        { id: '1', nama: 'PADAHERANG 01', status: 'Aktif' as const, alamat: 'Cabang Toko Resmi', noHp: '-' },
+        { id: '2', nama: 'BANJARSARI 02', status: 'Aktif' as const, alamat: 'Cabang Toko Resmi', noHp: '-' },
+        { id: '3', nama: 'CIAWTALI 03', status: 'Aktif' as const, alamat: 'Cabang Toko Resmi', noHp: '-' },
       ];
 
   const defaultBranch = destinationBranches[0]?.nama || 'PADAHERANG 01';
@@ -91,6 +92,8 @@ export const SuratJalanDcView: React.FC<SuratJalanDcViewProps> = ({
   const [setoranUang, setSetoranUang] = useState<number>(0);
   const [catatanSj, setCatatanSj] = useState('');
   const [itemsKirim, setItemsKirim] = useState<SuratJalanItem[]>([]);
+  const [showPickerTargetCabang, setShowPickerTargetCabang] = useState(false);
+  const [pickerKirimRowIndex, setPickerKirimRowIndex] = useState<number | null>(null);
 
   // Filter permintaan yang masih menunggu / diproses
   const pendingRequests = permintaanList.filter(
@@ -470,20 +473,23 @@ export const SuratJalanDcView: React.FC<SuratJalanDcViewProps> = ({
             <form onSubmit={handleKirimSuratJalan} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Cabang Tujuan <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={targetCabang}
-                    onChange={(e) => handleTargetCabangSelect(e.target.value as Cabang)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 font-bold text-slate-800"
-                  >
-                    {destinationBranches.map((c) => (
-                      <option key={c.id} value={c.nama}>
-                        Cabang {c.nama}
-                      </option>
-                    ))}
-                  </select>
+                  <BottomSheetPickerTrigger
+                    label="Cabang Tujuan *"
+                    valueTitle={`Cabang ${targetCabang}`}
+                    onClick={() => setShowPickerTargetCabang(true)}
+                  />
+                  <BottomSheetPicker
+                    isOpen={showPickerTargetCabang}
+                    onClose={() => setShowPickerTargetCabang(false)}
+                    title="Pilih Cabang Tujuan Surat Jalan"
+                    selectedId={targetCabang}
+                    onSelect={(opt) => handleTargetCabangSelect(opt.id as Cabang)}
+                    options={destinationBranches.map((c) => ({
+                      id: c.nama,
+                      title: `Cabang ${c.nama}`,
+                      subtitle: c.alamat || 'Cabang Toko Resmi',
+                    }))}
+                  />
                 </div>
 
                 <div>
@@ -561,19 +567,18 @@ export const SuratJalanDcView: React.FC<SuratJalanDcViewProps> = ({
                       className="flex items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200"
                     >
                       <div className="flex-1">
-                        <select
-                          value={row.bahanId}
-                          onChange={(e) =>
-                            updateItemRow(index, e.target.value, row.qtyKirim)
-                          }
-                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs"
+                        <button
+                          type="button"
+                          onClick={() => setPickerKirimRowIndex(index)}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 hover:bg-orange-50/40 border border-slate-300 hover:border-orange-400 rounded-lg text-xs text-left flex items-center justify-between transition-colors"
                         >
-                          {bahanBakuList.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.nama} (Stok DC: {b.stokDC} {b.satuan})
-                            </option>
-                          ))}
-                        </select>
+                          <span className="font-semibold text-slate-800 line-clamp-1">
+                            {bhn
+                              ? `${bhn.nama} (Stok: ${bhn.stokDC} ${bhn.satuan})`
+                              : 'Pilih Bahan Baku...'}
+                          </span>
+                          <ArrowRight size={14} className="text-slate-400 shrink-0" />
+                        </button>
                       </div>
 
                       <div className="w-28 flex items-center gap-1">
@@ -609,6 +614,29 @@ export const SuratJalanDcView: React.FC<SuratJalanDcViewProps> = ({
                     </div>
                   );
                 })}
+
+                {pickerKirimRowIndex !== null && (
+                  <BottomSheetPicker
+                    isOpen={pickerKirimRowIndex !== null}
+                    onClose={() => setPickerKirimRowIndex(null)}
+                    title={`Pilih Bahan Baku Surat Jalan (Baris ${pickerKirimRowIndex + 1})`}
+                    selectedId={itemsKirim[pickerKirimRowIndex]?.bahanId}
+                    onSelect={(opt) => {
+                      updateItemRow(
+                        pickerKirimRowIndex,
+                        String(opt.id),
+                        itemsKirim[pickerKirimRowIndex]?.qtyKirim || 1
+                      );
+                      setPickerKirimRowIndex(null);
+                    }}
+                    options={bahanBakuList.map((b) => ({
+                      id: b.id,
+                      title: b.nama,
+                      subtitle: `Stok DC: ${b.stokDC} ${b.satuan} • Kategori: ${b.kategori || 'Bahan'}`,
+                      category: b.kategori,
+                    }))}
+                  />
+                )}
               </div>
 
               {/* Solar & Setoran Opsional */}

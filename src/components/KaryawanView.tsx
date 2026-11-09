@@ -19,6 +19,7 @@ import {
   BadgeAlert,
 } from 'lucide-react';
 import { Karyawan, Cabang, Jabatan, UserStatus, DataCabang } from '../types';
+import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
 interface KaryawanViewProps {
   karyawanList: Karyawan[];
@@ -66,6 +67,13 @@ export const KaryawanView: React.FC<KaryawanViewProps> = ({
   // Pindah Cabang modal state
   const [pindahTarget, setPindahTarget] = useState<Karyawan | null>(null);
   const [newCabangTugas, setNewCabangTugas] = useState<Cabang>(defaultBranch);
+
+  // BottomSheetPicker states
+  const [showPickerFilterCabang, setShowPickerFilterCabang] = useState(false);
+  const [showPickerFormCabang, setShowPickerFormCabang] = useState(false);
+  const [showPickerFormJabatan, setShowPickerFormJabatan] = useState(false);
+  const [showPickerFormStatus, setShowPickerFormStatus] = useState(false);
+  const [showPickerMutasiCabang, setShowPickerMutasiCabang] = useState(false);
 
   // REQUIREMENT 2: Exclude Owner from employee list (Owner data is in a separate menu and completely private)
   const nonOwnerList = karyawanList.filter((k) => k.jabatan !== 'Owner');
@@ -259,20 +267,29 @@ export const KaryawanView: React.FC<KaryawanViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <label className="text-xs font-semibold text-slate-500">Cabang Tugas:</label>
-            <select
-              value={filterCabang}
-              onChange={(e) => setFilterCabang(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold"
-            >
-              <option value="Semua">Semua Cabang</option>
-              <option value="DC PUSAT">DC PUSAT</option>
-              {branchList.map((c) => (
-                <option key={c.id} value={c.nama}>
-                  {c.nama}
-                </option>
-              ))}
-            </select>
+            <BottomSheetPickerTrigger
+              valueTitle={filterCabang === 'Semua' ? 'Semua Cabang' : filterCabang}
+              onClick={() => setShowPickerFilterCabang(true)}
+              size="sm"
+              icon={<MapPin size={13} />}
+              className="min-w-[130px]"
+            />
+            <BottomSheetPicker
+              isOpen={showPickerFilterCabang}
+              onClose={() => setShowPickerFilterCabang(false)}
+              title="Pilih Cabang Karyawan"
+              selectedId={filterCabang}
+              onSelect={(opt) => setFilterCabang(String(opt.id))}
+              options={[
+                { id: 'Semua', title: 'Semua Cabang', subtitle: 'Tampilkan karyawan semua cabang', badge: 'Semua' },
+                { id: 'DC PUSAT', title: 'DC PUSAT', subtitle: 'Pusat Distribusi' },
+                ...branchList.map((c) => ({
+                  id: c.nama,
+                  title: c.nama,
+                  subtitle: 'Cabang Toko Operasional',
+                })),
+              ]}
+            />
           </div>
         </div>
       </div>
@@ -467,23 +484,28 @@ export const KaryawanView: React.FC<KaryawanViewProps> = ({
                   />
                 </div>
 
-                {/* Cabang Tugas */}
+                {/* Cabang Tugas via BottomSheetPicker */}
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Cabang Tugas <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={cabang}
-                    onChange={(e) => setCabang(e.target.value as Cabang)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
-                  >
-                    <option value="DC PUSAT">DC PUSAT</option>
-                    {branchList.map((c) => (
-                      <option key={c.id} value={c.nama}>
-                        {c.nama}
-                      </option>
-                    ))}
-                  </select>
+                  <BottomSheetPickerTrigger
+                    label="Cabang Tugas *"
+                    valueTitle={cabang}
+                    onClick={() => setShowPickerFormCabang(true)}
+                  />
+                  <BottomSheetPicker
+                    isOpen={showPickerFormCabang}
+                    onClose={() => setShowPickerFormCabang(false)}
+                    title="Pilih Cabang Penempatan"
+                    selectedId={cabang}
+                    onSelect={(opt) => setCabang(opt.id as Cabang)}
+                    options={[
+                      { id: 'DC PUSAT', title: 'DC PUSAT', subtitle: 'Pusat Logistik & Gudang' },
+                      ...branchList.map((c) => ({
+                        id: c.nama,
+                        title: c.nama,
+                        subtitle: 'Cabang Toko Operasional',
+                      })),
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -504,22 +526,27 @@ export const KaryawanView: React.FC<KaryawanViewProps> = ({
               {/* JABATAN (Requirement: Admin DC Pusat, Supervisor Area, Kepala Toko, Cashier, Crew Store, Driver) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Jabatan Karyawan <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={jabatan}
-                    onChange={(e) => setJabatan(e.target.value as Jabatan)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
-                  >
-                    <option value="Admin DC Pusat">Admin DC Pusat</option>
-                    <option value="Supervisor Area">Supervisor Area</option>
-                    <option value="Kepala Toko">Kepala Toko</option>
-                    <option value="Cashier">Cashier</option>
-                    <option value="Crew Store">Crew Store</option>
-                    <option value="Kitchen">Kitchen</option>
-                    <option value="Driver">Driver</option>
-                  </select>
+                  <BottomSheetPickerTrigger
+                    label="Jabatan Karyawan *"
+                    valueTitle={jabatan}
+                    onClick={() => setShowPickerFormJabatan(true)}
+                  />
+                  <BottomSheetPicker
+                    isOpen={showPickerFormJabatan}
+                    onClose={() => setShowPickerFormJabatan(false)}
+                    title="Pilih Jabatan Karyawan"
+                    selectedId={jabatan}
+                    onSelect={(opt) => setJabatan(opt.id as Jabatan)}
+                    options={[
+                      { id: 'Admin DC Pusat', title: 'Admin DC Pusat', subtitle: 'Logistik DC, inventori, dan master data' },
+                      { id: 'Supervisor Area', title: 'Supervisor Area', subtitle: 'Monitoring operasional seluruh cabang' },
+                      { id: 'Kepala Toko', title: 'Kepala Toko', subtitle: 'Operasional penuh toko cabang' },
+                      { id: 'Cashier', title: 'Cashier', subtitle: 'POS Kasir, pesanan, rekap shift, absensi' },
+                      { id: 'Crew Store', title: 'Crew Store', subtitle: 'Operasional pelayanan dan pesanan' },
+                      { id: 'Kitchen', title: 'Kitchen', subtitle: 'Produksi dapur dan racik bumbu' },
+                      { id: 'Driver', title: 'Driver', subtitle: 'Distribusi logistik dan pengiriman' },
+                    ]}
+                  />
                   <p className="text-[10px] text-slate-500 mt-1">
                     {jabatan === 'Kitchen' && 'Hak Akses: Absensi & Menu Pesanan'}
                     {jabatan === 'Crew Store' && 'Hak Akses: Absensi & Menu Pesanan'}
@@ -532,17 +559,22 @@ export const KaryawanView: React.FC<KaryawanViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Status Akun
-                  </label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as UserStatus)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold"
-                  >
-                    <option value="Aktif">Aktif</option>
-                    <option value="Nonaktif">Nonaktif</option>
-                  </select>
+                  <BottomSheetPickerTrigger
+                    label="Status Akun"
+                    valueTitle={status}
+                    onClick={() => setShowPickerFormStatus(true)}
+                  />
+                  <BottomSheetPicker
+                    isOpen={showPickerFormStatus}
+                    onClose={() => setShowPickerFormStatus(false)}
+                    title="Pilih Status Akun"
+                    selectedId={status}
+                    onSelect={(opt) => setStatus(opt.id as UserStatus)}
+                    options={[
+                      { id: 'Aktif', title: 'Aktif', subtitle: 'Karyawan aktif bertugas & dapat absen' },
+                      { id: 'Nonaktif', title: 'Nonaktif', subtitle: 'Akun dinonaktifkan sementara' },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -614,21 +646,26 @@ export const KaryawanView: React.FC<KaryawanViewProps> = ({
             </p>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Pindah ke Cabang:
-              </label>
-              <select
-                value={newCabangTugas}
-                onChange={(e) => setNewCabangTugas(e.target.value as Cabang)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold"
-              >
-                <option value="DC PUSAT">DC PUSAT</option>
-                {branchList.map((c) => (
-                  <option key={c.id} value={c.nama}>
-                    {c.nama}
-                  </option>
-                ))}
-              </select>
+              <BottomSheetPickerTrigger
+                label="Pindah ke Cabang:"
+                valueTitle={newCabangTugas}
+                onClick={() => setShowPickerMutasiCabang(true)}
+              />
+              <BottomSheetPicker
+                isOpen={showPickerMutasiCabang}
+                onClose={() => setShowPickerMutasiCabang(false)}
+                title="Pilih Cabang Mutasi Karyawan"
+                selectedId={newCabangTugas}
+                onSelect={(opt) => setNewCabangTugas(opt.id as Cabang)}
+                options={[
+                  { id: 'DC PUSAT', title: 'DC PUSAT', subtitle: 'Pusat Distribusi' },
+                  ...branchList.map((c) => ({
+                    id: c.nama,
+                    title: c.nama,
+                    subtitle: 'Cabang Toko Operasional',
+                  })),
+                ]}
+              />
             </div>
 
             <div className="flex gap-2 justify-end pt-2 border-t text-xs">

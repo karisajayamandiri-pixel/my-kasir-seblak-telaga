@@ -24,6 +24,7 @@ import {
   DataCabang,
 } from '../types';
 import { formatRupiah } from '../utils/storage';
+import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 import {
   connectBluetoothPrinter,
   disconnectBluetoothPrinter,
@@ -72,6 +73,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
   // Universal Printer controls
   const [paperSize, setPaperSize] = useState<'A4' | 'F4' | 'Letter' | 'Auto'>('Auto');
+  const [showPickerPaperSize, setShowPickerPaperSize] = useState(false);
   const [highContrast, setHighContrast] = useState(false);
 
   // Bluetooth printer controls
@@ -357,16 +359,25 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-slate-700">Ukuran Kertas:</span>
-                  <select
-                    value={paperSize}
-                    onChange={(e) => setPaperSize(e.target.value as any)}
-                    className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-orange-500 cursor-pointer"
-                  >
-                    <option value="Auto">Otomatis (Default Driver)</option>
-                    <option value="A4">A4 (210 x 297 mm)</option>
-                    <option value="F4">F4 / Folio (215 x 330 mm)</option>
-                    <option value="Letter">Letter (8.5 x 11 in)</option>
-                  </select>
+                  <BottomSheetPickerTrigger
+                    valueTitle={paperSize === 'Auto' ? 'Otomatis' : paperSize}
+                    onClick={() => setShowPickerPaperSize(true)}
+                    size="sm"
+                    className="w-auto min-w-[120px]"
+                  />
+                  <BottomSheetPicker
+                    isOpen={showPickerPaperSize}
+                    onClose={() => setShowPickerPaperSize(false)}
+                    title="Pilih Ukuran Kertas Cetak"
+                    selectedId={paperSize}
+                    onSelect={(opt) => setPaperSize(opt.id as any)}
+                    options={[
+                      { id: 'Auto', title: 'Otomatis (Default Driver)', subtitle: 'Sesuai pengaturan printer standar' },
+                      { id: 'A4', title: 'A4 (210 x 297 mm)', subtitle: 'Standar dokumen resmi / slip gaji / laporan' },
+                      { id: 'F4', title: 'F4 / Folio (215 x 330 mm)', subtitle: 'Kertas panjang kantor' },
+                      { id: 'Letter', title: 'Letter (8.5 x 11 in)', subtitle: 'Format surat' },
+                    ]}
+                  />
                 </div>
 
                 <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700 select-none">

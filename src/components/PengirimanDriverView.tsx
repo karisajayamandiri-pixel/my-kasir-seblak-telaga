@@ -17,6 +17,7 @@ import {
 import { Karyawan, SuratJalan, StokCabangMap, Cabang, DataCabang } from '../types';
 import { formatRupiah, getTodayStr, getNowShortTime } from '../utils/storage';
 import { getStoreBranchNames } from '../utils/branchHelper';
+import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
 interface PengirimanDriverViewProps {
   currentUser: Karyawan;
@@ -50,6 +51,8 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
 
   const [filterStatus, setFilterStatus] = useState<string>('Semua');
   const [filterCabang, setFilterCabang] = useState<string>('Semua');
+  const [showPickerStatus, setShowPickerStatus] = useState(false);
+  const [showPickerCabang, setShowPickerCabang] = useState(false);
 
   // Filter deliveries
   const filteredList = suratJalanList.filter((sj) => {
@@ -135,30 +138,55 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
         </div>
 
         {/* Filters */}
+        {/* Filters via BottomSheetPicker */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-700 shadow-xs"
-          >
-            <option value="Semua">Semua Status</option>
-            <option value="Dalam Perjalanan">Dalam Perjalanan (Dikirim)</option>
-            <option value="Terkirim">Terkirim (Menunggu Ttd)</option>
-            <option value="Diterima">Selesai / Diterima</option>
-          </select>
+          <div className="w-auto">
+            <BottomSheetPickerTrigger
+              valueTitle={filterStatus === 'Semua' ? 'Semua Status' : filterStatus}
+              onClick={() => setShowPickerStatus(true)}
+              size="sm"
+              icon={<Truck size={14} />}
+              className="min-w-[130px]"
+            />
+            <BottomSheetPicker
+              isOpen={showPickerStatus}
+              onClose={() => setShowPickerStatus(false)}
+              title="Pilih Status Pengiriman"
+              selectedId={filterStatus}
+              onSelect={(opt) => setFilterStatus(String(opt.id))}
+              options={[
+                { id: 'Semua', title: 'Semua Status', subtitle: 'Tampilkan semua status logistik' },
+                { id: 'Dalam Perjalanan', title: 'Dalam Perjalanan', subtitle: 'Barang sedang dibawa armada Driver', badge: 'Dikirim' },
+                { id: 'Terkirim', title: 'Terkirim', subtitle: 'Tiba di cabang tujuan, menunggu tanda tangan', badge: 'Menunggu Ttd' },
+                { id: 'Diterima', title: 'Selesai / Diterima', subtitle: 'Surat jalan tuntas & stok cabang masuk', badge: 'Selesai' },
+              ]}
+            />
+          </div>
 
-          <select
-            value={filterCabang}
-            onChange={(e) => setFilterCabang(e.target.value)}
-            className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-700 shadow-xs"
-          >
-            <option value="Semua">Semua Cabang Tujuan</option>
-            {destinationBranches.map((cName) => (
-              <option key={cName} value={cName}>
-                Cabang {cName}
-              </option>
-            ))}
-          </select>
+          <div className="w-auto">
+            <BottomSheetPickerTrigger
+              valueTitle={filterCabang === 'Semua' ? 'Semua Cabang' : filterCabang}
+              onClick={() => setShowPickerCabang(true)}
+              size="sm"
+              icon={<MapPin size={14} />}
+              className="min-w-[140px]"
+            />
+            <BottomSheetPicker
+              isOpen={showPickerCabang}
+              onClose={() => setShowPickerCabang(false)}
+              title="Pilih Cabang Tujuan"
+              selectedId={filterCabang}
+              onSelect={(opt) => setFilterCabang(String(opt.id))}
+              options={[
+                { id: 'Semua', title: 'Semua Cabang Tujuan', subtitle: 'Tampilkan semua destinasi cabang', badge: 'Semua' },
+                ...destinationBranches.map((cName) => ({
+                  id: cName,
+                  title: `Cabang ${cName}`,
+                  subtitle: 'Destinasi Pengantaran DC',
+                })),
+              ]}
+            />
+          </div>
         </div>
       </div>
 

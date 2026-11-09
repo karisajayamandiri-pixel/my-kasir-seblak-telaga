@@ -30,6 +30,7 @@ import {
 } from '../types';
 import { formatRupiah } from '../utils/storage';
 import { getStoreBranches } from '../utils/branchHelper';
+import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
 interface KatalogMenuViewProps {
   currentUser: Karyawan;
@@ -88,6 +89,10 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
   const [isMinumanDropdownOpen, setIsMinumanDropdownOpen] = useState<boolean>(false);
   const [promoCabangIds, setPromoCabangIds] = useState<string[]>([]); // Multi-select target cabang promo
   const [selectedMenuCabangIds, setSelectedMenuCabangIds] = useState<string[]>([]); // Multi-select ketersediaan menu per cabang (menu_cabang)
+
+  // BottomSheetPicker states
+  const [showPickerKategori, setShowPickerKategori] = useState<boolean>(false);
+  const [resepPickerRowIndex, setResepPickerRowIndex] = useState<number | null>(null);
 
   // Active store branches for promo multi-select (excluding DC Pusat)
   const availableStoreBranches = getStoreBranches(dataCabangList);
@@ -771,20 +776,25 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Kategori Menu
-                  </label>
-                  <select
-                    value={kategori}
-                    onChange={(e) => setKategori(e.target.value as any)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="Seblak Kuah">Seblak Kuah</option>
-                    <option value="Seblak Kering">Seblak Kering</option>
-                    <option value="Topping Tambahan">Topping Tambahan</option>
-                    <option value="Minuman Segar">Minuman Segar</option>
-                    <option value="Paket Hemat">Paket Hemat</option>
-                  </select>
+                  <BottomSheetPickerTrigger
+                    label="Kategori Menu"
+                    valueTitle={kategori}
+                    onClick={() => setShowPickerKategori(true)}
+                  />
+                  <BottomSheetPicker
+                    isOpen={showPickerKategori}
+                    onClose={() => setShowPickerKategori(false)}
+                    title="Pilih Kategori Menu"
+                    selectedId={kategori}
+                    onSelect={(opt) => setKategori(opt.id as any)}
+                    options={[
+                      { id: 'Seblak Kuah', title: 'Seblak Kuah', subtitle: 'Menu kuah gurih & pedas nampol' },
+                      { id: 'Seblak Kering', title: 'Seblak Kering', subtitle: 'Menu seblak goreng rempah renyah' },
+                      { id: 'Topping Tambahan', title: 'Topping Tambahan', subtitle: 'Pilihan aneka isian dan topping' },
+                      { id: 'Minuman Segar', title: 'Minuman Segar', subtitle: 'Es teh, jus, dan pelepas dahaga' },
+                      { id: 'Paket Hemat', title: 'Paket Hemat', subtitle: 'Bundling makan + minum hemat' },
+                    ]}
+                  />
                 </div>
 
                 <div className="sm:col-span-2">
@@ -840,19 +850,18 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                           className="flex items-center gap-2 bg-white p-2.5 rounded-xl border border-orange-200/80"
                         >
                           <div className="flex-1">
-                            <select
-                              value={row.bahanId}
-                              onChange={(e) =>
-                                updateResepRow(index, 'bahanId', e.target.value)
-                              }
-                              className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:outline-none"
+                            <button
+                              type="button"
+                              onClick={() => setResepPickerRowIndex(index)}
+                              className="w-full px-2.5 py-1.5 bg-slate-50 hover:bg-orange-50/50 border border-slate-300 hover:border-orange-400 rounded-lg text-xs text-left flex items-center justify-between transition-colors"
                             >
-                              {bahanBakuList.map((b) => (
-                                <option key={b.id} value={b.id}>
-                                  {b.nama} [{b.kategori || 'Bahan Makanan'}] ({formatRupiah(b.hargaBeli)}/{b.satuan})
-                                </option>
-                              ))}
-                            </select>
+                              <span className="font-semibold text-slate-800 line-clamp-1">
+                                {bhn
+                                  ? `${bhn.nama} (${formatRupiah(bhn.hargaBeli)}/${bhn.satuan})`
+                                  : 'Pilih Bahan Baku...'}
+                              </span>
+                              <ChevronRight size={14} className="text-slate-400 shrink-0" />
+                            </button>
                           </div>
 
                           <div className="w-28 flex items-center gap-1">
@@ -890,6 +899,27 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                       );
                     })}
                   </div>
+                )}
+
+                {/* BottomSheetPicker for selecting ingredient in recipe */}
+                {resepPickerRowIndex !== null && (
+                  <BottomSheetPicker
+                    isOpen={resepPickerRowIndex !== null}
+                    onClose={() => setResepPickerRowIndex(null)}
+                    title={`Pilih Bahan Baku (Baris ${resepPickerRowIndex + 1})`}
+                    selectedId={resepRows[resepPickerRowIndex]?.bahanId}
+                    onSelect={(opt) => {
+                      updateResepRow(resepPickerRowIndex, 'bahanId', String(opt.id));
+                      setResepPickerRowIndex(null);
+                    }}
+                    options={bahanBakuList.map((b) => ({
+                      id: b.id,
+                      title: b.nama,
+                      subtitle: `Stok DC: ${b.stokDC} ${b.satuan} • HPP: ${formatRupiah(b.hargaBeli)}/${b.satuan}`,
+                      category: b.kategori || 'Bahan Makanan',
+                      price: b.hargaBeli,
+                    }))}
+                  />
                 )}
               </div>
 

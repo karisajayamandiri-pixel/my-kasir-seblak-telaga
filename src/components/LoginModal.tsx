@@ -19,6 +19,7 @@ import {
 import { Karyawan, DataCabang } from '../types';
 import { formatWaPhone } from '../utils/storage';
 import { getBranchName } from '../utils/branchHelper';
+import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
 interface LoginModalProps {
   karyawanList: Karyawan[];
@@ -52,6 +53,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [selectedCabang, setSelectedCabang] = useState<string>(() => {
     return effectiveCabangList[0]?.nama || 'DC PUSAT';
   });
+  const [showPickerCabang, setShowPickerCabang] = useState<boolean>(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -383,30 +385,32 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           )}
 
           <form onSubmit={handleLogin} className="space-y-4 text-xs">
-            {/* 1. Dropdown Cabang */}
+            {/* 1. Pilih Cabang Tugas via BottomSheetPicker */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Pilih Cabang Tugas <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Store className="w-4 h-4 text-orange-600 absolute left-3 top-3.5" />
-                <select
-                  required
-                  value={selectedCabang}
-                  onChange={(e) => {
-                    setSelectedCabang(e.target.value);
-                    setError('');
-                  }}
-                  className="w-full pl-9 pr-8 py-2.5 text-xs font-bold bg-orange-50/50 border border-orange-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-slate-800 cursor-pointer appearance-none"
-                >
-                  {activeCabangList.map((c) => (
-                    <option key={c.id} value={c.nama}>
-                      {c.nama} {c.isPusat ? '(Gudang & Manajemen Pusat)' : ''}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
-              </div>
+              <BottomSheetPickerTrigger
+                label="Pilih Cabang Tugas *"
+                valueTitle={selectedCabang}
+                placeholder="Pilih cabang tugas..."
+                onClick={() => setShowPickerCabang(true)}
+                icon={<Store className="w-4 h-4 text-[#FF6F00]" />}
+              />
+              <BottomSheetPicker
+                isOpen={showPickerCabang}
+                onClose={() => setShowPickerCabang(false)}
+                title="Pilih Cabang Penugasan"
+                selectedId={selectedCabang}
+                onSelect={(opt) => {
+                  setSelectedCabang(String(opt.id));
+                  setError('');
+                }}
+                options={effectiveCabangList.map((c) => ({
+                  id: c.nama,
+                  title: c.nama,
+                  subtitle: c.alamat || (c.isPusat ? 'Gudang & Manajemen Pusat' : 'Cabang Operasional'),
+                  category: c.isPusat ? 'DC Pusat' : 'Outlet Cabang',
+                  badge: c.isPusat ? 'Pusat' : undefined,
+                }))}
+              />
             </div>
 
             {/* 2. Username */}

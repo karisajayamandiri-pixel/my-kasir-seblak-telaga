@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { BahanBaku, KategoriBahan } from '../types';
 import { formatRupiah } from '../utils/storage';
+import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
 interface BahanBakuViewProps {
   bahanBakuList: BahanBaku[];
@@ -49,6 +50,10 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
   const [selectedRestockId, setSelectedRestockId] = useState('');
   const [restockQty, setRestockQty] = useState<number>(0);
   const [restockNote, setRestockNote] = useState('');
+
+  // BottomSheetPicker states
+  const [showPickerSatuan, setShowPickerSatuan] = useState<boolean>(false);
+  const [showPickerRestockBahan, setShowPickerRestockBahan] = useState<boolean>(false);
 
   const filteredList = bahanBakuList.filter((b) => {
     const matchSearch =
@@ -433,24 +438,29 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Satuan Ukur <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formSatuan}
-                    onChange={(e) => setFormSatuan(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="kg">kg (Kilogram)</option>
-                    <option value="gr">gr (Gram)</option>
-                    <option value="butir">butir</option>
-                    <option value="biji">biji / pcs</option>
-                    <option value="bks">bks (Bungkus)</option>
-                    <option value="ikat">ikat</option>
-                    <option value="liter">liter</option>
-                    <option value="botol">botol</option>
-                    <option value="porsi">porsi</option>
-                  </select>
+                  <BottomSheetPickerTrigger
+                    label="Satuan Ukur *"
+                    valueTitle={formSatuan}
+                    onClick={() => setShowPickerSatuan(true)}
+                  />
+                  <BottomSheetPicker
+                    isOpen={showPickerSatuan}
+                    onClose={() => setShowPickerSatuan(false)}
+                    title="Pilih Satuan Ukur Bahan"
+                    selectedId={formSatuan}
+                    onSelect={(opt) => setFormSatuan(String(opt.id))}
+                    options={[
+                      { id: 'kg', title: 'kg (Kilogram)', subtitle: 'Berat standar belanja' },
+                      { id: 'gr', title: 'gr (Gram)', subtitle: 'Porsi bumbu / takaran halus' },
+                      { id: 'butir', title: 'butir', subtitle: 'Telur, bakso, dll' },
+                      { id: 'biji', title: 'biji / pcs', subtitle: 'Sosis, topping satuan' },
+                      { id: 'bks', title: 'bks (Bungkus)', subtitle: 'Mie, kerupuk kemasan' },
+                      { id: 'ikat', title: 'ikat', subtitle: 'Sayuran sawi / kangkung' },
+                      { id: 'liter', title: 'liter', subtitle: 'Minyak goreng, saus cair' },
+                      { id: 'botol', title: 'botol', subtitle: 'Kecap, saus botolan' },
+                      { id: 'porsi', title: 'porsi', subtitle: 'Takaran langsung saji' },
+                    ]}
+                  />
                 </div>
 
                 <div>
@@ -540,20 +550,38 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
 
             <form onSubmit={handleConfirmRestock} className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Pilih Bahan Baku <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={selectedRestockId}
-                  onChange={(e) => setSelectedRestockId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold"
-                >
-                  {bahanBakuList.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.nama} (Stok Saat Ini: {b.stokDC} {b.satuan})
-                    </option>
-                  ))}
-                </select>
+                {(() => {
+                  const selBahan = bahanBakuList.find((b) => b.id === selectedRestockId);
+                  const selTitle = selBahan
+                    ? `${selBahan.nama} (Stok: ${selBahan.stokDC} ${selBahan.satuan})`
+                    : '';
+                  return (
+                    <>
+                      <BottomSheetPickerTrigger
+                        label="Pilih Bahan Baku *"
+                        placeholder="Pilih bahan baku dari gudang..."
+                        valueTitle={selTitle}
+                        onClick={() => setShowPickerRestockBahan(true)}
+                        icon={<Package size={16} />}
+                        badge={selBahan?.kategori}
+                      />
+                      <BottomSheetPicker
+                        isOpen={showPickerRestockBahan}
+                        onClose={() => setShowPickerRestockBahan(false)}
+                        title="Pilih Bahan Baku Kulakan"
+                        selectedId={selectedRestockId}
+                        onSelect={(opt) => setSelectedRestockId(String(opt.id))}
+                        options={bahanBakuList.map((b) => ({
+                          id: b.id,
+                          title: b.nama,
+                          subtitle: `Stok DC: ${b.stokDC} ${b.satuan} • Min: ${b.stokMinimum} ${b.satuan}`,
+                          category: b.kategori,
+                          price: b.hargaBeli,
+                        }))}
+                      />
+                    </>
+                  );
+                })()}
               </div>
 
               <div>

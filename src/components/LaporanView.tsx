@@ -33,6 +33,7 @@ import {
 } from '../types';
 import { formatRupiah, getTodayStr } from '../utils/storage';
 import { getBranchName, getStoreBranchNames } from '../utils/branchHelper';
+import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
 interface LaporanViewProps {
   transaksiList: Transaksi[];
@@ -75,6 +76,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   const [auditFilterAksi, setAuditFilterAksi] = useState<string>('Semua');
   const [auditBulananCabang, setAuditBulananCabang] = useState<string>(storeBranchList[0] || '');
   const [auditBulananBulan, setAuditBulananBulan] = useState<string>(currentMonth);
+
+  // BottomSheetPicker states
+  const [showPickerFilterCabang, setShowPickerFilterCabang] = useState(false);
+  const [showPickerAuditCabang, setShowPickerAuditCabang] = useState(false);
+  const [showPickerAuditAksi, setShowPickerAuditAksi] = useState(false);
 
   // Filtered DIVOID Transactions (Requirement 6: Tampilkan menu lama & menu pengganti untuk audit owner/admin)
   const divoidTrxList = transaksiList.filter((t) => {
@@ -413,18 +419,29 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           {activeSubTab !== 'auditBulanan' && (
             <div className="flex items-center gap-2">
               <span className="font-bold text-slate-600">Filter Cabang:</span>
-              <select
-                value={filterCabang}
-                onChange={(e) => setFilterCabang(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-semibold"
-              >
-                <option value="Semua">Semua Cabang Telaga</option>
-                {storeBranchList.map((cName) => (
-                  <option key={cName} value={cName}>
-                    {cName}
-                  </option>
-                ))}
-              </select>
+              <div className="w-auto">
+                <BottomSheetPickerTrigger
+                  valueTitle={filterCabang === 'Semua' ? 'Semua Cabang Telaga' : filterCabang}
+                  onClick={() => setShowPickerFilterCabang(true)}
+                  size="sm"
+                  className="min-w-[140px]"
+                />
+                <BottomSheetPicker
+                  isOpen={showPickerFilterCabang}
+                  onClose={() => setShowPickerFilterCabang(false)}
+                  title="Pilih Cabang Laporan"
+                  selectedId={filterCabang}
+                  onSelect={(opt) => setFilterCabang(String(opt.id))}
+                  options={[
+                    { id: 'Semua', title: 'Semua Cabang Telaga', subtitle: 'Laporan gabungan seluruh cabang', badge: 'Semua' },
+                    ...storeBranchList.map((cName) => ({
+                      id: cName,
+                      title: cName,
+                      subtitle: 'Cabang Toko Resmi',
+                    })),
+                  ]}
+                />
+              </div>
             </div>
           )}
 
@@ -432,17 +449,26 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             <>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-slate-700">Pilih Cabang Audit:</span>
-                <select
-                  value={auditBulananCabang}
-                  onChange={(e) => setAuditBulananCabang(e.target.value)}
-                  className="px-3 py-1.5 bg-orange-50 border border-orange-300 text-orange-950 font-bold rounded-lg"
-                >
-                  {storeBranchList.map((cName) => (
-                    <option key={cName} value={cName}>
-                      {cName}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-auto">
+                  <BottomSheetPickerTrigger
+                    valueTitle={auditBulananCabang}
+                    onClick={() => setShowPickerAuditCabang(true)}
+                    size="sm"
+                    className="min-w-[140px]"
+                  />
+                  <BottomSheetPicker
+                    isOpen={showPickerAuditCabang}
+                    onClose={() => setShowPickerAuditCabang(false)}
+                    title="Pilih Cabang Audit Bulanan"
+                    selectedId={auditBulananCabang}
+                    onSelect={(opt) => setAuditBulananCabang(String(opt.id))}
+                    options={storeBranchList.map((cName) => ({
+                      id: cName,
+                      title: cName,
+                      subtitle: 'Cabang Toko Operasional',
+                    }))}
+                  />
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -485,19 +511,30 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             <>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-slate-600">Filter Aksi:</span>
-                <select
-                  value={auditFilterAksi}
-                  onChange={(e) => setAuditFilterAksi(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-semibold"
-                >
-                  <option value="Semua">Semua Aksi</option>
-                  <option value="Tutup Toko">Tutup Toko</option>
-                  <option value="Buka Toko">Buka Toko</option>
-                  <option value="Pengeluaran Kas Laci">Pengeluaran Kas Laci</option>
-                  <option value="Transaksi Kasir">Transaksi Kasir</option>
-                  <option value="Retur Transaksi">Retur Transaksi</option>
-                  <option value="Lapor Toko Libur">Lapor Toko Libur</option>
-                </select>
+                <div className="w-auto">
+                  <BottomSheetPickerTrigger
+                    valueTitle={auditFilterAksi === 'Semua' ? 'Semua Aksi' : auditFilterAksi}
+                    onClick={() => setShowPickerAuditAksi(true)}
+                    size="sm"
+                    className="min-w-[140px]"
+                  />
+                  <BottomSheetPicker
+                    isOpen={showPickerAuditAksi}
+                    onClose={() => setShowPickerAuditAksi(false)}
+                    title="Pilih Filter Aksi Log Audit"
+                    selectedId={auditFilterAksi}
+                    onSelect={(opt) => setAuditFilterAksi(String(opt.id))}
+                    options={[
+                      { id: 'Semua', title: 'Semua Aksi', subtitle: 'Tampilkan seluruh log aktivitas' },
+                      { id: 'Tutup Toko', title: 'Tutup Toko', subtitle: 'Rekap shift & closing kasir toko' },
+                      { id: 'Buka Toko', title: 'Buka Toko', subtitle: 'Opening modal kasir pagi' },
+                      { id: 'Pengeluaran Kas Laci', title: 'Pengeluaran Kas Laci', subtitle: 'Operasional uang keluar' },
+                      { id: 'Transaksi Kasir', title: 'Transaksi Kasir', subtitle: 'Pesanan bayar sukses' },
+                      { id: 'Retur Transaksi', title: 'Retur Transaksi', subtitle: 'Pembatalan & void nota' },
+                      { id: 'Lapor Toko Libur', title: 'Lapor Toko Libur', subtitle: 'Hari libur toko/nasional' },
+                    ]}
+                  />
+                </div>
               </div>
 
               <div className="flex items-center gap-2 flex-1 min-w-[200px]">

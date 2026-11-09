@@ -26,6 +26,7 @@ import {
   formatWaPhone,
 } from '../utils/storage';
 import { getBranchName, getStoreBranchNames } from '../utils/branchHelper';
+import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
 interface PengeluaranViewProps {
   currentUser: Karyawan;
@@ -70,6 +71,8 @@ export const PengeluaranView: React.FC<PengeluaranViewProps> = ({
   const [filterCabang, setFilterCabang] = useState<string>('Semua');
   const [filterStatus, setFilterStatus] = useState<string>('Semua');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showPickerFilterCabang, setShowPickerFilterCabang] = useState(false);
+  const [showPickerFilterStatus, setShowPickerFilterStatus] = useState(false);
 
   // Rejection modal
   const [rejectingItem, setRejectingItem] = useState<PengeluaranToko | null>(null);
@@ -357,30 +360,54 @@ export const PengeluaranView: React.FC<PengeluaranViewProps> = ({
 
           <div className="flex flex-wrap items-center gap-2 text-xs">
             {isOwnerOrAdmin && (
-              <select
-                value={filterCabang}
-                onChange={(e) => setFilterCabang(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-semibold"
-              >
-                <option value="Semua">Semua Cabang</option>
-                {activeBranchList.map((cName) => (
-                  <option key={cName} value={cName}>
-                    {cName}
-                  </option>
-                ))}
-              </select>
+              <div className="w-auto">
+                <BottomSheetPickerTrigger
+                  valueTitle={filterCabang === 'Semua' ? 'Semua Cabang' : filterCabang}
+                  onClick={() => setShowPickerFilterCabang(true)}
+                  size="sm"
+                  icon={<Building2 size={13} />}
+                  className="min-w-[130px]"
+                />
+                <BottomSheetPicker
+                  isOpen={showPickerFilterCabang}
+                  onClose={() => setShowPickerFilterCabang(false)}
+                  title="Pilih Cabang Pengeluaran"
+                  selectedId={filterCabang}
+                  onSelect={(opt) => setFilterCabang(String(opt.id))}
+                  options={[
+                    { id: 'Semua', title: 'Semua Cabang', subtitle: 'Tampilkan semua cabang', badge: 'Semua' },
+                    ...activeBranchList.map((cName) => ({
+                      id: cName,
+                      title: cName,
+                      subtitle: 'Cabang Toko Resmi',
+                    })),
+                  ]}
+                />
+              </div>
             )}
 
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-semibold"
-            >
-              <option value="Semua">Semua Status</option>
-              <option value="Menunggu ACC">Menunggu ACC</option>
-              <option value="Disetujui">Disetujui</option>
-              <option value="Ditolak">Ditolak</option>
-            </select>
+            <div className="w-auto">
+              <BottomSheetPickerTrigger
+                valueTitle={filterStatus === 'Semua' ? 'Semua Status' : filterStatus}
+                onClick={() => setShowPickerFilterStatus(true)}
+                size="sm"
+                icon={<Check size={13} />}
+                className="min-w-[130px]"
+              />
+              <BottomSheetPicker
+                isOpen={showPickerFilterStatus}
+                onClose={() => setShowPickerFilterStatus(false)}
+                title="Pilih Status Pengajuan"
+                selectedId={filterStatus}
+                onSelect={(opt) => setFilterStatus(String(opt.id))}
+                options={[
+                  { id: 'Semua', title: 'Semua Status', subtitle: 'Tampilkan semua status' },
+                  { id: 'Menunggu ACC', title: 'Menunggu ACC', subtitle: 'Menunggu persetujuan Owner', badge: 'Pending' },
+                  { id: 'Disetujui', title: 'Disetujui', subtitle: 'Pengeluaran telah di-ACC', badge: 'ACC' },
+                  { id: 'Ditolak', title: 'Ditolak', subtitle: 'Pengeluaran ditolak', badge: 'Tolak' },
+                ]}
+              />
+            </div>
 
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />

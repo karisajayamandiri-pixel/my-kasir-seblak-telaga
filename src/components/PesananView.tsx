@@ -52,6 +52,7 @@ import {
 import { formatRupiah } from '../utils/storage';
 import { getBranchName, getStoreBranches } from '../utils/branchHelper';
 import { PrintDocumentType } from './PrintModal';
+import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
 interface PesananViewProps {
   currentUser: Karyawan;
@@ -172,6 +173,7 @@ export const PesananView: React.FC<PesananViewProps> = ({
   const [selectedCabang, setSelectedCabang] = useState<string>(
     isDcPusatOrOwner ? 'Semua' : currentBranchName || currentUser.cabang
   );
+  const [showPickerCabang, setShowPickerCabang] = useState(false);
   const [filterStatus, setFilterStatus] = useState<
     'Semua' | 'MENUNGGU' | 'DIPROSES' | 'SIAP ANTAR' | 'BELUM BAYAR' | 'LUNAS' | 'DIBATALKAN' | 'DIVOID'
   >('Semua');
@@ -963,22 +965,31 @@ export const PesananView: React.FC<PesananViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {/* Branch selector for Owner / DC */}
+            {/* Branch selector for Owner / DC via BottomSheetPicker */}
             {isDcPusatOrOwner ? (
-              <div className="flex items-center gap-1.5 text-xs">
-                <Store className="w-3.5 h-3.5 text-slate-400" />
-                <select
-                  value={selectedCabang}
-                  onChange={(e) => setSelectedCabang(e.target.value)}
-                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="Semua">Semua Cabang</option>
-                  {availableBranches.map((b) => (
-                    <option key={b.id} value={b.nama}>
-                      {b.nama}
-                    </option>
-                  ))}
-                </select>
+              <div className="w-auto">
+                <BottomSheetPickerTrigger
+                  valueTitle={selectedCabang === 'Semua' ? 'Semua Cabang' : selectedCabang}
+                  onClick={() => setShowPickerCabang(true)}
+                  size="sm"
+                  icon={<Store className="w-3.5 h-3.5 text-orange-600" />}
+                  className="min-w-[130px]"
+                />
+                <BottomSheetPicker
+                  isOpen={showPickerCabang}
+                  onClose={() => setShowPickerCabang(false)}
+                  title="Pilih Cabang Pesanan"
+                  selectedId={selectedCabang}
+                  onSelect={(opt) => setSelectedCabang(String(opt.id))}
+                  options={[
+                    { id: 'Semua', title: 'Semua Cabang', subtitle: 'Tampilkan pesanan seluruh cabang', badge: 'Semua' },
+                    ...availableBranches.map((b) => ({
+                      id: b.nama,
+                      title: b.nama,
+                      subtitle: b.alamat || 'Cabang Toko Resmi',
+                    })),
+                  ]}
+                />
               </div>
             ) : (
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-800 rounded-xl text-xs font-bold border border-orange-200">
@@ -2309,19 +2320,24 @@ export const PesananView: React.FC<PesananViewProps> = ({
 
                           {/* Level & Catatan */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[10px] font-bold text-slate-500">Level:</span>
-                              <select
-                                value={item.levelPedas || 'Original'}
-                                onChange={(e) => handleUpdateEditItemLevel(idx, e.target.value)}
-                                className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                              >
+                              <div className="flex flex-wrap items-center gap-1">
                                 {LEVEL_PEDAS_OPTIONS.map((opt) => (
-                                  <option key={opt} value={opt}>
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    onClick={() => handleUpdateEditItemLevel(idx, opt)}
+                                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                      (item.levelPedas || 'Original') === opt
+                                        ? 'bg-amber-600 text-white shadow-xs'
+                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                    }`}
+                                  >
                                     {opt}
-                                  </option>
+                                  </button>
                                 ))}
-                              </select>
+                              </div>
                             </div>
 
                             <div className="flex items-center gap-1.5">
@@ -2763,19 +2779,24 @@ export const PesananView: React.FC<PesananViewProps> = ({
 
                           {/* Level & Catatan */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[10px] font-bold text-slate-500">Level:</span>
-                              <select
-                                value={item.levelPedas || 'Original'}
-                                onChange={(e) => handleUpdateVoidItemLevel(idx, e.target.value)}
-                                className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                              >
+                              <div className="flex flex-wrap items-center gap-1">
                                 {LEVEL_PEDAS_OPTIONS.map((opt) => (
-                                  <option key={opt} value={opt}>
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    onClick={() => handleUpdateVoidItemLevel(idx, opt)}
+                                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                      (item.levelPedas || 'Original') === opt
+                                        ? 'bg-purple-600 text-white shadow-xs'
+                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                    }`}
+                                  >
                                     {opt}
-                                  </option>
+                                  </button>
                                 ))}
-                              </select>
+                              </div>
                             </div>
 
                             <div className="flex items-center gap-1.5">
