@@ -6,7 +6,9 @@ import {
   onSnapshot,
   getDocs,
   writeBatch,
+  enableNetwork,
 } from 'firebase/firestore';
+import firebaseConfig from '../../firebase-applet-config.json';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import {
   DataCabang,
@@ -25,10 +27,13 @@ import {
   TokoState,
   PengaturanOff,
   MenuCabang,
+  GajiKaryawanSetting,
+  AppSettings,
   OWNER_EMAIL,
   FullResetOptions,
   FullResetResult,
 } from '../types';
+import { normalizeAppSettings } from '../utils/theme';
 import {
   INITIAL_DATA_CABANG,
   INITIAL_KATALOG,
@@ -58,7 +63,9 @@ export const FIRESTORE_COLLECTIONS = {
   PENGELUARAN: 'pengeluaran',
   ABSENSI: 'absensi',
   PENGATURAN_OFF: 'pengaturan_off',
+  PENGATURAN_GAJI: 'pengaturan_gaji',
   MENU_CABANG: 'menu_cabang',
+  PENGATURAN_APLIKASI: 'pengaturan_aplikasi',
   SURAT_JALAN: 'suratJalan',
   PERMINTAAN: 'permintaan',
   LAPORAN_HARIAN: 'laporanHarian',
@@ -453,6 +460,64 @@ export async function executeQuickOrdersReset(callerEmail?: string): Promise<Ful
   );
 }
 
+function decodeFirestoreRestValue(val: any): any {
+  if (!val || typeof val !== 'object') return val;
+  if ('nullValue' in val) return null;
+  if ('booleanValue' in val) return Boolean(val.booleanValue);
+  if ('integerValue' in val) return Number(val.integerValue);
+  if ('doubleValue' in val) return Number(val.doubleValue);
+  if ('stringValue' in val) return String(val.stringValue);
+  if ('timestampValue' in val) return String(val.timestampValue);
+  if ('referenceValue' in val) return String(val.referenceValue);
+  if ('bytesValue' in val) return val.bytesValue;
+  if ('arrayValue' in val) {
+    const values = val.arrayValue?.values;
+    return Array.isArray(values) ? values.map(decodeFirestoreRestValue) : [];
+  }
+  if ('mapValue' in val) {
+    return decodeFirestoreRestFields(val.mapValue?.fields || {});
+  }
+  return null;
+}
+
+function decodeFirestoreRestFields(fields: Record<string, any> | undefined): Record<string, any> {
+  const result: Record<string, any> = {};
+  if (!fields) return result;
+  for (const [k, v] of Object.entries(fields)) {
+    result[k] = decodeFirestoreRestValue(v);
+  }
+  return result;
+}
+
+async function fetchCollectionViaRest(collectionId: string): Promise<Array<{ id: string; data: Record<string, any> }>> {
+  const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${firebaseConfig.firestoreDatabaseId}/documents:runQuery?key=${encodeURIComponent(firebaseConfig.apiKey)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId }],
+      },
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`REST runQuery ${collectionId} failed (${res.status})`);
+  }
+  const rows = await res.json();
+  if (!Array.isArray(rows)) return [];
+  const docs: Array<{ id: string; data: Record<string, any> }> = [];
+  for (const row of rows) {
+    if (row?.document?.name) {
+      const id = String(row.document.name).split('/').pop() || '';
+      docs.push({
+        id,
+        data: decodeFirestoreRestFields(row.document.fields),
+      });
+    }
+  }
+  return docs;
+}
+
 /**
  * Realtime Subscriptions
  */
@@ -467,31 +532,144 @@ export function subscribeToRealtimeFirestore(callbacks: {
   onPengeluaran: (list: PengeluaranToko[]) => void;
   onAbsensi: (list: Absensi[]) => void;
   onPengaturanOff?: (list: PengaturanOff[]) => void;
+  onPengaturanGaji?: (map: Record<string, GajiKaryawanSetting>) => void;
   onMenuCabang?: (list: MenuCabang[]) => void;
+  onAppSettings?: (settings: AppSettings) => void;
   onSuratJalan: (list: SuratJalan[]) => void;
   onPermintaan: (list: PermintaanBarang[]) => void;
   onLaporanHarian: (list: LaporanHarian[]) => void;
   onAuditLog: (list: AuditLog[]) => void;
 }): () => void {
   const unsubscribers: (() => void)[] = [];
+  let isDisposed = false;
+  let hasServerSync = false;
+  const serverSyncedCollections = new Set<string>();
+  let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const markServerSync = (colName: string, fromCache: boolean) => {
+    if (!fromCache) {
+      serverSyncedCollections.add(colName);
+      if (!hasServerSync) {
+        hasServerSync = true;
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer);
+          fallbackTimer = null;
+        }
+      }
+    }
+  };
+
+  const mapBranches = (rows: Array<{ id: string; data: Record<string, any> }>) =>
+    rows.map(({ id, data }) => {
+      const branchId = data.branchId || data.id || id;
+      const branchName = data.nama || data.name || '';
+      return {
+        ...data,
+        id: branchId,
+        branchId,
+        nama: branchName,
+        name: branchName,
+      } as DataCabang;
+    });
+
+  const mapStokCabang = (rows: Array<{ data: Record<string, any> }>) => {
+    const map: StokCabangMap = {};
+    rows.forEach(({ data }) => {
+      if (data.cabang && data.stok) {
+        map[data.cabang] = data.stok;
+      }
+    });
+    return map;
+  };
+
+  const mapStatusToko = (rows: Array<{ data: Record<string, any> }>) => {
+    const state: AllTokoState = {};
+    rows.forEach(({ data }) => {
+      if (data.cabang) {
+        state[data.cabang] = {
+          status: data.status || 'Belum Buka',
+          jamBuka: data.jamBuka,
+          jamTutup: data.jamTutup,
+          kasirNama: data.kasirNama,
+          modalAwal: data.modalAwal,
+          terakhirUpdate: data.terakhirUpdate,
+          terakhirTutupTanggal: data.terakhirTutupTanggal,
+          sudahTutupHariIni: data.sudahTutupHariIni,
+        };
+      }
+    });
+    return state;
+  };
+
+  // Fallback REST recovery ONLY if WebChannel has not synced from server within 5 seconds
+  fallbackTimer = setTimeout(() => {
+    if (isDisposed || hasServerSync || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+      return;
+    }
+
+    void (async () => {
+      enableNetwork(db).catch(() => {});
+      const jobs: Array<{ col: string; apply: (rows: Array<{ id: string; data: Record<string, any> }>) => void }> = [
+        { col: FIRESTORE_COLLECTIONS.BRANCHES, apply: (rows) => callbacks.onCabang(mapBranches(rows)) },
+        { col: FIRESTORE_COLLECTIONS.KATALOG, apply: (rows) => callbacks.onKatalog(rows.map((r) => r.data as KatalogMenu)) },
+        { col: FIRESTORE_COLLECTIONS.KARYAWAN, apply: (rows) => callbacks.onKaryawan(rows.map((r) => r.data as Karyawan)) },
+        { col: FIRESTORE_COLLECTIONS.BAHAN_BAKU, apply: (rows) => callbacks.onBahanBaku(rows.map((r) => r.data as BahanBaku)) },
+        { col: FIRESTORE_COLLECTIONS.STOK_CABANG, apply: (rows) => callbacks.onStokCabang(mapStokCabang(rows)) },
+        { col: FIRESTORE_COLLECTIONS.STATUS_TOKO, apply: (rows) => callbacks.onStatusToko(mapStatusToko(rows)) },
+        { col: FIRESTORE_COLLECTIONS.TRANSAKSI, apply: (rows) => callbacks.onTransaksi(rows.map((r) => r.data as Transaksi)) },
+        { col: FIRESTORE_COLLECTIONS.PENGELUARAN, apply: (rows) => callbacks.onPengeluaran(rows.map((r) => r.data as PengeluaranToko)) },
+        { col: FIRESTORE_COLLECTIONS.ABSENSI, apply: (rows) => callbacks.onAbsensi(rows.map((r) => r.data as Absensi)) },
+        { col: FIRESTORE_COLLECTIONS.PENGATURAN_OFF, apply: (rows) => callbacks.onPengaturanOff?.(rows.map((r) => r.data as PengaturanOff)) },
+        ...(callbacks.onPengaturanGaji
+          ? [{
+              col: FIRESTORE_COLLECTIONS.PENGATURAN_GAJI,
+              apply: (rows: Array<{ id: string; data: Record<string, any> }>) => {
+                const map: Record<string, GajiKaryawanSetting> = {};
+                rows.forEach(({ id, data }) => {
+                  const setting = data as GajiKaryawanSetting;
+                  map[setting.karyawanId || id] = setting;
+                });
+                callbacks.onPengaturanGaji?.(map);
+              },
+            }]
+          : []),
+        { col: FIRESTORE_COLLECTIONS.MENU_CABANG, apply: (rows) => callbacks.onMenuCabang?.(rows.map((r) => r.data as MenuCabang)) },
+        ...(callbacks.onAppSettings
+          ? [{
+              col: FIRESTORE_COLLECTIONS.PENGATURAN_APLIKASI,
+              apply: (rows: Array<{ id: string; data: Record<string, any> }>) => {
+                const brandingRow = rows.find((r) => r.id === 'branding') || rows[0];
+                if (brandingRow?.data) {
+                  callbacks.onAppSettings?.(normalizeAppSettings(brandingRow.data as Partial<AppSettings>));
+                }
+              },
+            }]
+          : []),
+        { col: FIRESTORE_COLLECTIONS.SURAT_JALAN, apply: (rows) => callbacks.onSuratJalan(rows.map((r) => r.data as SuratJalan)) },
+        { col: FIRESTORE_COLLECTIONS.PERMINTAAN, apply: (rows) => callbacks.onPermintaan(rows.map((r) => r.data as PermintaanBarang)) },
+        { col: FIRESTORE_COLLECTIONS.LAPORAN_HARIAN, apply: (rows) => callbacks.onLaporanHarian(rows.map((r) => r.data as LaporanHarian)) },
+        { col: FIRESTORE_COLLECTIONS.AUDIT_LOG, apply: (rows) => callbacks.onAuditLog(rows.map((r) => r.data as AuditLog)) },
+      ];
+
+      await Promise.allSettled(
+        jobs.map(async (job) => {
+          if (isDisposed || serverSyncedCollections.has(job.col)) return;
+          const rows = await fetchCollectionViaRest(job.col);
+          if (!isDisposed && !serverSyncedCollections.has(job.col)) {
+            job.apply(rows);
+          }
+        })
+      );
+    })();
+  }, 5000);
 
   // 1. Branches (Firestore collection `branches` berdasarkan `branchId`)
   unsubscribers.push(
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.BRANCHES),
       (snap) => {
-        const items = snap.docs.map((d) => {
-          const data = d.data();
-          const branchId = data.branchId || data.id || d.id;
-          const branchName = data.nama || data.name || '';
-          return {
-            ...data,
-            id: branchId,
-            branchId,
-            nama: branchName,
-            name: branchName,
-          } as DataCabang;
-        });
+        markServerSync(FIRESTORE_COLLECTIONS.BRANCHES, snap.metadata.fromCache);
+        const items = mapBranches(snap.docs.map((d) => ({ id: d.id, data: d.data() })));
         callbacks.onCabang(items);
       },
       (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.BRANCHES)
@@ -503,6 +681,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.KATALOG),
       (snap) => {
+        markServerSync(FIRESTORE_COLLECTIONS.KATALOG, snap.metadata.fromCache);
         const items = snap.docs.map((d) => d.data() as KatalogMenu);
         callbacks.onKatalog(items);
       },
@@ -515,6 +694,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.KARYAWAN),
       (snap) => {
+        markServerSync(FIRESTORE_COLLECTIONS.KARYAWAN, snap.metadata.fromCache);
         const items = snap.docs.map((d) => d.data() as Karyawan);
         callbacks.onKaryawan(items);
       },
@@ -527,6 +707,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.BAHAN_BAKU),
       (snap) => {
+        markServerSync(FIRESTORE_COLLECTIONS.BAHAN_BAKU, snap.metadata.fromCache);
         const items = snap.docs.map((d) => d.data() as BahanBaku);
         callbacks.onBahanBaku(items);
       },
@@ -539,13 +720,8 @@ export function subscribeToRealtimeFirestore(callbacks: {
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.STOK_CABANG),
       (snap) => {
-        const map: StokCabangMap = {};
-        snap.docs.forEach((d) => {
-          const data = d.data();
-          if (data.cabang && data.stok) {
-            map[data.cabang] = data.stok;
-          }
-        });
+        markServerSync(FIRESTORE_COLLECTIONS.STOK_CABANG, snap.metadata.fromCache);
+        const map = mapStokCabang(snap.docs.map((d) => ({ data: d.data() })));
         callbacks.onStokCabang(map);
       },
       (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.STOK_CABANG)
@@ -557,22 +733,8 @@ export function subscribeToRealtimeFirestore(callbacks: {
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.STATUS_TOKO),
       (snap) => {
-        const state: AllTokoState = {};
-        snap.docs.forEach((d) => {
-          const data = d.data();
-          if (data.cabang) {
-            state[data.cabang] = {
-              status: data.status || 'Belum Buka',
-              jamBuka: data.jamBuka,
-              jamTutup: data.jamTutup,
-              kasirNama: data.kasirNama,
-              modalAwal: data.modalAwal,
-              terakhirUpdate: data.terakhirUpdate,
-              terakhirTutupTanggal: data.terakhirTutupTanggal,
-              sudahTutupHariIni: data.sudahTutupHariIni,
-            };
-          }
-        });
+        markServerSync(FIRESTORE_COLLECTIONS.STATUS_TOKO, snap.metadata.fromCache);
+        const state = mapStatusToko(snap.docs.map((d) => ({ data: d.data() })));
         callbacks.onStatusToko(state);
       },
       (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.STATUS_TOKO)
@@ -584,6 +746,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.TRANSAKSI),
       (snap) => {
+        markServerSync(FIRESTORE_COLLECTIONS.TRANSAKSI, snap.metadata.fromCache);
         const items = snap.docs.map((d) => d.data() as Transaksi);
         callbacks.onTransaksi(items);
       },
@@ -596,6 +759,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.PENGELUARAN),
       (snap) => {
+        markServerSync(FIRESTORE_COLLECTIONS.PENGELUARAN, snap.metadata.fromCache);
         const items = snap.docs.map((d) => d.data() as PengeluaranToko);
         callbacks.onPengeluaran(items);
       },
@@ -608,6 +772,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.ABSENSI),
       (snap) => {
+        markServerSync(FIRESTORE_COLLECTIONS.ABSENSI, snap.metadata.fromCache);
         const items = snap.docs.map((d) => d.data() as Absensi);
         callbacks.onAbsensi(items);
       },
@@ -620,6 +785,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.PENGATURAN_OFF),
       (snap) => {
+        markServerSync(FIRESTORE_COLLECTIONS.PENGATURAN_OFF, snap.metadata.fromCache);
         const items = snap.docs.map((d) => d.data() as PengaturanOff);
         if (callbacks.onPengaturanOff) callbacks.onPengaturanOff(items);
       },
@@ -632,6 +798,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.MENU_CABANG),
       (snap) => {
+        markServerSync(FIRESTORE_COLLECTIONS.MENU_CABANG, snap.metadata.fromCache);
         const items = snap.docs.map((d) => d.data() as MenuCabang);
         if (callbacks.onMenuCabang) callbacks.onMenuCabang(items);
       },
@@ -639,11 +806,49 @@ export function subscribeToRealtimeFirestore(callbacks: {
     )
   );
 
+  // 9d. Pengaturan Gaji (optional)
+  if (callbacks.onPengaturanGaji) {
+    unsubscribers.push(
+      onSnapshot(
+        collection(db, FIRESTORE_COLLECTIONS.PENGATURAN_GAJI),
+        (snap) => {
+          markServerSync(FIRESTORE_COLLECTIONS.PENGATURAN_GAJI, snap.metadata.fromCache);
+          const map: Record<string, GajiKaryawanSetting> = {};
+          snap.docs.forEach((d) => {
+            const data = d.data() as GajiKaryawanSetting;
+            map[data.karyawanId || d.id] = data;
+          });
+          callbacks.onPengaturanGaji?.(map);
+        },
+        (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.PENGATURAN_GAJI)
+      )
+    );
+  }
+
+  // 9e. Pengaturan Aplikasi (Logo, Nama Usaha, Tema)
+  if (callbacks.onAppSettings) {
+    unsubscribers.push(
+      onSnapshot(
+        collection(db, FIRESTORE_COLLECTIONS.PENGATURAN_APLIKASI),
+        (snap) => {
+          markServerSync(FIRESTORE_COLLECTIONS.PENGATURAN_APLIKASI, snap.metadata.fromCache);
+          if (snap.empty) return;
+          const brandingDoc = snap.docs.find((d) => d.id === 'branding') || snap.docs[0];
+          if (brandingDoc) {
+            callbacks.onAppSettings?.(normalizeAppSettings(brandingDoc.data() as Partial<AppSettings>));
+          }
+        },
+        (err) => handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTIONS.PENGATURAN_APLIKASI)
+      )
+    );
+  }
+
   // 10. Surat Jalan
   unsubscribers.push(
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.SURAT_JALAN),
       (snap) => {
+        markServerSync(FIRESTORE_COLLECTIONS.SURAT_JALAN, snap.metadata.fromCache);
         const items = snap.docs.map((d) => d.data() as SuratJalan);
         callbacks.onSuratJalan(items);
       },
@@ -656,6 +861,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.PERMINTAAN),
       (snap) => {
+        markServerSync(FIRESTORE_COLLECTIONS.PERMINTAAN, snap.metadata.fromCache);
         const items = snap.docs.map((d) => d.data() as PermintaanBarang);
         callbacks.onPermintaan(items);
       },
@@ -668,6 +874,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.LAPORAN_HARIAN),
       (snap) => {
+        markServerSync(FIRESTORE_COLLECTIONS.LAPORAN_HARIAN, snap.metadata.fromCache);
         const items = snap.docs.map((d) => d.data() as LaporanHarian);
         callbacks.onLaporanHarian(items);
       },
@@ -680,6 +887,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
     onSnapshot(
       collection(db, FIRESTORE_COLLECTIONS.AUDIT_LOG),
       (snap) => {
+        markServerSync(FIRESTORE_COLLECTIONS.AUDIT_LOG, snap.metadata.fromCache);
         const items = snap.docs.map((d) => d.data() as AuditLog);
         callbacks.onAuditLog(items);
       },
@@ -688,6 +896,11 @@ export function subscribeToRealtimeFirestore(callbacks: {
   );
 
   return () => {
+    isDisposed = true;
+    if (fallbackTimer) {
+      clearTimeout(fallbackTimer);
+      fallbackTimer = null;
+    }
     unsubscribers.forEach((unsub) => unsub());
   };
 }
@@ -914,5 +1127,51 @@ export async function firestoreSaveMenuCabangBatch(menuId: string, cabangIds: st
     await batch.commit();
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.MENU_CABANG}/batch_${menuId}`);
+  }
+}
+
+export async function firestoreSavePengaturanGaji(setting: GajiKaryawanSetting) {
+  try {
+    await setDoc(
+      doc(db, FIRESTORE_COLLECTIONS.PENGATURAN_GAJI, setting.karyawanId),
+      sanitizeForFirestore(setting),
+      { merge: true }
+    );
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.PENGATURAN_GAJI}/${setting.karyawanId}`);
+  }
+}
+
+export async function firestoreSavePengaturanGajiBatch(settings: GajiKaryawanSetting[]) {
+  try {
+    const batch = writeBatch(db);
+    settings.forEach((setting) => {
+      batch.set(
+        doc(db, FIRESTORE_COLLECTIONS.PENGATURAN_GAJI, setting.karyawanId),
+        sanitizeForFirestore(setting),
+        { merge: true }
+      );
+    });
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.PENGATURAN_GAJI}/batch`);
+  }
+}
+
+export async function firestoreSaveAppSettings(settings: AppSettings) {
+  try {
+    const docId = settings.id || 'branding';
+    const normalized = normalizeAppSettings({
+      ...settings,
+      id: docId,
+      updatedAt: new Date().toISOString(),
+    });
+    await setDoc(
+      doc(db, FIRESTORE_COLLECTIONS.PENGATURAN_APLIKASI, docId),
+      sanitizeForFirestore(normalized),
+      { merge: true }
+    );
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `${FIRESTORE_COLLECTIONS.PENGATURAN_APLIKASI}/${settings.id || 'branding'}`);
   }
 }

@@ -22,8 +22,15 @@ import {
   Absensi,
   Karyawan,
   DataCabang,
+  AppSettings,
 } from '../types';
 import { formatRupiah } from '../utils/storage';
+import {
+  DEFAULT_BUSINESS_NAME,
+  DEFAULT_TAGLINE,
+  DEFAULT_LOGO_URL,
+  getBusinessHandle,
+} from '../utils/theme';
 import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 import {
   connectBluetoothPrinter,
@@ -58,6 +65,7 @@ interface PrintModalProps {
   bahanBakuList?: BahanBaku[];
   dataCabangList?: DataCabang[];
   karyawanList?: Karyawan[];
+  appSettings?: AppSettings;
 }
 
 export const PrintModal: React.FC<PrintModalProps> = ({
@@ -68,8 +76,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({
   bahanBakuList = [],
   dataCabangList = [],
   karyawanList = [],
+  appSettings,
 }) => {
   if (!type) return null;
+
+  const brandName = (appSettings?.namaUsaha || DEFAULT_BUSINESS_NAME).trim() || DEFAULT_BUSINESS_NAME;
+  const brandTagline = (appSettings?.tagline !== undefined ? appSettings.tagline : DEFAULT_TAGLINE).trim();
+  const brandLogoUrl = appSettings?.logoUrl || DEFAULT_LOGO_URL;
+  const brandHandle = getBusinessHandle(brandName);
 
   // Universal Printer controls
   const [paperSize, setPaperSize] = useState<'A4' | 'F4' | 'Letter' | 'Auto'>('Auto');
@@ -102,8 +116,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
     const result =
       type === 'tiketDapur'
-        ? await printKitchenTicketViaBluetooth(data as Transaksi, branchInfo)
-        : await printReceiptViaBluetooth(data as Transaksi, branchInfo);
+        ? await printKitchenTicketViaBluetooth(data as Transaksi, branchInfo, { namaUsaha: brandName, tagline: brandTagline })
+        : await printReceiptViaBluetooth(data as Transaksi, branchInfo, { namaUsaha: brandName, tagline: brandTagline });
     setIsBtPrinting(false);
 
     if (result.success) {
@@ -152,7 +166,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({
   const handleTestPrintBt = async () => {
     setIsBtPrinting(true);
     setBtStatusMsg({ type: 'info', text: 'Mengirim perintah cetak uji coba...' });
-    const result = await printTestBluetooth(data.cabang || 'DC PUSAT');
+    const result = await printTestBluetooth(data.cabang || 'DC PUSAT', {
+      namaUsaha: brandName,
+      tagline: brandTagline,
+    });
     setIsBtPrinting(false);
 
     if (result.success) {
@@ -170,21 +187,24 @@ export const PrintModal: React.FC<PrintModalProps> = ({
   const branchForRawBt = dataCabangList.find(
     (c) => c.nama.trim().toUpperCase() === (data?.cabang || '').trim().toUpperCase()
   );
-  const rawBtUrl = type === 'struk' ? getRawBtReceiptUrl(data, branchForRawBt) : '';
+  const rawBtUrl =
+    type === 'struk'
+      ? getRawBtReceiptUrl(data, branchForRawBt, { namaUsaha: brandName, tagline: brandTagline })
+      : '';
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
       {/* Container - hide on print, only the printable body will show */}
-      <div className="bg-slate-100 rounded-3xl max-w-4xl w-full p-4 shadow-2xl space-y-3 max-h-[95vh] flex flex-col">
+      <div className="bg-slate-100 dark:bg-slate-900 rounded-3xl max-w-4xl w-full p-4 shadow-2xl space-y-3 max-h-[95vh] flex flex-col border border-slate-200 dark:border-slate-800">
         {/* Modal Controls Bar (Never printed) */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 no-print shrink-0 space-y-3 shadow-xs">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 no-print shrink-0 space-y-3 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700 pb-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-orange-100 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 flex items-center justify-center">
                 {isThermalTicketOrReceipt ? <Bluetooth className="w-4 h-4" /> : <Printer className="w-4 h-4" />}
               </div>
               <div>
-                <span className="font-black text-slate-800 text-sm block">
+                <span className="font-black text-slate-800 dark:text-slate-100 text-sm block">
                   {type === 'struk'
                     ? 'Cetak Struk Pembayaran Kasir (Dengan Rincian Harga)'
                     : type === 'tiketDapur'
@@ -207,7 +227,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     ? 'Cetak Slip Gaji Karyawan'
                     : 'Cetak Laporan Audit Bulanan Cabang'}
                 </span>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
                   {isThermalTicketOrReceipt
                     ? 'Mendukung printer thermal Bluetooth 58mm/80mm & printer kabel USB'
                     : 'Kompatibel dengan semua jenis printer komputer: InkJet, LaserJet, Dot Matrix (Continuous Paper), dan Thermal'}
@@ -220,7 +240,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="px-4 py-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-orange-500/20 transition cursor-pointer"
+                  className="px-4 py-2 brand-gradient hover:opacity-95 text-white font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md transition cursor-pointer"
                   title="Cetak via driver printer komputer"
                 >
                   <Printer className="w-4 h-4" />
@@ -418,8 +438,13 @@ export const PrintModal: React.FC<PrintModalProps> = ({
             return (
               <div className="receipt-58mm bg-white p-4 shadow-lg border border-slate-300 rounded-lg w-[280px] text-black font-mono text-[11px] leading-tight printable-area">
                 <div className="text-center space-y-1 pb-2 border-b border-dashed border-black">
-                  <div className="font-extrabold text-sm tracking-wider">
-                    TELAGA WARNA
+                  <img
+                    src={brandLogoUrl}
+                    alt={`Logo ${brandName}`}
+                    className="w-10 h-10 object-contain mx-auto mb-1"
+                  />
+                  <div className="font-extrabold text-sm tracking-wider uppercase">
+                    {brandName}
                   </div>
                   <div className="text-[11px] font-bold">
                     CABANG {branchNama.toUpperCase()}
@@ -430,9 +455,11 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   <div className="text-[9px] font-semibold text-slate-800">
                     Telp/WA: {branchNoHp}
                   </div>
-                  <div className="text-[9px] text-slate-600 italic pt-0.5">
-                    Pedas Gurih Bikin Nagih
-                  </div>
+                  {brandTagline && (
+                    <div className="text-[9px] text-slate-600 italic pt-0.5">
+                      {brandTagline}
+                    </div>
+                  )}
                 </div>
 
                 <div className="py-2 border-b border-dashed border-black space-y-1 text-[10px]">
@@ -557,7 +584,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 {/* Footer */}
                 <div className="pt-3 text-center text-[9px] space-y-1">
                   <div className="font-bold">*** TERIMA KASIH ***</div>
-                  <div>Selamat Menikmati Hidangan TELAGA WARNA!</div>
+                  <div>Selamat Menikmati Hidangan {brandName}!</div>
                   <div>Layanan Konsumen ({branchNama}): {branchNoHp}</div>
                 </div>
               </div>
@@ -581,7 +608,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     TIKET PESANAN DAPUR
                   </div>
                   <div className="text-xs font-bold uppercase">
-                    TELAGA WARNA - {branchNama}
+                    {brandName.toUpperCase()} - {branchNama}
                   </div>
                   <div className="text-[10px] text-slate-700">
                     Mohon segera dimasak sesuai antrean
@@ -715,13 +742,13 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <div className="border-b-2 border-black pb-3 flex justify-between items-end">
                   <div>
                     <h1 className="text-xl font-black tracking-wide text-slate-900">
-                      TELAGA WARNA - DC PUSAT LOGISTIK
+                      {brandName.toUpperCase()} - DC PUSAT LOGISTIK
                     </h1>
                     <p className="text-[11px] text-slate-700">
-                      Jl. Pemuda No. 12, Gudang Sentral Logistik TELAGA WARNA
+                      Jl. Pemuda No. 12, Gudang Sentral Logistik {brandName}
                     </p>
                     <p className="text-[10px] text-slate-600">
-                      Telp: (021) 8876-5432 • Email: logistik@telagawarna.com
+                      Telp: (021) 8876-5432 • Email: logistik@{brandHandle}.com
                     </p>
                   </div>
                   <div className="text-right">
@@ -848,7 +875,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <div className="border-b-2 border-black pb-2 flex justify-between items-end">
                 <div>
                   <h1 className="text-lg font-black tracking-wide">
-                    TELAGA WARNA - LAPORAN PENJUALAN HARIAN
+                    {brandName.toUpperCase()} - LAPORAN PENJUALAN HARIAN
                   </h1>
                   <p className="text-[11px] text-slate-600">
                     Cabang: <strong>{data.cabang}</strong> • Tanggal: <strong>{data.tanggal}</strong>
@@ -952,7 +979,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <div className="border-b-2 border-black pb-2 flex justify-between items-end">
                 <div>
                   <h1 className="text-lg font-black tracking-wide">
-                    TELAGA WARNA - REKAPITULASI PENJUALAN BULANAN
+                    {brandName.toUpperCase()} - REKAPITULASI PENJUALAN BULANAN
                   </h1>
                   <p className="text-[11px] text-slate-600">
                     Periode Bulan: <strong>{data.bulan}</strong> • Cabang: <strong>{data.cabang}</strong>
@@ -1047,8 +1074,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <div>
                   <h1 className="text-lg font-black tracking-wide">
                     {data?.isPrivileged === false
-                      ? 'KATALOG DAFTAR HARGA MENU TELAGA WARNA'
-                      : 'KATALOG MENU RESMI TELAGA WARNA'}
+                      ? `KATALOG DAFTAR HARGA MENU ${brandName.toUpperCase()}`
+                      : `KATALOG MENU RESMI ${brandName.toUpperCase()}`}
                   </h1>
                   <p className="text-[11px] text-slate-600">
                     {data?.isPrivileged === false
@@ -1129,7 +1156,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <div className="border-b-2 border-black pb-2 flex justify-between items-end">
                 <div>
                   <h1 className="text-lg font-black tracking-wide">
-                    REKAPITULASI ABSENSI KARYAWAN TELAGA WARNA
+                    REKAPITULASI ABSENSI KARYAWAN {brandName.toUpperCase()}
                   </h1>
                   <p className="text-[11px] text-slate-600">
                     Laporan Presensi Kehadiran & Kedisiplinan Jam Masuk (Batas Waktu: 08:00 WIB)
@@ -1205,7 +1232,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <div className="border-b-2 border-black pb-2 flex justify-between items-end">
                 <div>
                   <h1 className="text-lg font-black tracking-wide">
-                    DAFTAR MASTER KARYAWAN TELAGA WARNA
+                    DAFTAR MASTER KARYAWAN {brandName.toUpperCase()}
                   </h1>
                   <p className="text-[11px] text-slate-600">
                     Penugasan Cabang, Jabatan, Kontak, dan Akun Akses Sistem
@@ -1249,7 +1276,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
               <div className="pt-8 text-right text-xs">
                 <div className="inline-block text-center space-y-12">
-                  <div className="font-bold">Manajemen Pusat TELAGA WARNA</div>
+                  <div className="font-bold">Manajemen Pusat {brandName}</div>
                   <div className="border-b border-black w-44 mx-auto"></div>
                 </div>
               </div>
@@ -1262,9 +1289,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           {type === 'closingReceipt' && (
             <div className="document-thermal bg-white p-6 shadow-lg border border-slate-300 rounded-lg max-w-[420px] w-full text-black font-mono text-xs printable-area space-y-3">
               <div className="text-center border-b-2 border-black pb-3 space-y-1">
-                <div className="flex items-center justify-center gap-1.5 text-base font-black">
-                  <Flame className="w-5 h-5 text-orange-600 inline" />
-                  <span>TELAGA WARNA</span>
+                <div className="flex items-center justify-center gap-2 text-base font-black">
+                  <img src={brandLogoUrl} alt={`Logo ${brandName}`} className="w-6 h-6 object-contain" />
+                  <span>{brandName.toUpperCase()}</span>
                 </div>
                 <div className="font-bold uppercase text-xs">
                   LAPORAN TUTUP TOKO & CLOSING KASIR
@@ -1322,7 +1349,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
               <div className="text-[10px] text-center space-y-1 pt-2">
                 <div>Status: Laporan Closing Operasional Terverifikasi Sistem</div>
-                <div className="font-bold">*** DOKUMEN CLOSING RESMI OWNER TELAGA WARNA ***</div>
+                <div className="font-bold">*** DOKUMEN CLOSING RESMI OWNER {brandName.toUpperCase()} ***</div>
               </div>
 
               <div className="pt-6 grid grid-cols-2 gap-4 text-center text-[10px]">
@@ -1348,13 +1375,13 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <div className="border-b-2 border-black pb-3 flex justify-between items-end">
                 <div>
                   <div className="flex items-center gap-2">
-                    <Flame className="w-5 h-5 text-orange-600 inline" />
+                    <img src={brandLogoUrl} alt={`Logo ${brandName}`} className="w-6 h-6 object-contain" />
                     <h1 className="text-lg font-black tracking-wide">
                       AUDIT BULANAN OPERASIONAL & KEUANGAN CABANG
                     </h1>
                   </div>
                   <p className="text-xs font-bold text-slate-700">
-                    TELAGA WARNA - CABANG {data?.cabang?.toUpperCase()}
+                    {brandName.toUpperCase()} - CABANG {data?.cabang?.toUpperCase()}
                   </p>
                   <p className="text-[11px] text-slate-600">
                     Periode Audit: {data?.bulan} | Rekapitulasi Kasir, Pengeluaran Toko ACC & Setoran
@@ -1503,9 +1530,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <div className="border-b-2 border-black pb-3 flex justify-between items-start">
                 <div>
                   <div className="flex items-center gap-2">
-                    <Flame className="w-5 h-5 text-orange-600 inline" />
+                    <img src={brandLogoUrl} alt={`Logo ${brandName}`} className="w-6 h-6 object-contain" />
                     <h1 className="text-xl font-black tracking-wide text-slate-900">
-                      TELAGA WARNA
+                      {brandName.toUpperCase()}
                     </h1>
                   </div>
                   <h2 className="text-xs font-black text-slate-800 mt-1 uppercase tracking-wider">
@@ -1718,7 +1745,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <div className="space-y-12">
                   <div className="font-bold text-slate-700">Owner / Direktur Utama</div>
                   <div className="border-b border-black w-32 mx-auto"></div>
-                  <div className="font-bold">(TELAGA WARNA PUSAT)</div>
+                  <div className="font-bold">({brandName.toUpperCase()} PUSAT)</div>
                 </div>
               </div>
             </div>

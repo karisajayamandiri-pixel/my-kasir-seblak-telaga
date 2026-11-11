@@ -283,6 +283,37 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "menu_id", "cabang_id", "is_tampil"]
+    },
+    "PengaturanGaji": {
+      "title": "PengaturanGaji",
+      "description": "Pengaturan tarif gaji harian, uang makan, bonus, dan denda telat per karyawan",
+      "type": "object",
+      "properties": {
+        "karyawanId": { "type": "string" },
+        "gajiPokokHarian": { "type": "number" },
+        "uangMakanHarian": { "type": "number" },
+        "dendaTelat": { "type": "number" },
+        "bonus": { "type": "number" },
+        "keterangan": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["karyawanId", "gajiPokokHarian", "uangMakanHarian", "dendaTelat"]
+    },
+    "PengaturanAplikasi": {
+      "title": "PengaturanAplikasi",
+      "description": "Pengaturan identitas usaha (namaUsaha, logoUrl, tagline) serta tema tampilan aplikasi",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "namaUsaha": { "type": "string" },
+        "tagline": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "temaWarna": { "type": "string", "enum": ["sunset", "ocean", "emerald", "royal", "amber", "slate"] },
+        "modeTampilan": { "type": "string", "enum": ["light", "dark"] },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["id", "namaUsaha", "logoUrl", "temaWarna", "modeTampilan"]
     }
   },
   "firestore": {
@@ -349,6 +380,14 @@
     "/auditLog/{logId}": {
       "schema": "AuditLog",
       "description": "Jejak audit operasional anti fraud"
+    },
+    "/pengaturan_gaji/{karyawanId}": {
+      "schema": "PengaturanGaji",
+      "description": "Pengaturan nominal gaji harian & tunjangan karyawan"
+    },
+    "/pengaturan_aplikasi/{settingId}": {
+      "schema": "PengaturanAplikasi",
+      "description": "Konfigurasi logo, nama usaha, dan tema warna aplikasi"
     }
   }
 }

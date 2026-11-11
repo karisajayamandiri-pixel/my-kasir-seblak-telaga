@@ -1,14 +1,23 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore } from 'firebase/firestore';
+import {
+  initializeFirestore,
+  doc,
+  getDocFromServer,
+  type FirestoreSettings,
+} from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
+
+const firestoreSettings: FirestoreSettings & { useFetchStreams?: boolean } = {
+  experimentalForceLongPolling: true,
+  experimentalLongPollingOptions: { timeoutSeconds: 15 },
+  ...(typeof XMLHttpRequest !== 'undefined' ? { useFetchStreams: false } : {}),
+};
 
 const app = initializeApp(firebaseConfig);
 export const db = initializeFirestore(
   app,
-  {
-    experimentalAutoDetectLongPolling: true,
-  },
+  firestoreSettings,
   firebaseConfig.firestoreDatabaseId
 );
 export const auth = getAuth(app);
@@ -60,7 +69,14 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-export async function testConnection() {
-  // No-op to avoid forcing blocking roundtrips during initial loading
+export async function testConnection(): Promise<boolean> {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('Please check your Firebase configuration.');
+    }
+    return false;
+  }
 }
-

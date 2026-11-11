@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Flame,
   LogOut,
   Store,
   User,
@@ -11,8 +10,9 @@ import {
   AlertTriangle,
   KeyRound,
 } from 'lucide-react';
-import { Karyawan, Cabang, ActiveTab, SuratJalan, PermintaanBarang, PengeluaranToko, DataCabang } from '../types';
+import { Karyawan, Cabang, ActiveTab, SuratJalan, PermintaanBarang, PengeluaranToko, DataCabang, AppSettings } from '../types';
 import { getBranchName } from '../utils/branchHelper';
+import { DEFAULT_APP_SETTINGS, DEFAULT_LOGO_URL } from '../utils/theme';
 
 interface NavbarProps {
   currentUser: Karyawan | null;
@@ -24,6 +24,7 @@ interface NavbarProps {
   pengeluaranList?: PengeluaranToko[];
   dataCabangList?: DataCabang[];
   activeOrdersCount?: number;
+  appSettings?: AppSettings;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,8 +37,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   pengeluaranList = [],
   dataCabangList = [],
   activeOrdersCount = 0,
+  appSettings,
 }) => {
   if (!currentUser) return null;
+  const brandName = (appSettings?.namaUsaha || DEFAULT_APP_SETTINGS.namaUsaha).trim() || DEFAULT_APP_SETTINGS.namaUsaha;
+  const brandLogoUrl = appSettings?.logoUrl || DEFAULT_LOGO_URL;
 
   const isOwner = currentUser.jabatan === 'Owner';
   const isAdminDc = currentUser.jabatan === 'Admin DC Pusat' || currentUser.jabatan === 'Admin';
@@ -139,15 +143,20 @@ export const Navbar: React.FC<NavbarProps> = ({
   }
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-orange-100 shadow-sm no-print">
+    <header className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-orange-100 dark:border-slate-800 shadow-sm no-print transition-colors">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-red-700 via-orange-600 to-amber-600 text-white px-4 py-2">
+      <div className="brand-gradient text-white px-4 py-2">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2 font-bold tracking-wide">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 text-white">
-              <Flame className="w-4 h-4 text-amber-200 fill-amber-300" />
+            <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-white shadow-xs p-0.5 shrink-0 overflow-hidden">
+              <img
+                src={brandLogoUrl}
+                alt={`Logo ${brandName}`}
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-contain"
+              />
             </span>
-            <span className="text-sm">MY KASIR POS TELAGA WARNA</span>
+            <span className="text-sm">MY KASIR POS {brandName.toUpperCase()}</span>
             <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase">
               Multi-Cabang POS
             </span>
@@ -203,8 +212,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveTab(item.id)}
                 className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/30'
-                    : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50'
+                    ? 'brand-tab-active'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-slate-800'
                 }`}
               >
                 <span>{item.label}</span>
@@ -212,7 +221,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span
                     className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                       isActive
-                        ? 'bg-white text-orange-600'
+                        ? 'bg-white text-slate-900'
                         : 'bg-red-500 text-white animate-pulse'
                     }`}
                   >

@@ -27,10 +27,18 @@ import {
   TipePesanan,
   PengaturanOff,
   MenuCabang,
+  AppSettings,
   OWNER_EMAIL,
   FullResetOptions,
   FullResetResult,
 } from './types';
+import {
+  DEFAULT_APP_SETTINGS,
+  normalizeAppSettings,
+  applyAppTheme,
+  syncDocumentBranding,
+  replaceBusinessNameText,
+} from './utils/theme';
 import {
   INITIAL_KARYAWAN,
   INITIAL_BAHAN_BAKU,
@@ -82,7 +90,9 @@ import {
   firestoreSavePengaturanOff,
   firestoreSaveMenuCabang,
   firestoreSaveMenuCabangBatch,
+  firestoreSaveAppSettings,
 } from './services/firestoreSync';
+import { testConnection } from './firebase';
 
 // Components
 import { Navbar } from './components/Navbar';
@@ -198,6 +208,13 @@ export default function App() {
     loadFromStorage<MenuCabang[]>(STORAGE_KEYS.MENU_CABANG, [])
   );
 
+  // Pengaturan Identitas Usaha (Logo, Nama Usaha) & Tema
+  const [appSettings, setAppSettings] = useState<AppSettings>(() =>
+    normalizeAppSettings(
+      loadFromStorage<AppSettings>(STORAGE_KEYS.APP_SETTINGS, DEFAULT_APP_SETTINGS)
+    )
+  );
+
   // Print Modal State
   const [printModalState, setPrintModalState] = useState<{
     isOpen: boolean;
@@ -234,8 +251,15 @@ export default function App() {
     }
   }, [currentUser, activeTab]);
 
+  // Apply App Theme (CSS vars + light/dark mode) & Document Branding (title, favicon, meta)
+  useEffect(() => {
+    applyAppTheme(appSettings);
+    syncDocumentBranding(appSettings);
+  }, [appSettings]);
+
   // Realtime Firestore synchronization for all data (AUTO-SEED PERMANENTLY DISABLED)
   useEffect(() => {
+    void testConnection();
     // Listen to real-time changes directly from Firestore
     const unsubscribe = subscribeToRealtimeFirestore({
       onCabang: (list) => {
@@ -301,9 +325,17 @@ export default function App() {
         setPengaturanOffList(list);
         saveToStorage(STORAGE_KEYS.PENGATURAN_OFF, list);
       },
+      onPengaturanGaji: (map) => {
+        saveToStorage(STORAGE_KEYS.PENGATURAN_GAJI, map);
+      },
       onMenuCabang: (list) => {
         setMenuCabangList(list);
         saveToStorage(STORAGE_KEYS.MENU_CABANG, list);
+      },
+      onAppSettings: (settings) => {
+        const normalized = normalizeAppSettings(settings);
+        setAppSettings(normalized);
+        saveToStorage(STORAGE_KEYS.APP_SETTINGS, normalized);
       },
       onSuratJalan: (list) => {
         setSuratJalanList(list);
@@ -486,14 +518,93 @@ export default function App() {
   };
 
   // Owner Update Handler (NIB and profile)
-  const handleUpdateOwner = (updatedOwner: Karyawan) => {
-    setKaryawanList((prev) =>
-      prev.map((k) => (k.id === updatedOwner.id ? updatedOwner : k))
-    );
+  const handleUpdateOwner = async (updatedOwner: Karyawan) => {
+    const updatedList = karyawanList.map((k) => (k.id === updatedOwner.id ? updatedOwner : k));
+    setKaryawanList(updatedList);
+    saveToStorage(STORAGE_KEYS.KARYAWAN, updatedList);
     if (currentUser && currentUser.id === updatedOwner.id) {
       setCurrentUser(updatedOwner);
     }
-    firestoreSaveKaryawan(updatedOwner);
+    await firestoreSaveKaryawan(updatedOwner);
+  };
+
+  // Update Identitas Usaha (Logo, Nama Usaha, Tagline) & Tema dengan Cascade Nama Usaha ke Data Terkait
+  const handleSaveAppSettings = async (nextSettings: AppSettings) => {
+    const oldBusinessName = (appSettings.namaUsaha || '').trim();
+    const normalized = normalizeAppSettings({
+      ...nextSettings,
+      id: 'branding',
+      updatedAt: new Date().toISOString(),
+      updatedBy: currentUser?.nama || nextSettings.updatedBy || 'Owner',
+    });
+    const newBusinessName = normalized.namaUsaha.trim();
+
+    setAppSettings(normalized);
+    saveToStorage(STORAGE_KEYS.APP_SETTINGS, normalized);
+    applyAppTheme(normalized);
+    syncDocumentBranding(normalized);
+
+    await firestoreSaveAppSettings(normalized);
+
+    // Cascade ganti nama usaha pada data master yang menyebut nama usaha sebelumnya
+    if (
+      oldBusinessName &&
+      newBusinessName &&
+      oldBusinessName.toLowerCase() !== newBusinessName.toLowerCase()
+    ) {
+      const updatedCabang: DataCabang[] = [];
+      const nextCabangList = dataCabangList.map((c) => {
+        const nextNama = replaceBusinessNameText(c.nama, oldBusinessName, newBusinessName) || c.nama;
+        const nextAlamat = replaceBusinessNameText(c.alamat, oldBusinessName, newBusinessName) || c.alamat;
+        const nextAtasNama = replaceBusinessNameText(c.atasNama, oldBusinessName, newBusinessName);
+        if (nextNama !== c.nama || nextAlamat !== c.alamat || nextAtasNama !== c.atasNama) {
+          const item = { ...c, nama: nextNama, name: nextNama, alamat: nextAlamat, atasNama: nextAtasNama };
+          updatedCabang.push(item);
+          return item;
+        }
+        return c;
+      });
+      if (updatedCabang.length > 0) {
+        setDataCabangList(nextCabangList);
+        saveToStorage(STORAGE_KEYS.CABANG, nextCabangList);
+        await Promise.allSettled(updatedCabang.map((c) => firestoreSaveCabang(c)));
+      }
+
+      const updatedBahan: BahanBaku[] = [];
+      const nextBahanList = bahanBakuList.map((b) => {
+        const nextNama = replaceBusinessNameText(b.nama, oldBusinessName, newBusinessName) || b.nama;
+        const nextKet = replaceBusinessNameText(b.keterangan, oldBusinessName, newBusinessName);
+        if (nextNama !== b.nama || nextKet !== b.keterangan) {
+          const item = { ...b, nama: nextNama, keterangan: nextKet };
+          updatedBahan.push(item);
+          return item;
+        }
+        return b;
+      });
+      if (updatedBahan.length > 0) {
+        setBahanBakuList(nextBahanList);
+        saveToStorage(STORAGE_KEYS.BAHAN_BAKU, nextBahanList);
+        await Promise.allSettled(updatedBahan.map((b) => firestoreSaveBahanBaku(b)));
+      }
+
+      const updatedKatalog: KatalogMenu[] = [];
+      const nextKatalogList = katalogList.map((k) => {
+        const nextNama = replaceBusinessNameText(k.nama, oldBusinessName, newBusinessName) || k.nama;
+        const nextDesc = replaceBusinessNameText(k.deskripsi, oldBusinessName, newBusinessName);
+        const nextFree = replaceBusinessNameText(k.free_minuman, oldBusinessName, newBusinessName);
+        if (nextNama !== k.nama || nextDesc !== k.deskripsi || nextFree !== k.free_minuman) {
+          const item = { ...k, nama: nextNama, deskripsi: nextDesc, free_minuman: nextFree };
+          updatedKatalog.push(item);
+          return item;
+        }
+        return k;
+      });
+      if (updatedKatalog.length > 0) {
+        setKatalogList(nextKatalogList);
+        saveToStorage(STORAGE_KEYS.KATALOG, nextKatalogList);
+        await Promise.allSettled(updatedKatalog.map((k) => firestoreSaveKatalog(k)));
+      }
+    }
   };
 
   // Requirement 3: Permanent Audit Log Handler (anti-fraud, read-only)
@@ -1541,6 +1652,7 @@ export default function App() {
       <LoginModal
         karyawanList={karyawanList}
         dataCabangList={dataCabangList}
+        appSettings={appSettings}
         onLoginSuccess={handleLoginSuccess}
         onUpdateKaryawan={(updatedK) => {
           setKaryawanList((prev) =>
@@ -1564,8 +1676,17 @@ export default function App() {
     return tBranch === userBranchName || t.cabang === currentUser.cabang;
   }).length;
 
+  const activeCabangSummary =
+    dataCabangList.length > 0
+      ? dataCabangList
+          .filter((c) => c.status === 'Aktif')
+          .map((c) => c.nama)
+          .slice(0, 5)
+          .join(', ')
+      : 'PADAHERANG 01, BANJARSARI 02, CIAWTALI 03 & DC Pusat';
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col font-sans text-slate-800 dark:text-slate-100 transition-colors">
       {/* Top Navbar */}
       <Navbar
         currentUser={currentUser}
@@ -1577,6 +1698,7 @@ export default function App() {
         pengeluaranList={pengeluaranList}
         dataCabangList={dataCabangList}
         activeOrdersCount={activeOrdersCount}
+        appSettings={appSettings}
       />
 
       {/* Main Content Body */}
@@ -1592,6 +1714,7 @@ export default function App() {
             absensiList={absensiList}
             tokoState={tokoState}
             dataCabangList={dataCabangList}
+            appSettings={appSettings}
             onOpenResetModal={handleOpenFullResetModal}
           />
         )}
@@ -1612,6 +1735,7 @@ export default function App() {
             onNavigateToTab={setActiveTab}
             dataCabangList={dataCabangList}
             menuCabangList={menuCabangList}
+            appSettings={appSettings}
           />
         )}
 
@@ -1647,12 +1771,14 @@ export default function App() {
             onOpenPrintModal={(type, data) => openPrintModal(type, data)}
             onNavigateToPos={() => setActiveTab('pos')}
             tokoState={tokoState}
+            appSettings={appSettings}
           />
         )}
 
         {activeTab === 'dataCabang' && isDcPusatOrOwner && (
           <DataCabangView
             dataCabangList={dataCabangList}
+            appSettings={appSettings}
             onAddCabang={handleAddCabang}
             onUpdateCabang={handleUpdateCabang}
             onDeleteCabang={handleDeleteCabang}
@@ -1662,6 +1788,7 @@ export default function App() {
         {activeTab === 'bahanBaku' && isDcPusatOrOwner && (
           <BahanBakuView
             bahanBakuList={bahanBakuList}
+            appSettings={appSettings}
             onAddBahanBaku={handleAddBahanBaku}
             onUpdateBahanBaku={handleUpdateBahanBaku}
             onDeleteBahanBaku={handleDeleteBahanBaku}
@@ -1717,6 +1844,7 @@ export default function App() {
             dataCabangList={dataCabangList}
             pengaturanOffList={pengaturanOffList}
             onSavePengaturanOff={handleSavePengaturanOff}
+            appSettings={appSettings}
           />
         )}
 
@@ -1760,6 +1888,7 @@ export default function App() {
             onUpdateSuratJalanStatus={handleUpdateSuratJalanStatus}
             onOpenPrintModal={openPrintModal}
             dataCabangList={dataCabangList}
+            appSettings={appSettings}
           />
         )}
 
@@ -1793,6 +1922,7 @@ export default function App() {
             pengeluaranList={pengeluaranList}
             dataCabangList={dataCabangList}
             onOpenPrintModal={openPrintModal}
+            appSettings={appSettings}
           />
         )}
 
@@ -1806,6 +1936,8 @@ export default function App() {
             transaksiList={transaksiList}
             pengeluaranList={pengeluaranList}
             absensiList={absensiList}
+            appSettings={appSettings}
+            onSaveAppSettings={handleSaveAppSettings}
             onManualResetSuccess={() => {
               // demo reset completed
             }}
@@ -1815,14 +1947,14 @@ export default function App() {
       </main>
 
       {/* Footer & Reset Data Helper */}
-      <footer className="mt-auto border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-500 no-print">
+      <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-4 text-center text-xs text-slate-500 dark:text-slate-400 no-print">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>
-            <strong>My Kasir POS Seblak Prasmanan</strong> • Multi-Cabang PADAHERANG 01, BANJARSARI 02, CIAWTALI 03 & DC Pusat
+            <strong className="text-slate-700 dark:text-slate-200">My Kasir POS {appSettings.namaUsaha}</strong> • Multi-Cabang {activeCabangSummary}
           </span>
           <button
             onClick={handleResetData}
-            className="text-[11px] text-slate-400 hover:text-red-600 flex items-center gap-1 cursor-pointer transition"
+            className="text-[11px] text-slate-400 hover:text-red-600 dark:hover:text-red-400 flex items-center gap-1 cursor-pointer transition"
             title="Kembalikan semua data ke setelan awal demo"
           >
             <RotateCcw className="w-3 h-3" />
@@ -1841,22 +1973,23 @@ export default function App() {
           bahanBakuList={bahanBakuList}
           dataCabangList={dataCabangList}
           karyawanList={karyawanList}
+          appSettings={appSettings}
         />
       )}
 
       {/* LOGOUT CONFIRMATION MODAL */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-            <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full mx-auto flex items-center justify-center">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 rounded-full mx-auto flex items-center justify-center">
               <LogOut className="w-7 h-7" />
             </div>
 
             <div>
-              <h3 className="text-base font-black text-slate-800">
+              <h3 className="text-base font-black text-slate-800 dark:text-slate-100">
                 Konfirmasi Logout
               </h3>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Apakah Anda ingin keluar dari akun <strong>{currentUser.nama}</strong> ({currentUser.cabang})?
               </p>
             </div>
@@ -1865,7 +1998,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer transition"
+                className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs cursor-pointer transition"
               >
                 Batal
               </button>
@@ -1888,16 +2021,16 @@ export default function App() {
 
         return (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200">
-              <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full mx-auto flex items-center justify-center">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200 dark:border-slate-700">
+              <div className="w-14 h-14 bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 rounded-full mx-auto flex items-center justify-center">
                 <RotateCcw className="w-7 h-7" />
               </div>
 
               <div>
-                <h3 className="text-base font-black text-slate-900">
+                <h3 className="text-base font-black text-slate-900 dark:text-slate-100">
                   Konfirmasi Reset Data Demo
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Security Check: Otorisasi Akun Owner
                 </p>
               </div>
@@ -1907,30 +2040,30 @@ export default function App() {
                 <div
                   className={`p-3 rounded-2xl text-xs font-bold text-left ${
                     footerResetMsg.type === 'success'
-                      ? 'bg-emerald-50 text-emerald-900 border border-emerald-300'
-                      : 'bg-red-50 text-red-900 border border-red-300'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800'
+                      : 'bg-red-50 dark:bg-red-950/50 text-red-900 dark:text-red-200 border border-red-300 dark:border-red-800'
                   }`}
                 >
                   {footerResetMsg.text}
                 </div>
               ) : (
-                <div className="text-left text-xs space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                  <div className="flex items-center justify-between text-[11px] pb-1 border-b border-slate-200">
-                    <span className="text-slate-500 font-semibold">Email Pengguna:</span>
-                    <span className="font-mono font-bold text-slate-800">{userEmail || 'Tidak terdeteksi'}</span>
+                <div className="text-left text-xs space-y-2 bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between text-[11px] pb-1 border-b border-slate-200 dark:border-slate-700">
+                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Email Pengguna:</span>
+                    <span className="font-mono font-bold text-slate-800 dark:text-slate-100">{userEmail || 'Tidak terdeteksi'}</span>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] pb-1 border-b border-slate-200">
-                    <span className="text-slate-500 font-semibold">Email Wajib (Owner):</span>
-                    <span className="font-mono font-bold text-red-600">{OWNER_EMAIL}</span>
+                  <div className="flex items-center justify-between text-[11px] pb-1 border-b border-slate-200 dark:border-slate-700">
+                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Email Wajib (Owner):</span>
+                    <span className="font-mono font-bold text-red-600 dark:text-red-400">{OWNER_EMAIL}</span>
                   </div>
 
                   {isOwnerEmail ? (
-                    <p className="text-slate-600 pt-1 leading-relaxed">
-                      Apakah Anda yakin ingin mengisi ulang database Firestore dengan data contoh demo TELAGA WARNA?
-                      Dokumen demo akan diberi tanda <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">isDemo: true</code> dan hanya dapat dihapus oleh Owner.
+                    <p className="text-slate-600 dark:text-slate-300 pt-1 leading-relaxed">
+                      Apakah Anda yakin ingin mengisi ulang database Firestore dengan data contoh demo {appSettings.namaUsaha}?
+                      Dokumen demo akan diberi tanda <code className="bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded font-mono">isDemo: true</code> dan hanya dapat dihapus oleh Owner.
                     </p>
                   ) : (
-                    <div className="p-2.5 bg-red-100/80 border border-red-300 text-red-800 rounded-xl font-bold text-center">
+                    <div className="p-2.5 bg-red-100/80 dark:bg-red-950/60 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-200 rounded-xl font-bold text-center">
                       ⛔ Akses Ditolak: Hanya akun dengan email <strong>{OWNER_EMAIL}</strong> yang berhak menjalankan reset data demo.
                     </div>
                   )}
@@ -1942,7 +2075,7 @@ export default function App() {
                   type="button"
                   onClick={() => setShowFooterResetModal(false)}
                   disabled={isResettingFooter}
-                  className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer transition"
+                  className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs cursor-pointer transition"
                 >
                   {footerResetMsg ? 'Tutup' : 'Batal'}
                 </button>

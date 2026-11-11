@@ -45,6 +45,7 @@ import {
   LevelPedas,
   LEVEL_PEDAS_OPTIONS,
   MenuCabang,
+  AppSettings,
 } from '../types';
 import { PrintDocumentType } from './PrintModal';
 import {
@@ -55,6 +56,7 @@ import {
 } from '../utils/storage';
 import { printReceiptViaBluetooth, isWebBluetoothSupported } from '../utils/bluetoothPrinter';
 import { getBranchName, getBranchById, isPromoActiveForBranch } from '../utils/branchHelper';
+import { DEFAULT_BUSINESS_NAME } from '../utils/theme';
 
 interface PosViewProps {
   currentUser: Karyawan;
@@ -71,6 +73,7 @@ interface PosViewProps {
   onNavigateToTab: (tab: any) => void;
   dataCabangList?: DataCabang[];
   menuCabangList?: MenuCabang[];
+  appSettings?: AppSettings;
 }
 
 export const PosView: React.FC<PosViewProps> = ({
@@ -88,7 +91,9 @@ export const PosView: React.FC<PosViewProps> = ({
   onNavigateToTab,
   dataCabangList = [],
   menuCabangList = [],
+  appSettings,
 }) => {
+  const brandName = appSettings?.namaUsaha || DEFAULT_BUSINESS_NAME;
   const currentBranchName = getBranchName(currentUser.cabang, dataCabangList);
   const currentBranch = getBranchById(currentUser.branchId || currentUser.cabang, dataCabangList);
   const currentCabang = (currentBranchName || currentUser.cabang) as Exclude<Cabang, 'DC PUSAT'>;
@@ -638,14 +643,14 @@ export const PosView: React.FC<PosViewProps> = ({
     <div className="space-y-4">
       {/* Warning banner if not clocked in or store closed */}
       {(!isAbsenToday || !isTokoBuka) && (
-        <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-800 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
           <div className="flex items-center gap-2.5">
-            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
             <div>
-              <p className="font-bold text-amber-900">
+              <p className="font-bold text-amber-900 dark:text-amber-200">
                 Peringatan Operasional POS ({currentUser.cabang}):
               </p>
-              <p className="text-amber-800">
+              <p className="text-amber-800 dark:text-amber-300">
                 {!isAbsenToday && !isTokoBuka
                   ? 'Anda belum Absen Masuk dan Toko belum dibuka. Harap lakukan absensi terlebih dahulu.'
                   : !isAbsenToday
@@ -666,7 +671,7 @@ export const PosView: React.FC<PosViewProps> = ({
             {!isTokoBuka && (
               <button
                 onClick={() => onNavigateToTab('bukaTutup')}
-                className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg cursor-pointer transition"
+                className="px-3 py-1.5 brand-gradient hover:opacity-95 text-white font-bold rounded-lg cursor-pointer transition"
               >
                 Buka Toko
               </button>
@@ -676,14 +681,14 @@ export const PosView: React.FC<PosViewProps> = ({
       )}
 
       {/* POS Sub Navigation Tabs */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
         <div className="flex gap-2">
           <button
             onClick={() => setActiveSubTab('pos')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
               activeSubTab === 'pos'
-                ? 'bg-orange-600 text-white shadow-sm'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                ? 'brand-tab-active'
+                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
             }`}
           >
             <ShoppingCart className="w-4 h-4" />
@@ -699,21 +704,21 @@ export const PosView: React.FC<PosViewProps> = ({
             onClick={() => setActiveSubTab('riwayat')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
               activeSubTab === 'riwayat'
-                ? 'bg-orange-600 text-white shadow-sm'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                ? 'brand-tab-active'
+                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
             }`}
           >
             <RotateCcw className="w-4 h-4" />
             <span>Riwayat Transaksi & Retur</span>
-            <span className="text-[10px] text-slate-400 font-normal">
+            <span className={`text-[10px] font-normal ${activeSubTab === 'riwayat' ? 'text-white/80' : 'text-slate-400 dark:text-slate-500'}`}>
               ({riwayatList.length})
             </span>
           </button>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
+        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
           <Store className="w-3.5 h-3.5 text-orange-500" />
-          <span>Kasir: <strong className="text-slate-800">{currentUser.nama}</strong></span>
+          <span>Kasir: <strong className="text-slate-800 dark:text-slate-100">{currentUser.nama}</strong></span>
         </div>
       </div>
 
@@ -722,15 +727,15 @@ export const PosView: React.FC<PosViewProps> = ({
           {/* LEFT: Menu Catalog Grid (Col 7) */}
           <div className="lg:col-span-7 space-y-4">
             {/* Search & Category Filter */}
-            <div className="bg-white p-3 rounded-2xl border border-slate-200 space-y-3">
+            <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
                   type="text"
-                  placeholder="Cari menu seblak, topping, minuman..."
+                  placeholder={`Cari menu ${brandName}, topping, minuman...`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+                  className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
                 />
               </div>
 
@@ -742,8 +747,8 @@ export const PosView: React.FC<PosViewProps> = ({
                     onClick={() => setSelectedCategory(cat)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer ${
                       selectedCategory === cat
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        ? 'bg-slate-900 dark:bg-orange-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                     }`}
                   >
                     {cat}
@@ -774,14 +779,14 @@ export const PosView: React.FC<PosViewProps> = ({
                   <div
                     key={menu.id}
                     onClick={() => addToCart(menu)}
-                    className={`group bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-xs hover:border-orange-500 hover:shadow-md transition cursor-pointer flex flex-col justify-between relative overflow-hidden active:scale-[0.99] ${
-                      !stockCheck.available ? 'opacity-70 bg-slate-50/80' : ''
+                    className={`group bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs hover:border-orange-500 dark:hover:border-orange-500 hover:shadow-md transition cursor-pointer flex flex-col justify-between relative overflow-hidden active:scale-[0.99] ${
+                      !stockCheck.available ? 'opacity-70 bg-slate-50/80 dark:bg-slate-900/60' : ''
                     }`}
                   >
                     <div>
                       <div className="flex items-start justify-between gap-1.5 mb-1.5 flex-wrap">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-orange-100 text-orange-800">
+                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-orange-100 dark:bg-orange-950/70 text-orange-800 dark:text-orange-300">
                             {menu.kode}
                           </span>
                           {hasPromoPrice && (
@@ -795,42 +800,42 @@ export const PosView: React.FC<PosViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <span className="text-[10px] font-semibold text-slate-400">
+                        <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">
                           {menu.kategori}
                         </span>
                       </div>
 
-                      <h4 className="font-extrabold text-slate-800 text-sm group-hover:text-orange-600 transition line-clamp-1">
+                      <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm group-hover:text-orange-600 dark:group-hover:text-orange-400 transition line-clamp-1">
                         {menu.nama}
                       </h4>
                       {menu.deskripsi && (
-                        <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                           {menu.deskripsi}
                         </p>
                       )}
                     </div>
 
-                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] text-slate-400 block font-semibold">
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-semibold">
                           HARGA MENU
                         </span>
                         {hasPromoPrice ? (
                           <div className="flex items-baseline gap-1.5 flex-wrap">
-                            <span className="text-xs text-slate-400 line-through font-semibold">
+                            <span className="text-xs text-slate-400 dark:text-slate-500 line-through font-semibold">
                               {formatRupiah(menu.hargaJual)}
                             </span>
-                            <span className="text-sm font-black text-red-600">
+                            <span className="text-sm font-black text-red-600 dark:text-red-400">
                               {formatRupiah(menu.harga_promo)}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-sm font-black text-orange-600">
+                          <span className="text-sm font-black text-orange-600 dark:text-orange-400">
                             {formatRupiah(menu.hargaJual)}
                           </span>
                         )}
                         {hasFreeMinuman && (
-                          <span className="block text-[10px] font-bold text-amber-700">
+                          <span className="block text-[10px] font-bold text-amber-700 dark:text-amber-400">
                             + Free {menu.free_minuman}
                           </span>
                         )}
@@ -838,7 +843,7 @@ export const PosView: React.FC<PosViewProps> = ({
 
                       <div className="flex items-center gap-1.5">
                         {!stockCheck.available ? (
-                          <span className="text-[10px] text-red-600 font-bold bg-red-50 px-2 py-1 rounded">
+                          <span className="text-[10px] text-red-600 dark:text-red-300 font-bold bg-red-50 dark:bg-red-950/60 px-2 py-1 rounded">
                             Bahan Menipis
                           </span>
                         ) : inCart ? (
@@ -846,7 +851,7 @@ export const PosView: React.FC<PosViewProps> = ({
                             {inCart.qty}
                           </span>
                         ) : (
-                          <div className="w-7 h-7 rounded-lg bg-orange-100 group-hover:bg-orange-600 text-orange-700 group-hover:text-white flex items-center justify-center transition">
+                          <div className="w-7 h-7 rounded-lg bg-orange-100 dark:bg-orange-950/70 group-hover:bg-orange-600 text-orange-700 dark:text-orange-300 group-hover:text-white flex items-center justify-center transition">
                             <Plus className="w-4 h-4" />
                           </div>
                         )}
@@ -859,18 +864,18 @@ export const PosView: React.FC<PosViewProps> = ({
           </div>
 
           {/* RIGHT: Cart & Checkout (Col 5) */}
-          <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-4 sticky top-20">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-4 sticky top-20">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <ShoppingCart className="w-4 h-4 text-orange-600" />
-                <h3 className="font-bold text-sm text-slate-800">
+                <ShoppingCart className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">
                   Keranjang Pesanan ({totalItemCount})
                 </h3>
               </div>
               {cart.length > 0 && (
                 <button
                   onClick={() => setCart([])}
-                  className="text-[11px] text-red-600 hover:underline font-semibold cursor-pointer"
+                  className="text-[11px] text-red-600 dark:text-red-400 hover:underline font-semibold cursor-pointer"
                 >
                   Kosongkan
                 </button>
@@ -879,7 +884,7 @@ export const PosView: React.FC<PosViewProps> = ({
 
             {/* ORDER TYPE SELECTOR: DINE IN / TAKE AWAY / DELIVERY ORDER */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-600">
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">
                 Tipe Layanan Pesanan:
               </label>
               <div className="grid grid-cols-3 gap-1.5">
@@ -888,8 +893,8 @@ export const PosView: React.FC<PosViewProps> = ({
                   onClick={() => setTipePesanan('Dine In')}
                   className={`py-2 px-1 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 cursor-pointer transition ${
                     tipePesanan === 'Dine In'
-                      ? 'border-orange-500 bg-orange-50 text-orange-700 ring-2 ring-orange-400/20 shadow-xs'
-                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 ring-2 ring-orange-400/20 shadow-xs'
+                      : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   }`}
                 >
                   <UtensilsCrossed className="w-3.5 h-3.5" />
@@ -906,8 +911,8 @@ export const PosView: React.FC<PosViewProps> = ({
                   }}
                   className={`py-2 px-1 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 cursor-pointer transition ${
                     tipePesanan === 'Take Away'
-                      ? 'border-orange-500 bg-orange-50 text-orange-700 ring-2 ring-orange-400/20 shadow-xs'
-                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 ring-2 ring-orange-400/20 shadow-xs'
+                      : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   }`}
                 >
                   <ShoppingBag className="w-3.5 h-3.5" />
@@ -924,8 +929,8 @@ export const PosView: React.FC<PosViewProps> = ({
                   }}
                   className={`py-2 px-1 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 cursor-pointer transition ${
                     tipePesanan === 'Delivery Order'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-400/20 shadow-xs'
-                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 ring-2 ring-blue-400/20 shadow-xs'
+                      : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   }`}
                 >
                   <Truck className="w-3.5 h-3.5" />
@@ -934,7 +939,7 @@ export const PosView: React.FC<PosViewProps> = ({
               </div>
 
               {/* Informative micro-badge on stock deduction rules */}
-              <div className="text-[10px] px-2.5 py-1 rounded-lg bg-slate-50 text-slate-500 border border-slate-200">
+              <div className="text-[10px] px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                 {tipePesanan === 'Dine In' && (
                   <span>🍽️ <b>Dine In:</b> Hanya memotong stok Bahan Makanan & Minuman (tanpa kemasan).</span>
                 )}
@@ -949,20 +954,20 @@ export const PosView: React.FC<PosViewProps> = ({
 
             {/* DINE IN FORM FIELDS (NAMA PELANGGAN / MEJA MANUAL) */}
             {tipePesanan === 'Dine In' && (
-              <div className="p-3 bg-slate-50 border-2 border-slate-200 rounded-xl space-y-2 text-xs animate-in fade-in duration-200">
-                <div className="flex items-center justify-between font-black text-slate-800 text-xs">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/70 border-2 border-slate-200 dark:border-slate-700 rounded-xl space-y-2 text-xs animate-in fade-in duration-200">
+                <div className="flex items-center justify-between font-black text-slate-800 dark:text-slate-100 text-xs">
                   <div className="flex items-center gap-1.5">
-                    <UtensilsCrossed className="w-4 h-4 text-orange-600" />
+                    <UtensilsCrossed className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                     <span>Data Dine In (Makan di Tempat)</span>
                   </div>
-                  <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-2 py-0.5 rounded-full font-bold">
                     Input Manual
                   </span>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
                   <div className="col-span-1">
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                       No. Meja
                     </label>
                     <input
@@ -970,11 +975,11 @@ export const PosView: React.FC<PosViewProps> = ({
                       placeholder="Meja 01"
                       value={nomorMeja}
                       onChange={(e) => setNomorMeja(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500 font-black text-center text-slate-800"
+                      className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500 font-black text-center text-slate-800 dark:text-slate-100"
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                       Nama Pelanggan (Opsional)
                     </label>
                     <div className="relative">
@@ -984,13 +989,13 @@ export const PosView: React.FC<PosViewProps> = ({
                         placeholder="Contoh: Kak Dinda"
                         value={pelangganNama}
                         onChange={(e) => setPelangganNama(e.target.value)}
-                        className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500 font-semibold"
+                        className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500 font-semibold"
                       />
                     </div>
                   </div>
                 </div>
 
-                <p className="text-[10px] text-slate-500">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
                   *Nomor antrian pesanan otomatis dibuat & dicetak di struk kasir dan tiket dapur.
                 </p>
               </div>
@@ -998,20 +1003,20 @@ export const PosView: React.FC<PosViewProps> = ({
 
             {/* TAKE AWAY FORM FIELDS (ID TAKE AWAY & NAMA PELANGGAN AGAR TIDAK TERTUKAR) */}
             {tipePesanan === 'Take Away' && (
-              <div className="p-3 bg-orange-50/90 border-2 border-orange-200 rounded-xl space-y-2.5 text-xs animate-in fade-in duration-200">
-                <div className="flex items-center justify-between font-black text-orange-950 text-xs">
+              <div className="p-3 bg-orange-50/90 dark:bg-orange-950/30 border-2 border-orange-200 dark:border-orange-800 rounded-xl space-y-2.5 text-xs animate-in fade-in duration-200">
+                <div className="flex items-center justify-between font-black text-orange-950 dark:text-orange-200 text-xs">
                   <div className="flex items-center gap-1.5">
-                    <ShoppingBag className="w-4 h-4 text-orange-600" />
+                    <ShoppingBag className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                     <span>Data Take Away (Bungkus)</span>
                   </div>
-                  <span className="text-[10px] bg-orange-200/80 text-orange-900 px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-[10px] bg-orange-200/80 dark:bg-orange-900/70 text-orange-900 dark:text-orange-200 px-2 py-0.5 rounded-full font-bold">
                     Cegah Tertukar
                   </span>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
                   <div className="col-span-1">
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                       ID Take Away
                     </label>
                     <input
@@ -1019,11 +1024,11 @@ export const PosView: React.FC<PosViewProps> = ({
                       value={takeAwayId}
                       onChange={(e) => setTakeAwayId(e.target.value.toUpperCase())}
                       placeholder="TA-01"
-                      className="w-full px-2 py-1.5 text-xs bg-white border border-orange-300 rounded-lg font-black text-orange-700 uppercase focus:outline-none focus:ring-1 focus:ring-orange-500 text-center"
+                      className="w-full px-2 py-1.5 text-xs bg-white dark:bg-slate-900 border border-orange-300 dark:border-orange-700 rounded-lg font-black text-orange-700 dark:text-orange-300 uppercase focus:outline-none focus:ring-1 focus:ring-orange-500 text-center"
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                       Nama Pelanggan (Input Manual) <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
@@ -1034,14 +1039,14 @@ export const PosView: React.FC<PosViewProps> = ({
                         placeholder="Contoh: Mas Andre / Kak Dinda"
                         value={pelangganNama}
                         onChange={(e) => setPelangganNama(e.target.value)}
-                        className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500 font-semibold"
+                        className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500 font-semibold"
                       />
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                     No. WhatsApp / HP (Opsional)
                   </label>
                   <div className="relative">
@@ -1051,12 +1056,12 @@ export const PosView: React.FC<PosViewProps> = ({
                       placeholder="Contoh: 0812-xxxx-xxxx"
                       value={pelangganTelepon}
                       onChange={(e) => setPelangganTelepon(e.target.value)}
-                      className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500"
+                      className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500"
                     />
                   </div>
                 </div>
 
-                <p className="text-[10px] text-orange-900 bg-orange-100/70 p-1.5 rounded-lg border border-orange-200/80">
+                <p className="text-[10px] text-orange-900 dark:text-orange-200 bg-orange-100/70 dark:bg-orange-950/60 p-1.5 rounded-lg border border-orange-200/80 dark:border-orange-800">
                   💡 <b>Pemberitahuan:</b> ID Take Away & Nama Pelanggan wajib diisi agar pesanan tidak tertukar saat dimasak dan dipanggil.
                 </p>
               </div>
@@ -1064,19 +1069,19 @@ export const PosView: React.FC<PosViewProps> = ({
 
             {/* DELIVERY ORDER FORM FIELDS (JARAK & BIAYA PENGIRIMAN OTOMATIS) */}
             {tipePesanan === 'Delivery Order' && (
-              <div className="p-3 bg-blue-50/80 border-2 border-blue-200 rounded-xl space-y-2.5 text-xs animate-in fade-in duration-200">
-                <div className="flex items-center justify-between font-black text-blue-900 text-xs">
+              <div className="p-3 bg-blue-50/80 dark:bg-blue-950/30 border-2 border-blue-200 dark:border-blue-800 rounded-xl space-y-2.5 text-xs animate-in fade-in duration-200">
+                <div className="flex items-center justify-between font-black text-blue-900 dark:text-blue-200 text-xs">
                   <div className="flex items-center gap-1.5">
-                    <Truck className="w-4 h-4 text-blue-600" />
+                    <Truck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                     <span>Informasi Pengiriman (Delivery Order)</span>
                   </div>
-                  <span className="text-[10px] bg-blue-200 text-blue-900 px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-[10px] bg-blue-200 dark:bg-blue-900/70 text-blue-900 dark:text-blue-200 px-2 py-0.5 rounded-full font-bold">
                     Hitung Otomatis
                   </span>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                     Nama Pelanggan / Penerima (Input Manual) <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
@@ -1087,13 +1092,13 @@ export const PosView: React.FC<PosViewProps> = ({
                       placeholder="Contoh: Ibu Rina / Pak Hendro"
                       value={pelangganNama}
                       onChange={(e) => setPelangganNama(e.target.value)}
-                      className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"
+                      className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                     Nomor WhatsApp / Telepon <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
@@ -1103,13 +1108,13 @@ export const PosView: React.FC<PosViewProps> = ({
                       placeholder="Contoh: 0812-9876-5432"
                       value={pelangganTelepon}
                       onChange={(e) => setPelangganTelepon(e.target.value)}
-                      className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                     Alamat Pengiriman Lengkap <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
@@ -1120,19 +1125,19 @@ export const PosView: React.FC<PosViewProps> = ({
                       placeholder="Contoh: Perum Griya Asri Blok C2 No. 15, samping Masjid Al-Hidayah"
                       value={pelangganAlamat}
                       onChange={(e) => setPelangganAlamat(e.target.value)}
-                      className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                 </div>
 
                 {/* HITUNG ONGKIR OTOMATIS BERDASARKAN JARAK */}
-                <div className="p-3 bg-white rounded-xl border border-blue-200 space-y-2.5">
+                <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-blue-200 dark:border-blue-800 space-y-2.5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <label className="text-[11px] font-bold text-blue-900 flex items-center gap-1">
-                      <Navigation className="w-3.5 h-3.5 text-blue-600" />
+                    <label className="text-[11px] font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1">
+                      <Navigation className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                       <span>Jarak Pengiriman (km / meter)</span>
                     </label>
-                    <span className="text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                    <span className="text-[10px] text-blue-700 dark:text-blue-300 font-bold bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
                       ≤ 200m: Gratis | ≤ 500m: 2rb | ≤ 1km: 2,5rb | ≤ 1,5km: 3rb | ≤ 2km: 3,5rb (+500/500m)
                     </span>
                   </div>
@@ -1146,10 +1151,10 @@ export const PosView: React.FC<PosViewProps> = ({
                         placeholder="Misal: 1.5"
                         value={jarakKm}
                         onChange={(e) => handleJarakChange(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-blue-50/60 border border-blue-300 rounded-lg font-black text-blue-900 focus:outline-none focus:ring-1 focus:ring-blue-500 text-center"
+                        className="w-full px-2.5 py-1.5 text-xs bg-blue-50/60 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-700 rounded-lg font-black text-blue-900 dark:text-blue-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-center"
                       />
                     </div>
-                    <span className="text-xs font-bold text-slate-600">
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
                       {parsedDistKm > 0 && parsedDistKm < 1 ? `KM (${Math.round(parsedDistKm * 1000)} m)` : 'KM'}
                     </span>
 
@@ -1171,7 +1176,7 @@ export const PosView: React.FC<PosViewProps> = ({
                           className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
                             jarakKm === chip.val
                               ? 'bg-blue-600 text-white border-blue-600'
-                              : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
                           }`}
                         >
                           {chip.label}
@@ -1182,7 +1187,7 @@ export const PosView: React.FC<PosViewProps> = ({
 
                   {/* Ringkasan Tier Biaya Pengiriman */}
                   {parsedDistKm > 0 && (
-                    <div className="p-2 bg-blue-50/80 border border-blue-200 rounded-lg text-[11px] text-blue-900 flex items-center justify-between">
+                    <div className="p-2 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg text-[11px] text-blue-900 dark:text-blue-200 flex items-center justify-between">
                       <span className="font-semibold">
                         {parsedDistKm <= 0.2001 && 'Jarak ≤ 200 meter: Gratis Ongkir'}
                         {parsedDistKm > 0.2001 && parsedDistKm <= 0.5001 && 'Jarak 200 m s/d 500 m: Ongkir Rp 2.000'}
@@ -1191,7 +1196,7 @@ export const PosView: React.FC<PosViewProps> = ({
                         {parsedDistKm > 1.5001 && parsedDistKm <= 2.0001 && 'Jarak 1,5 km s/d 2 km: Ongkir Rp 3.500 (per pelanggan)'}
                         {parsedDistKm > 2.0001 && `Jarak ${parsedDistKm} km: Ongkir Rp 3.500 + ${Math.ceil((parsedDistKm - 2.0)/0.5) * 500} (+Rp 500/500m)`}
                       </span>
-                      <span className="font-black text-blue-700">
+                      <span className="font-black text-blue-700 dark:text-blue-300">
                         {biayaPengiriman === 0 ? 'GRATIS' : formatRupiah(biayaPengiriman)}
                       </span>
                     </div>
@@ -1199,16 +1204,16 @@ export const PosView: React.FC<PosViewProps> = ({
 
                   {/* Validasi & Peringatan Khusus Jarak ≥ 1,5 km */}
                   {isJarakDiatas15 && (
-                    <div className="space-y-2 pt-1 border-t border-blue-100">
+                    <div className="space-y-2 pt-1 border-t border-blue-100 dark:border-blue-800">
                       {/* Peringatan & Blokir jika belanja < 10.000 */}
                       {subtotalPesanan < 10000 && cart.length > 0 && (
-                        <div className="p-2.5 bg-red-50 border border-red-300 rounded-xl text-red-800 text-[11px] flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                        <div className="p-2.5 bg-red-50 dark:bg-red-950/50 border border-red-300 dark:border-red-800 rounded-xl text-red-800 dark:text-red-200 text-[11px] flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
                           <div className="space-y-0.5">
-                            <p className="font-black text-red-900">
+                            <p className="font-black text-red-900 dark:text-red-200">
                               ⛔ Transaksi Diblokir: Minimal Belanja Rp 10.000
                             </p>
-                            <p className="text-[10px] text-red-700 leading-relaxed">
+                            <p className="text-[10px] text-red-700 dark:text-red-300 leading-relaxed">
                               Untuk pengiriman jarak ≥ 1,5 km, pesanan kurang dari <b>Rp 10.000</b> diblokir. Belanja <b>{pelangganNama || 'Pelanggan'}</b> saat ini: <b>{formatRupiah(subtotalPesanan)}</b> (kurang {formatRupiah(10000 - subtotalPesanan)}). Harap tambahkan menu ke keranjang.
                             </p>
                           </div>
@@ -1217,21 +1222,21 @@ export const PosView: React.FC<PosViewProps> = ({
 
                       {/* Peringatan jika belanja < 20.000 (10.000 s/d 19.999) */}
                       {subtotalPesanan >= 10000 && subtotalPesanan < 20000 && (
-                        <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-[11px] space-y-2">
+                        <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-amber-900 dark:text-amber-200 text-[11px] space-y-2">
                           <div className="flex items-start gap-2">
-                            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                             <div className="space-y-0.5">
-                              <p className="font-black text-amber-900 text-xs">
+                              <p className="font-black text-amber-900 dark:text-amber-200 text-xs">
                                 Peringatan: Minimal biaya pesanan Rp 20,000
                               </p>
-                              <p className="text-[10px] text-amber-800">
+                              <p className="text-[10px] text-amber-800 dark:text-amber-300">
                                 Pelanggan <b>{pelangganNama || '-'}</b> berbelanja <b>{formatRupiah(subtotalPesanan)}</b> (kurang {formatRupiah(20000 - subtotalPesanan)} untuk mencapai pas Rp 20.000).
                               </p>
                             </div>
                           </div>
 
-                          <div className="pt-1.5 border-t border-amber-200 space-y-1">
-                            <label className="flex items-center gap-2 cursor-pointer font-bold text-[11px] text-amber-950">
+                          <div className="pt-1.5 border-t border-amber-200 dark:border-amber-800 space-y-1">
+                            <label className="flex items-center gap-2 cursor-pointer font-bold text-[11px] text-amber-950 dark:text-amber-100">
                               <input
                                 type="checkbox"
                                 checked={gabungPesananLain || activeDeliveryOrdersToday.length > 0}
@@ -1242,9 +1247,9 @@ export const PosView: React.FC<PosViewProps> = ({
                             </label>
 
                             {hasOtherCustomerDeliveryOrder ? (
-                              <div className="p-2 bg-emerald-100/70 border border-emerald-300 rounded-lg text-[10px] text-emerald-900 font-semibold space-y-0.5">
-                                <p className="font-bold flex items-center gap-1 text-emerald-800">
-                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <div className="p-2 bg-emerald-100/70 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 rounded-lg text-[10px] text-emerald-900 dark:text-emerald-200 font-semibold space-y-0.5">
+                                <p className="font-bold flex items-center gap-1 text-emerald-800 dark:text-emerald-300">
+                                  <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                                   <span>Otomatis BISA untuk transaksi!</span>
                                 </p>
                                 <p className="leading-relaxed">
@@ -1252,7 +1257,7 @@ export const PosView: React.FC<PosViewProps> = ({
                                 </p>
                               </div>
                             ) : (
-                              <p className="text-[10px] text-amber-700 italic">
+                              <p className="text-[10px] text-amber-700 dark:text-amber-300 italic">
                                 *Jika belanja pas Rp 20.000, transaksi bisa langsung dipesan. Atau centang kotak di atas jika ada pesanan pelanggan lain untuk diantar bersamaan.
                               </p>
                             )}
@@ -1262,12 +1267,12 @@ export const PosView: React.FC<PosViewProps> = ({
 
                       {/* Info jika belanja pas Rp 20.000 atau lebih */}
                       {subtotalPesanan >= 20000 && (
-                        <div className="p-2 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-900 text-[11px] flex items-center justify-between">
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl text-emerald-900 dark:text-emerald-200 text-[11px] flex items-center justify-between">
                           <span className="font-bold flex items-center gap-1.5">
-                            <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
+                            <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
                             <span>Pesanan pas / lebih dari Rp 20.000: Transaksi BISA langsung dipesan!</span>
                           </span>
-                          <span className="text-[10px] font-black text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded">
+                          <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-900/60 px-2 py-0.5 rounded">
                             {formatRupiah(subtotalPesanan)}
                           </span>
                         </div>
@@ -1277,13 +1282,13 @@ export const PosView: React.FC<PosViewProps> = ({
 
                   <div>
                     <div className="flex justify-between items-center mb-0.5">
-                      <label className="text-[11px] font-bold text-slate-700">
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
                         Biaya Pengiriman (Ongkir Otomatis)
                       </label>
-                      <span className="text-[10px] text-slate-400 italic">Bisa diubah manual</span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 italic">Bisa diubah manual</span>
                     </div>
                     <div className="relative">
-                      <span className="absolute left-2.5 top-2 text-xs font-bold text-blue-600">Rp</span>
+                      <span className="absolute left-2.5 top-2 text-xs font-bold text-blue-600 dark:text-blue-400">Rp</span>
                       <input
                         type="number"
                         min={0}
@@ -1299,7 +1304,7 @@ export const PosView: React.FC<PosViewProps> = ({
                             setNominalBayar(subtotalPesanan + num);
                           }
                         }}
-                        className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg font-black text-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg font-black text-blue-700 dark:text-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       />
                     </div>
                   </div>
@@ -1309,10 +1314,10 @@ export const PosView: React.FC<PosViewProps> = ({
 
             {/* Cart Items List */}
             {cart.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 space-y-2">
-                <ShoppingCart className="w-8 h-8 mx-auto text-slate-300" />
+              <div className="py-12 text-center text-slate-400 dark:text-slate-500 space-y-2">
+                <ShoppingCart className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600" />
                 <p className="text-xs">Keranjang masih kosong.</p>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">
                   Klik menu di sebelah kiri untuk menambahkan.
                 </p>
               </div>
@@ -1321,11 +1326,11 @@ export const PosView: React.FC<PosViewProps> = ({
                 {cart.map((item) => (
                   <div
                     key={item.katalogId}
-                    className="p-3 bg-slate-50 rounded-xl border border-slate-200/60 space-y-2 text-xs"
+                    className="p-3 bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200/60 dark:border-slate-700 space-y-2 text-xs"
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className="font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                        <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
                           <span>{item.nama}</span>
                           {item.harga_promo && item.hargaAsli && item.harga_promo < item.hargaAsli && (
                             <span className="text-[9px] font-black bg-red-600 text-white px-1.5 py-0.5 rounded shadow-xs">
@@ -1338,18 +1343,18 @@ export const PosView: React.FC<PosViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                           {item.hargaAsli && item.harga_promo && item.harga_promo < item.hargaAsli && (
-                            <span className="line-through text-slate-400 text-[10px]">
+                            <span className="line-through text-slate-400 dark:text-slate-500 text-[10px]">
                               {formatRupiah(item.hargaAsli)}
                             </span>
                           )}
-                          <span className={item.harga_promo && item.hargaAsli && item.harga_promo < item.hargaAsli ? "text-red-600 font-bold" : ""}>
+                          <span className={item.harga_promo && item.hargaAsli && item.harga_promo < item.hargaAsli ? "text-red-600 dark:text-red-400 font-bold" : ""}>
                             {formatRupiah(item.harga)} / porsi
                           </span>
                         </div>
                       </div>
-                      <span className="font-extrabold text-orange-700">
+                      <span className="font-extrabold text-orange-700 dark:text-orange-400">
                         {formatRupiah(item.subtotal)}
                       </span>
                     </div>
@@ -1357,7 +1362,7 @@ export const PosView: React.FC<PosViewProps> = ({
                     {/* Level Pedas selector if seblak */}
                     {item.levelPedas !== undefined && (
                       <div className="space-y-1">
-                        <span className="text-slate-500 font-bold text-[10px] flex items-center gap-1">
+                        <span className="text-slate-500 dark:text-slate-400 font-bold text-[10px] flex items-center gap-1">
                           <Flame className="w-3 h-3 text-red-500" />
                           Level Pedas:
                         </span>
@@ -1372,7 +1377,7 @@ export const PosView: React.FC<PosViewProps> = ({
                               className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
                                 item.levelPedas === lvl
                                   ? 'bg-red-600 text-white shadow-xs ring-1 ring-red-400'
-                                  : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600'
                               }`}
                             >
                               {lvl}
@@ -1383,7 +1388,7 @@ export const PosView: React.FC<PosViewProps> = ({
                     )}
 
                     {/* Quantity controls & item note */}
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-slate-700">
                       <input
                         type="text"
                         placeholder="Catatan porsi (misal: tanpa sawi)..."
@@ -1391,18 +1396,18 @@ export const PosView: React.FC<PosViewProps> = ({
                         onChange={(e) =>
                           updateCartItemNotes(item.katalogId, 'catatan', e.target.value)
                         }
-                        className="text-[11px] bg-white border border-slate-200 rounded px-2 py-0.5 w-3/5 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                        className="text-[11px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded px-2 py-0.5 w-3/5 focus:outline-none focus:ring-1 focus:ring-orange-500"
                       />
 
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => updateCartQty(item.katalogId, -1)}
-                          className="w-6 h-6 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center font-bold cursor-pointer"
+                          className="w-6 h-6 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold cursor-pointer"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
-                        <span className="font-extrabold w-5 text-center">
+                        <span className="font-extrabold w-5 text-center text-slate-800 dark:text-slate-100">
                           {item.qty}
                         </span>
                         <button
@@ -1415,7 +1420,7 @@ export const PosView: React.FC<PosViewProps> = ({
                         <button
                           type="button"
                           onClick={() => removeFromCart(item.katalogId)}
-                          className="text-slate-400 hover:text-red-600 ml-1 cursor-pointer"
+                          className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 ml-1 cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1427,24 +1432,24 @@ export const PosView: React.FC<PosViewProps> = ({
             )}
 
             {/* Total Summary */}
-            <div className="pt-3 border-t border-slate-200 space-y-1.5 text-xs">
-              <div className="flex justify-between text-slate-500">
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
+              <div className="flex justify-between text-slate-500 dark:text-slate-400">
                 <span>Total Item Menu</span>
-                <span className="font-bold text-slate-700">{totalItemCount} porsi</span>
+                <span className="font-bold text-slate-700 dark:text-slate-200">{totalItemCount} porsi</span>
               </div>
-              <div className="flex justify-between text-slate-500">
+              <div className="flex justify-between text-slate-500 dark:text-slate-400">
                 <span>Subtotal Menu</span>
-                <span className="font-bold text-slate-700">{formatRupiah(subtotalPesanan)}</span>
+                <span className="font-bold text-slate-700 dark:text-slate-200">{formatRupiah(subtotalPesanan)}</span>
               </div>
               {tipePesanan === 'Delivery Order' && (
-                <div className="flex justify-between text-blue-700 font-bold bg-blue-50/50 px-2 py-1 rounded">
+                <div className="flex justify-between text-blue-700 dark:text-blue-300 font-bold bg-blue-50/50 dark:bg-blue-950/40 px-2 py-1 rounded">
                   <span>Biaya Pengiriman (Ongkir)</span>
                   <span>{formatRupiah(ongkirVal)}</span>
                 </div>
               )}
-              <div className="flex justify-between items-center text-sm font-black pt-1 border-t border-slate-100">
-                <span className="text-slate-800">TOTAL BAYAR</span>
-                <span className="text-xl text-orange-600">
+              <div className="flex justify-between items-center text-sm font-black pt-1 border-t border-slate-100 dark:border-slate-800">
+                <span className="text-slate-800 dark:text-slate-100">TOTAL BAYAR</span>
+                <span className="text-xl text-orange-600 dark:text-orange-400">
                   {formatRupiah(totalTagihan)}
                 </span>
               </div>
@@ -1463,8 +1468,8 @@ export const PosView: React.FC<PosViewProps> = ({
                     }}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition ${
                       metodeBayar === 'Cash'
-                        ? 'border-orange-500 bg-orange-50 text-orange-700 ring-2 ring-orange-400/20'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 ring-2 ring-orange-400/20'
+                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                     }`}
                   >
                     <Banknote className="w-4 h-4" />
@@ -1481,19 +1486,19 @@ export const PosView: React.FC<PosViewProps> = ({
                     }}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition ${
                       metodeBayar === 'QRIS'
-                        ? 'border-orange-500 bg-orange-50 text-orange-700 ring-2 ring-orange-400/20'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 ring-2 ring-orange-400/20'
+                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                     }`}
                   >
                     <QrCode className="w-4 h-4" />
-                    <span>QRIS TELAGA</span>
+                    <span>QRIS {brandName.toUpperCase()}</span>
                   </button>
                 </div>
 
                 {metodeBayar === 'Cash' && (
-                  <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                  <div className="space-y-2 bg-slate-50 dark:bg-slate-800/70 p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
                         Uang Tunai Diterima:
                       </label>
                       <input
@@ -1504,7 +1509,7 @@ export const PosView: React.FC<PosViewProps> = ({
                           setInputBayarText(e.target.value);
                           setNominalBayar(Number(e.target.value) || 0);
                         }}
-                        className="w-full px-3 py-2 text-sm font-bold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        className="w-full px-3 py-2 text-sm font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                       />
                     </div>
 
@@ -1513,7 +1518,7 @@ export const PosView: React.FC<PosViewProps> = ({
                       <button
                         type="button"
                         onClick={() => handleSetQuickCash(totalTagihan)}
-                        className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded text-[10px] font-bold text-slate-700 cursor-pointer"
+                        className="px-2 py-1 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded text-[10px] font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
                       >
                         Uang Pas
                       </button>
@@ -1522,18 +1527,18 @@ export const PosView: React.FC<PosViewProps> = ({
                           key={nom}
                           type="button"
                           onClick={() => handleSetQuickCash(nom)}
-                          className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded text-[10px] font-bold text-slate-700 cursor-pointer"
+                          className="px-2 py-1 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded text-[10px] font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
                         >
                           {nom >= 1000 ? `${nom / 1000}k` : nom}
                         </button>
                       ))}
                     </div>
 
-                    <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-xs">
-                      <span className="font-bold text-slate-600">Kembalian:</span>
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-600 dark:text-slate-300">Kembalian:</span>
                       <span
                         className={`text-sm font-extrabold ${
-                          kembalian >= 0 ? 'text-emerald-600' : 'text-red-500'
+                          kembalian >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'
                         }`}
                       >
                         {formatRupiah(kembalian)}
@@ -1543,19 +1548,19 @@ export const PosView: React.FC<PosViewProps> = ({
                 )}
 
                 {metodeBayar === 'QRIS' && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs flex items-center justify-between">
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs flex items-center justify-between">
                     <div>
-                      <span className="font-bold text-emerald-900 block">
-                        Pembayaran QRIS Telaga
+                      <span className="font-bold text-emerald-900 dark:text-emerald-200 block">
+                        Pembayaran QRIS {brandName}
                       </span>
-                      <span className="text-[11px] text-emerald-700">
+                      <span className="text-[11px] text-emerald-700 dark:text-emerald-300">
                         Otomatis nominal pas: {formatRupiah(totalTagihan)}
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowQrisModal(true)}
-                      className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg font-bold text-[11px] cursor-pointer"
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] cursor-pointer"
                     >
                       Tampilkan QR
                     </button>
@@ -1563,8 +1568,8 @@ export const PosView: React.FC<PosViewProps> = ({
                 )}
 
                 {isBelanjaKurang10k && (
-                  <div className="p-2.5 bg-red-100 border border-red-300 rounded-xl text-red-900 text-xs font-bold text-center flex items-center justify-center gap-1.5">
-                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <div className="p-2.5 bg-red-100 dark:bg-red-950/60 border border-red-300 dark:border-red-800 rounded-xl text-red-900 dark:text-red-200 text-xs font-bold text-center flex items-center justify-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
                     <span>⛔ Pesanan Diblokir: Minimal belanja Rp 10.000 untuk jarak pengiriman ≥ 1,5 km (Belanja: {formatRupiah(subtotalPesanan)})</span>
                   </div>
                 )}
@@ -1577,8 +1582,8 @@ export const PosView: React.FC<PosViewProps> = ({
                     onClick={() => handleProcessPayment('BELUM_BAYAR')}
                     className={`py-3 px-3 rounded-xl font-black text-xs sm:text-sm flex flex-col items-center justify-center gap-0.5 cursor-pointer transition shadow-md ${
                       !isBelanjaKurang10k && cart.length > 0
-                        ? 'bg-slate-800 hover:bg-slate-900 text-white active:scale-95 shadow-slate-900/20'
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                        ? 'bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white active:scale-95 shadow-slate-900/20'
+                        : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none'
                     }`}
                     title="Buat pesanan tanpa input uang (pembayaran dilakukan nanti)"
                   >
@@ -1599,7 +1604,7 @@ export const PosView: React.FC<PosViewProps> = ({
                     className={`py-3 px-3 rounded-xl font-black text-xs sm:text-sm flex flex-col items-center justify-center gap-0.5 cursor-pointer transition shadow-md ${
                       !isBelanjaKurang10k && cart.length > 0
                         ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-emerald-500/25 active:scale-95'
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                        : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none'
                     }`}
                     title="Pelanggan langsung bayar sekarang (wajib isi nominal uang diterima)"
                   >
@@ -1618,30 +1623,30 @@ export const PosView: React.FC<PosViewProps> = ({
         </div>
       ) : (
         /* TAB: RIWAYAT TRANSAKSI & RETUR */
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="font-black text-slate-800 text-base">
+              <h3 className="font-black text-slate-800 dark:text-slate-100 text-base">
                 Riwayat Transaksi POS ({currentUser.cabang})
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Daftar semua transaksi yang tercatat di cabang ini. Tersedia Cetak Ulang Struk dan Retur.
               </p>
             </div>
-            <span className="text-xs font-bold px-3 py-1 bg-slate-100 rounded-full text-slate-600">
+            <span className="text-xs font-bold px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300">
               Total {riwayatList.length} Transaksi
             </span>
           </div>
 
           {riwayatList.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-xs">
+            <div className="py-12 text-center text-slate-400 dark:text-slate-500 text-xs">
               Belum ada riwayat transaksi pada cabang ini.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-bold text-[10px]">
+                  <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 uppercase font-bold text-[10px]">
                     <th className="py-2.5 px-3">No. Invoice</th>
                     <th className="py-2.5 px-3">Waktu</th>
                     <th className="py-2.5 px-3">Kasir</th>
@@ -1652,26 +1657,26 @@ export const PosView: React.FC<PosViewProps> = ({
                     <th className="py-2.5 px-3 text-center">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {riwayatList.slice().reverse().map((trx) => (
-                    <tr key={trx.id} className="hover:bg-slate-50/80">
-                      <td className="py-3 px-3 font-bold text-slate-800">
+                    <tr key={trx.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60">
+                      <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-100">
                         {trx.invoiceNo}
                       </td>
-                      <td className="py-3 px-3 text-slate-600 whitespace-nowrap">
+                      <td className="py-3 px-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
                         <div>{trx.tanggal}</div>
-                        <div className="text-[10px] text-slate-400">{trx.jam}</div>
+                        <div className="text-[10px] text-slate-400 dark:text-slate-500">{trx.jam}</div>
                       </td>
-                      <td className="py-3 px-3 text-slate-700 font-semibold">
+                      <td className="py-3 px-3 text-slate-700 dark:text-slate-200 font-semibold">
                         {trx.kasirNama}
                       </td>
-                      <td className="py-3 px-3 text-slate-600 max-w-xs">
+                      <td className="py-3 px-3 text-slate-600 dark:text-slate-300 max-w-xs">
                         <div className="space-y-0.5">
                           {trx.items.map((item, idx) => (
                             <div key={idx} className="text-[11px]">
                               {item.qty}x {item.nama}
                               {item.levelPedas !== undefined && (
-                                <span className="text-red-600 ml-1 font-bold">
+                                <span className="text-red-600 dark:text-red-400 ml-1 font-bold">
                                   ({item.levelPedas})
                                 </span>
                               )}
@@ -1683,28 +1688,28 @@ export const PosView: React.FC<PosViewProps> = ({
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                             trx.metodeBayar === 'QRIS'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-emerald-100 text-emerald-800'
+                              ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300'
+                              : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
                           }`}
                         >
                           {trx.metodeBayar}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-right font-black text-slate-800">
+                      <td className="py-3 px-3 text-right font-black text-slate-800 dark:text-slate-100">
                         {formatRupiah(trx.total)}
                       </td>
                       <td className="py-3 px-3 text-center">
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             trx.status === 'Sukses'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-rose-100 text-rose-800'
+                              ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                              : 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300'
                           }`}
                         >
                           {trx.status}
                         </span>
                         {trx.status === 'Retur' && trx.alasanRetur && (
-                          <div className="text-[10px] text-rose-600 italic mt-0.5">
+                          <div className="text-[10px] text-rose-600 dark:text-rose-400 italic mt-0.5">
                             "{trx.alasanRetur}"
                           </div>
                         )}
@@ -1714,7 +1719,7 @@ export const PosView: React.FC<PosViewProps> = ({
                           <button
                             type="button"
                             onClick={() => onOpenPrintModal('struk', trx)}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-orange-100 hover:text-orange-700 text-slate-700 transition cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-orange-100 dark:hover:bg-orange-950/60 hover:text-orange-700 dark:hover:text-orange-300 text-slate-700 dark:text-slate-200 transition cursor-pointer"
                             title="Cetak Ulang Struk Kasir 58mm"
                           >
                             <Printer className="w-3.5 h-3.5" />
@@ -1727,7 +1732,7 @@ export const PosView: React.FC<PosViewProps> = ({
                                 setReturTarget(trx);
                                 setAlasanRetur('');
                               }}
-                              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 transition cursor-pointer"
+                              className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 transition cursor-pointer"
                               title="Retur Transaksi (Kembalikan Stok Cabang)"
                             >
                               <RotateCcw className="w-3.5 h-3.5" />

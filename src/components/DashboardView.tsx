@@ -25,9 +25,11 @@ import {
   ActiveTab,
   Cabang,
   DataCabang,
+  AppSettings,
 } from '../types';
 import { formatRupiah, getTodayStr } from '../utils/storage';
 import { getBranchName, getStoreBranchNames } from '../utils/branchHelper';
+import { DEFAULT_BUSINESS_NAME } from '../utils/theme';
 
 interface DashboardViewProps {
   currentUser: Karyawan;
@@ -39,6 +41,7 @@ interface DashboardViewProps {
   absensiList: Absensi[];
   tokoState: AllTokoState;
   dataCabangList?: DataCabang[];
+  appSettings?: AppSettings;
   onOpenResetModal?: () => void;
 }
 
@@ -52,8 +55,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   absensiList,
   tokoState,
   dataCabangList = [],
+  appSettings,
   onOpenResetModal,
 }) => {
+  const brandName = appSettings?.namaUsaha || DEFAULT_BUSINESS_NAME;
   const isDcPusat = currentUser.cabang === 'DC PUSAT';
   const today = getTodayStr();
 
@@ -100,7 +105,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-orange-600 via-red-600 to-amber-600 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
+      <div className="brand-gradient rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 opacity-10 pointer-events-none flex items-center pr-6">
           <Flame className="w-64 h-64 text-white" />
         </div>
@@ -114,8 +119,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </h1>
           <p className="text-orange-100 text-xs sm:text-sm mt-1">
             {isDcPusat
-              ? 'Pusat Logistik & Manajemen Multi-Cabang Seblak. Pantau operasional seluruh cabang, master resep HPP, dan pengiriman surat jalan.'
-              : `Operasional POS Kasir ${currentBranchName}. Lakukan absensi, buka toko, layani transaksi seblak nikmat, dan pantau stok cabang.`}
+              ? `Pusat Logistik & Manajemen Multi-Cabang ${brandName}. Pantau operasional seluruh cabang, master resep HPP, dan pengiriman surat jalan.`
+              : `Operasional POS Kasir ${currentBranchName}. Lakukan absensi, buka toko, layani transaksi ${brandName}, dan pantau stok cabang.`}
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -180,16 +185,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Incoming Delivery Alert for Branch */}
       {!isDcPusat && incomingShipments.length > 0 && (
-        <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm animate-pulse">
+        <div className="bg-red-50 dark:bg-red-950/40 border-2 border-red-300 dark:border-red-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm animate-pulse">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0">
               <Truck className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-red-900 text-sm">
+              <h4 className="font-bold text-red-900 dark:text-red-200 text-sm">
                 Ada {incomingShipments.length} Surat Jalan Dikirim dari DC!
               </h4>
-              <p className="text-xs text-red-700">
+              <p className="text-xs text-red-700 dark:text-red-300">
                 Bahan baku sedang dalam perjalanan menuju {currentUser.cabang}. Harap verifikasi dan terima barang.
               </p>
             </div>
@@ -206,16 +211,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Quick Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               {isDcPusat ? 'Omzet Semua Cabang' : 'Omzet Hari Ini'}
             </span>
-            <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 flex items-center justify-center">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl font-black text-slate-800">
+          <div className="text-xl font-black text-slate-800 dark:text-slate-100">
             {formatRupiah(totalOmzet)}
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
@@ -223,16 +228,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Transaksi Selesai
             </span>
-            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
               <ShoppingBag className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl font-black text-slate-800">
+          <div className="text-xl font-black text-slate-800 dark:text-slate-100">
             {totalTrxCount} Pesanan
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
@@ -240,16 +245,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Keuntungan Bersih
             </span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl font-black text-emerald-600">
+          <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">
             {formatRupiah(totalUntung)}
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
@@ -257,20 +262,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               {isDcPusat ? 'Stok DC Menipis' : 'Status Toko'}
             </span>
             <div
               className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                 isDcPusat
                   ? lowStockDc.length > 0
-                    ? 'bg-red-100 text-red-600'
-                    : 'bg-emerald-100 text-emerald-600'
+                    ? 'bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400'
+                    : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
                   : currentBranchState?.status === 'Buka'
-                  ? 'bg-emerald-100 text-emerald-600'
-                  : 'bg-amber-100 text-amber-600'
+                  ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400'
               }`}
             >
               {isDcPusat ? (
@@ -280,7 +285,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               )}
             </div>
           </div>
-          <div className="text-xl font-black text-slate-800">
+          <div className="text-xl font-black text-slate-800 dark:text-slate-100">
             {isDcPusat
               ? `${lowStockDc.length} Bahan Baku`
               : currentBranchState?.status || 'Belum Buka'}
@@ -297,11 +302,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {isDcPusat && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <Store className="w-4 h-4 text-orange-600" />
               Monitoring Real-Time Status {branchKeys.length} Cabang Operasional
             </h3>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               Data Sinkronisasi Otomatis
             </span>
           </div>
@@ -314,25 +319,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
               const badgeColor =
                 state.status === 'Buka'
-                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
                   : state.status === 'Tutup'
-                  ? 'bg-slate-100 text-slate-800 border-slate-200'
+                  ? 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
                   : state.status === 'Libur'
-                  ? 'bg-amber-100 text-amber-800 border-amber-200'
-                  : 'bg-rose-50 text-rose-700 border-rose-200';
+                  ? 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800'
+                  : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800';
 
               return (
                 <div
                   key={cabang}
-                  className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs relative"
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs relative"
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <h4 className="font-black text-slate-800 text-base flex items-center gap-1.5">
+                      <h4 className="font-black text-slate-800 dark:text-slate-100 text-base flex items-center gap-1.5">
                         <Store className="w-4 h-4 text-orange-600" />
                         {cabang}
                       </h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         Kasir: <span className="font-semibold">{state.kasirNama || 'Belum Ditugaskan'}</span>
                       </p>
                     </div>
@@ -343,28 +348,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </span>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
+                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <span className="text-slate-400 block text-[10px]">Jam Buka</span>
-                      <span className="font-bold text-slate-700">
+                      <span className="font-bold text-slate-700 dark:text-slate-200">
                         {state.jamBuka || '-'}
                       </span>
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[10px]">Omzet Hari Ini</span>
-                      <span className="font-extrabold text-orange-600">
+                      <span className="font-extrabold text-orange-600 dark:text-orange-400">
                         {formatRupiah(branchOmzetToday)}
                       </span>
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[10px]">Kas Laci Awal</span>
-                      <span className="font-bold text-slate-700">
+                      <span className="font-bold text-slate-700 dark:text-slate-200">
                         {formatRupiah(state.modalAwal || 0)}
                       </span>
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[10px]">Total Transaksi</span>
-                      <span className="font-bold text-slate-700">
+                      <span className="font-bold text-slate-700 dark:text-slate-200">
                         {branchTrx.length} Nota
                       </span>
                     </div>
@@ -380,15 +385,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {isDcPusat ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Permintaan Cabang Menunggu */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2">
                 <Truck className="w-4 h-4 text-orange-600" />
                 Permintaan Barang Masuk ({pendingRequests.length})
               </h4>
               <button
                 onClick={() => setActiveTab('suratJalan')}
-                className="text-xs text-orange-600 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                className="text-xs text-orange-600 dark:text-orange-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <span>Kelola Surat Jalan</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -396,7 +401,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {pendingRequests.length === 0 ? (
-              <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
+              <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
                 Tidak ada permintaan barang baru yang menunggu persetujuan.
               </div>
             ) : (
@@ -404,17 +409,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {pendingRequests.slice(0, 3).map((p) => (
                   <div
                     key={p.id}
-                    className="p-3 bg-orange-50/50 border border-orange-200 rounded-xl flex items-center justify-between text-xs"
+                    className="p-3 bg-orange-50/50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900/60 rounded-xl flex items-center justify-between text-xs"
                   >
                     <div>
-                      <div className="font-bold text-slate-800">
-                        {p.noPermintaan} • <span className="text-orange-700">{p.cabang}</span>
+                      <div className="font-bold text-slate-800 dark:text-slate-100">
+                        {p.noPermintaan} • <span className="text-orange-700 dark:text-orange-400">{p.cabang}</span>
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                         {p.items.length} macam bahan baku diminta
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-bold text-[10px]">
                       Menunggu
                     </span>
                   </div>
@@ -424,15 +429,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Stok DC Menipis */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-red-600" />
                 Peringatan Stok DC Menipis ({lowStockDc.length})
               </h4>
               <button
                 onClick={() => setActiveTab('bahanBaku')}
-                className="text-xs text-orange-600 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                className="text-xs text-orange-600 dark:text-orange-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <span>Kulakan Stok DC</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -440,7 +445,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {lowStockDc.length === 0 ? (
-              <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
+              <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
                 Semua stok bahan baku di Gudang DC berada di atas batas minimum. Aman!
               </div>
             ) : (
@@ -448,19 +453,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {lowStockDc.slice(0, 3).map((b) => (
                   <div
                     key={b.id}
-                    className="p-3 bg-red-50/50 border border-red-200 rounded-xl flex items-center justify-between text-xs"
+                    className="p-3 bg-red-50/50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-xl flex items-center justify-between text-xs"
                   >
                     <div>
-                      <div className="font-bold text-slate-800">{b.nama}</div>
-                      <div className="text-[11px] text-slate-500">
+                      <div className="font-bold text-slate-800 dark:text-slate-100">{b.nama}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
                         Batas Minimum: {b.stokMinimum} {b.satuan}
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-red-700 font-extrabold text-sm">
+                      <span className="text-red-700 dark:text-red-400 font-extrabold text-sm">
                         {b.stokDC} {b.satuan}
                       </span>
-                      <span className="block text-[10px] text-red-600 font-semibold">
+                      <span className="block text-[10px] text-red-600 dark:text-red-400 font-semibold">
                         Kritis
                       </span>
                     </div>
@@ -473,16 +478,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       ) : (
         /* CABANG Specific Overview Cards */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-            <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs">
+            <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm mb-3 flex items-center gap-2">
               <Clock className="w-4 h-4 text-orange-600" />
               Status Absensi & Buka Toko Hari Ini
             </h4>
             <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-xl bg-slate-50 flex items-center justify-between">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="font-bold text-slate-700 block">Absensi Masuk Kasir</span>
-                  <span className="text-slate-500 text-[11px]">
+                  <span className="font-bold text-slate-700 dark:text-slate-200 block">Absensi Masuk Kasir</span>
+                  <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                     {userTodayAbsen
                       ? `Tercatat Jam: ${userTodayAbsen.jamMasuk}`
                       : 'Belum melakukan absensi masuk'}
@@ -492,19 +497,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   className={`px-2.5 py-1 rounded-full font-bold text-[11px] ${
                     userTodayAbsen
                       ? userTodayAbsen.status === 'Tepat Waktu'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-amber-100 text-amber-800'
-                      : 'bg-red-100 text-red-800'
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                        : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                      : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300'
                   }`}
                 >
                   {userTodayAbsen ? userTodayAbsen.status : 'Belum Absen'}
                 </span>
               </div>
 
-              <div className="p-3 rounded-xl bg-slate-50 flex items-center justify-between">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="font-bold text-slate-700 block">Operasional Toko</span>
-                  <span className="text-slate-500 text-[11px]">
+                  <span className="font-bold text-slate-700 dark:text-slate-200 block">Operasional Toko</span>
+                  <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                     {currentBranchState?.status === 'Buka'
                       ? `Buka sejak ${currentBranchState.jamBuka} (Modal: ${formatRupiah(currentBranchState.modalAwal)})`
                       : 'Toko belum dibuka atau sedang tutup'}
@@ -513,8 +518,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span
                   className={`px-2.5 py-1 rounded-full font-bold text-[11px] ${
                     currentBranchState?.status === 'Buka'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-slate-200 text-slate-700'
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                   }`}
                 >
                   {currentBranchState?.status || 'Belum Buka'}
@@ -525,27 +530,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => setActiveTab('absensi')}
-                className="flex-1 py-2 px-3 bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold rounded-xl text-xs transition text-center cursor-pointer"
+                className="flex-1 py-2 px-3 bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/40 dark:hover:bg-orange-950/60 text-orange-700 dark:text-orange-300 font-bold rounded-xl text-xs transition text-center cursor-pointer"
               >
                 Menu Absensi
               </button>
               <button
                 onClick={() => setActiveTab('bukaTutup')}
-                className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition text-center cursor-pointer"
+                className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs transition text-center cursor-pointer"
               >
                 Buka / Tutup Toko
               </button>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-            <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs">
+            <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm mb-3 flex items-center gap-2">
               <ShoppingBag className="w-4 h-4 text-orange-600" />
               Transaksi Terakhir di {currentUser.cabang}
             </h4>
 
             {branchTransactions.length === 0 ? (
-              <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
+              <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
                 Belum ada transaksi di cabang ini hari ini.
               </div>
             ) : (
@@ -553,19 +558,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {branchTransactions.slice(-3).reverse().map((trx) => (
                   <div
                     key={trx.id}
-                    className="p-3 bg-slate-50 rounded-xl flex items-center justify-between text-xs"
+                    className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-between text-xs"
                   >
                     <div>
-                      <div className="font-bold text-slate-800">{trx.invoiceNo}</div>
-                      <div className="text-[11px] text-slate-500">
+                      <div className="font-bold text-slate-800 dark:text-slate-100">{trx.invoiceNo}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
                         {trx.jam} • {trx.metodeBayar} • {trx.items.length} item
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-black text-orange-600">
+                      <div className="font-black text-orange-600 dark:text-orange-400">
                         {formatRupiah(trx.total)}
                       </div>
-                      <div className="text-[10px] text-emerald-600 font-semibold">
+                      <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
                         Untung {formatRupiah(trx.totalUntung)}
                       </div>
                     </div>
@@ -576,7 +581,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <button
               onClick={() => setActiveTab('pos')}
-              className="mt-4 w-full py-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+              className="mt-4 w-full py-2 brand-gradient hover:opacity-95 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
             >
               <span>Buka Menu Kasir POS</span>
               <ArrowRight className="w-3.5 h-3.5" />

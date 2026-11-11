@@ -32,6 +32,7 @@ import { Karyawan, Absensi, Cabang, DataCabang, PengaturanOff, GajiKaryawanSetti
 import { getTodayStr, getNowTimeStr, formatRupiah, STORAGE_KEYS, loadFromStorage, saveToStorage } from '../utils/storage';
 import { getBranchName, getStoreBranchNames } from '../utils/branchHelper';
 import { BottomSheetPicker, BottomSheetPickerTrigger, BottomSheetOption } from './BottomSheetPicker';
+import { firestoreSavePengaturanGaji, firestoreSavePengaturanGajiBatch } from '../services/firestoreSync';
 
 interface AbsensiViewProps {
   currentUser: Karyawan;
@@ -157,18 +158,8 @@ export const AbsensiView: React.FC<AbsensiViewProps> = ({
     setGajiSettings(nextSettings);
     saveToStorage(STORAGE_KEYS.PENGATURAN_GAJI, nextSettings);
 
-    // Persist to Firestore if available
-    try {
-      import('../firebase').then(({ db }) => {
-        if (db) {
-          import('firebase/firestore').then(({ doc, setDoc }) => {
-            setDoc(doc(db, 'pengaturan_gaji', editingGajiEmp.id), updatedSetting, { merge: true }).catch(() => {});
-          });
-        }
-      });
-    } catch {
-      // safe fallback
-    }
+    // Persist to Firestore via centralized sync service
+    void firestoreSavePengaturanGaji(updatedSetting).catch(() => {});
 
     setGajiSaveSuccess(`Pengaturan gaji untuk ${editingGajiEmp.nama} berhasil disimpan!`);
     setTimeout(() => {
@@ -286,21 +277,8 @@ export const AbsensiView: React.FC<AbsensiViewProps> = ({
     setGajiSettings(nextSettings);
     saveToStorage(STORAGE_KEYS.PENGATURAN_GAJI, nextSettings);
 
-    try {
-      import('../firebase').then(({ db }) => {
-        if (db) {
-          import('firebase/firestore').then(({ doc, writeBatch }) => {
-            const batch = writeBatch(db);
-            branchEmployees.forEach((emp) => {
-              batch.set(doc(db, 'pengaturan_gaji', emp.id), nextSettings[emp.id], { merge: true });
-            });
-            batch.commit().catch(() => {});
-          });
-        }
-      });
-    } catch {
-      // safe fallback
-    }
+    const branchSettingsList = branchEmployees.map((emp) => nextSettings[emp.id]);
+    void firestoreSavePengaturanGajiBatch(branchSettingsList).catch(() => {});
 
     setCabangGajiSuccess(`Berhasil menerapkan tarif gaji baru untuk seluruh ${branchEmployees.length} karyawan di Cabang ${selectedCabangForGaji}!`);
     setTimeout(() => {

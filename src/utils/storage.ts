@@ -18,6 +18,7 @@ export const STORAGE_KEYS = {
   PENGATURAN_OFF: 'seblak_pengaturan_off',
   MENU_CABANG: 'seblak_menu_cabang',
   PENGATURAN_GAJI: 'seblak_pengaturan_gaji',
+  APP_SETTINGS: 'seblak_app_settings',
 };
 
 export function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -267,5 +268,112 @@ export function formatWaPhone(phone: string): string {
     cleaned = '62' + cleaned;
   }
   return cleaned;
+}
+
+/**
+ * Resize & compress uploaded business logo image for Firestore (< 200KB) while preserving PNG/WebP transparency
+ */
+export async function compressLogoImage(
+  file: File,
+  maxSize = 320
+): Promise<{ dataUrl: string; sizeKb: number }> {
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error('Ukuran file logo maksimal 8 MB');
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Gagal membaca file logo'));
+    reader.onload = (e) => {
+      const rawResult = e.target?.result as string;
+      if (!rawResult) {
+        reject(new Error('File logo kosong'));
+        return;
+      }
+
+      const calcSizeKb = (dataUrl: string) => {
+        const base64Part = dataUrl.split(',')[1] || '';
+        return Math.round(((base64Part.length * 3) / 4) / 1024);
+      };
+
+      // Small SVG can be kept cleanly
+      if (file.type === 'image/svg+xml' && calcSizeKb(rawResult) <= 180) {
+        resolve({ dataUrl: rawResult, sizeKb: calcSizeKb(rawResult) });
+        return;
+      }
+
+      const img = new Image();
+      img.onerror = () => reject(new Error('Format gambar logo tidak didukung. Gunakan PNG, JPG, WEBP, atau SVG.'));
+      img.onload = () => {
+        try {
+          let targetWidth = img.width || maxSize;
+          let targetHeight = img.height || maxSize;
+
+          if (targetWidth > maxSize || targetHeight > maxSize) {
+            if (targetWidth > targetHeight) {
+              targetHeight = Math.max(1, Math.round((targetHeight * maxSize) / targetWidth));
+              targetWidth = maxSize;
+            } else {
+              targetWidth = Math.max(1, Math.round((targetWidth * maxSize) / targetHeight));
+              targetHeight = maxSize;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Gagal memproses kanvas logo'));
+            return;
+          }
+
+          ctx.clearRect(0, 0, targetWidth, targetHeight);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+          const isTransparentCandidate =
+            file.type === 'image/png' || file.type === 'image/webp' || file.type === 'image/svg+xml';
+
+          let output = canvas.toDataURL(isTransparentCandidate ? 'image/png' : 'image/jpeg', 0.85);
+          let sizeKb = calcSizeKb(output);
+
+          if (sizeKb > 180 && isTransparentCandidate) {
+            output = canvas.toDataURL('image/webp', 0.85);
+            sizeKb = calcSizeKb(output);
+          }
+
+          let scale = 0.8;
+          let tries = 0;
+          while (sizeKb > 180 && tries < 3) {
+            tries++;
+            const w = Math.max(64, Math.round(targetWidth * scale));
+            const h = Math.max(64, Math.round(targetHeight * scale));
+            canvas.width = w;
+            canvas.height = h;
+            ctx.clearRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            output = canvas.toDataURL(isTransparentCandidate ? 'image/webp' : 'image/jpeg', 0.8 - tries * 0.1);
+            sizeKb = calcSizeKb(output);
+            scale *= 0.8;
+          }
+
+          if (sizeKb > 280) {
+            reject(new Error('Ukuran logo setelah kompresi masih terlalu besar. Pilih gambar dengan resolusi lebih kecil.'));
+            return;
+          }
+
+          resolve({ dataUrl: output, sizeKb });
+        } catch (err: any) {
+          reject(new Error(err?.message || 'Gagal mengompresi gambar logo'));
+        }
+      };
+
+      img.src = rawResult;
+    };
+
+    reader.readAsDataURL(file);
+  });
 }
 

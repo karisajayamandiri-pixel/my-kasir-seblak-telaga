@@ -4,8 +4,9 @@
  * (Panda, GOOJPRT, RPP02N, Epson, MPT, Iware, Zywell, Paperang, dll.)
  */
 
-import { Transaksi, DataCabang } from '../types';
-import { formatRupiah } from './storage';
+import { Transaksi, DataCabang, AppSettings } from '../types';
+import { STORAGE_KEYS, loadFromStorage, formatRupiah } from './storage';
+import { DEFAULT_APP_SETTINGS, getBusinessHandle } from './theme';
 
 // Known Bluetooth Thermal Printer Service & Characteristic UUIDs
 const KNOWN_SERVICES = [
@@ -253,24 +254,38 @@ class EscPosBuilder {
   }
 }
 
+function resolveBrandSettings(brandSettings?: Partial<Pick<AppSettings, 'namaUsaha' | 'tagline'>>) {
+  const stored = loadFromStorage<AppSettings>(STORAGE_KEYS.APP_SETTINGS, DEFAULT_APP_SETTINGS);
+  const namaUsaha = (brandSettings?.namaUsaha ?? stored.namaUsaha ?? DEFAULT_APP_SETTINGS.namaUsaha).trim() || DEFAULT_APP_SETTINGS.namaUsaha;
+  const tagline = brandSettings?.tagline !== undefined ? brandSettings.tagline : (stored.tagline ?? DEFAULT_APP_SETTINGS.tagline ?? '');
+  return { namaUsaha, tagline: tagline.trim() };
+}
+
 /**
- * Buat ESC/POS binary untuk Struk Transaksi Kasir TELAGA WARNA
+ * Buat ESC/POS binary untuk Struk Transaksi Kasir
  */
-export const buildReceiptEscPos = (trx: Transaksi, branchInfo?: DataCabang): Uint8Array => {
+export const buildReceiptEscPos = (
+  trx: Transaksi,
+  branchInfo?: DataCabang,
+  brandSettings?: Partial<Pick<AppSettings, 'namaUsaha' | 'tagline'>>
+): Uint8Array => {
   const b = new EscPosBuilder();
-  const branchNama = branchInfo?.nama || trx.cabang || 'TELAGA WARNA';
-  const branchAlamat = branchInfo?.alamat || 'Gudang & Sentral Logistik TELAGA WARNA';
+  const { namaUsaha, tagline } = resolveBrandSettings(brandSettings);
+  const branchNama = branchInfo?.nama || trx.cabang || namaUsaha;
+  const branchAlamat = branchInfo?.alamat || `Gudang & Sentral Logistik ${namaUsaha}`;
   const branchHp = branchInfo?.noHp || '0857-1234-5678';
 
   b.init();
 
   // KOP TOKO (Center, Bold, Double Size)
   b.align('center');
-  b.bold(true).size('double').line('TELAGA WARNA');
+  b.bold(true).size('double').line(namaUsaha.toUpperCase());
   b.bold(true).size('normal').line(`CABANG ${branchNama.toUpperCase()}`);
   b.bold(false).line(branchAlamat);
   b.line(`Telp/WA: ${branchHp}`);
-  b.line('Pedas Gurih Bikin Nagih!');
+  if (tagline) {
+    b.line(tagline);
+  }
   b.divider('=');
 
   // NOMOR PESANAN / ANTRIAN (Besar & Tebal agar mudah dibaca)
@@ -365,7 +380,7 @@ export const buildReceiptEscPos = (trx: Transaksi, branchInfo?: DataCabang): Uin
   }
   b.line('Terima Kasih Atas Kunjungan Anda!');
   b.line('Kritik & Saran: ' + branchHp);
-  b.line('Follow IG: @seblaktelaga');
+  b.line(`Follow IG: @${getBusinessHandle(namaUsaha)}`);
   b.feed(4);
   b.cut();
 
@@ -375,16 +390,21 @@ export const buildReceiptEscPos = (trx: Transaksi, branchInfo?: DataCabang): Uin
 /**
  * Buat ESC/POS binary untuk Tiket Dapur (Tanpa Harga, hanya info masak)
  */
-export const buildKitchenTicketEscPos = (trx: Transaksi, branchInfo?: DataCabang): Uint8Array => {
+export const buildKitchenTicketEscPos = (
+  trx: Transaksi,
+  branchInfo?: DataCabang,
+  brandSettings?: Partial<Pick<AppSettings, 'namaUsaha' | 'tagline'>>
+): Uint8Array => {
   const b = new EscPosBuilder();
-  const branchNama = branchInfo?.nama || trx.cabang || 'TELAGA';
+  const { namaUsaha } = resolveBrandSettings(brandSettings);
+  const branchNama = branchInfo?.nama || trx.cabang || namaUsaha;
 
   b.init();
 
   // KOP TIKET DAPUR
   b.align('center');
   b.bold(true).size('double').line('TIKET DAPUR');
-  b.bold(true).size('normal').line(`TELAGA WARNA - ${branchNama.toUpperCase()}`);
+  b.bold(true).size('normal').line(`${namaUsaha.toUpperCase()} - ${branchNama.toUpperCase()}`);
   b.divider('=');
 
   // NOMOR PESANAN / ANTRIAN (Besar & Tebal)
@@ -456,7 +476,8 @@ export const buildKitchenTicketEscPos = (trx: Transaksi, branchInfo?: DataCabang
 
 export const printKitchenTicketViaBluetooth = async (
   trx: Transaksi,
-  branchInfo?: DataCabang
+  branchInfo?: DataCabang,
+  brandSettings?: Partial<Pick<AppSettings, 'namaUsaha' | 'tagline'>>
 ): Promise<{ success: boolean; error?: string }> => {
   if (!isPrinterConnected()) {
     const conn = await connectBluetoothPrinter();
@@ -466,7 +487,7 @@ export const printKitchenTicketViaBluetooth = async (
   }
 
   try {
-    const bytes = buildKitchenTicketEscPos(trx, branchInfo);
+    const bytes = buildKitchenTicketEscPos(trx, branchInfo, brandSettings);
     await sendBytesToPrinter(bytes);
     return { success: true };
   } catch (err: any) {
@@ -479,7 +500,8 @@ export const printKitchenTicketViaBluetooth = async (
  */
 export const printReceiptViaBluetooth = async (
   trx: Transaksi,
-  branchInfo?: DataCabang
+  branchInfo?: DataCabang,
+  brandSettings?: Partial<Pick<AppSettings, 'namaUsaha' | 'tagline'>>
 ): Promise<{ success: boolean; error?: string }> => {
   // Jika belum terhubung, hubungkan dulu
   if (!isPrinterConnected()) {
@@ -490,7 +512,7 @@ export const printReceiptViaBluetooth = async (
   }
 
   try {
-    const bytes = buildReceiptEscPos(trx, branchInfo);
+    const bytes = buildReceiptEscPos(trx, branchInfo, brandSettings);
     await sendBytesToPrinter(bytes);
     return { success: true };
   } catch (err: any) {
@@ -502,7 +524,8 @@ export const printReceiptViaBluetooth = async (
  * Cetak Test Print ke printer Bluetooth
  */
 export const printTestBluetooth = async (
-  branchName: string = 'DC PUSAT'
+  branchName: string = 'DC PUSAT',
+  brandSettings?: Partial<Pick<AppSettings, 'namaUsaha' | 'tagline'>>
 ): Promise<{ success: boolean; error?: string }> => {
   if (!isPrinterConnected()) {
     const conn = await connectBluetoothPrinter();
@@ -512,10 +535,11 @@ export const printTestBluetooth = async (
   }
 
   try {
+    const { namaUsaha } = resolveBrandSettings(brandSettings);
     const b = new EscPosBuilder();
     b.init();
     b.align('center');
-    b.bold(true).size('double').line('TELAGA WARNA');
+    b.bold(true).size('double').line(namaUsaha.toUpperCase());
     b.size('normal').line(`TEST PRINT PRINTER BLUETOOTH`);
     b.line(`Cabang: ${branchName}`);
     b.divider('-');
@@ -539,8 +563,12 @@ export const printTestBluetooth = async (
 /**
  * Buat RawBT Android Intent URL (Fallback cetak Bluetooth untuk Android jika Web Bluetooth tidak aktif)
  */
-export const getRawBtReceiptUrl = (trx: Transaksi, branchInfo?: DataCabang): string => {
-  const bytes = buildReceiptEscPos(trx, branchInfo);
+export const getRawBtReceiptUrl = (
+  trx: Transaksi,
+  branchInfo?: DataCabang,
+  brandSettings?: Partial<Pick<AppSettings, 'namaUsaha' | 'tagline'>>
+): string => {
+  const bytes = buildReceiptEscPos(trx, branchInfo, brandSettings);
   let binary = '';
   for (let i = 0; i < bytes.byteLength; i++) {
     binary += String.fromCharCode(bytes[i]);

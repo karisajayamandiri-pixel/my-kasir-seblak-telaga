@@ -1,4 +1,39 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --brand-from: #dc2626;
+  --brand-via: #ea580c;
+  --brand-to: #d97706;
+  --brand-primary: #ea580c;
+  --brand-primary-hover: #c2410c;
+  --brand-accent: #e53935;
+  --brand-soft-bg: #fff7ed;
+  --brand-soft-border: #fed7aa;
+  --brand-soft-text: #c2410c;
+  --brand-ring: rgba(234, 88, 12, 0.35);
+  --brand-login-from: #fffbeb;
+  --brand-login-via: #fff7ed;
+  --brand-login-to: #fee2e2;
+}
+
+.brand-gradient {
+  background-image: linear-gradient(to right, var(--brand-from), var(--brand-via), var(--brand-to));
+}
+
+.brand-gradient-br {
+  background-image: linear-gradient(to bottom right, var(--brand-accent), var(--brand-via));
+}
+
+.brand-login-backdrop {
+  background-image: linear-gradient(to bottom right, var(--brand-login-from), var(--brand-login-via), var(--brand-login-to));
+}
+
+.brand-tab-active {
+  background-color: var(--brand-primary);
+  color: #ffffff;
+  box-shadow: 0 2px 8px -2px var(--brand-ring);
+}
 
 @layer base {
   body {
@@ -6,6 +41,22 @@
     color: #1e293b;
     background-color: #f8fafc;
     -webkit-font-smoothing: antialiased;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+
+  .dark body {
+    color: #f1f5f9;
+    background-color: #020617;
+  }
+
+  .dark ::-webkit-scrollbar-track {
+    background: #0f172a;
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: #334155;
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
   }
 }
 

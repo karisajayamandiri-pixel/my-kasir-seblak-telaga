@@ -448,4 +448,23 @@ export interface SlipGajiData {
   keterangan?: string;
 }
 
+export type ThemeColorId =
+  | 'sunset'
+  | 'ocean'
+  | 'emerald'
+  | 'royal'
+  | 'amber'
+  | 'slate';
 
+export type ThemeMode = 'light' | 'dark';
+
+export interface AppSettings {
+  id: string;
+  namaUsaha: string;
+  tagline?: string;
+  logoUrl: string;
+  temaWarna: ThemeColorId;
+  modeTampilan: ThemeMode;
+  updatedAt?: string;
+  updatedBy?: string;
+}

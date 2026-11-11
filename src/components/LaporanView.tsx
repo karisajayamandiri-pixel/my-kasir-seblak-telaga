@@ -30,9 +30,11 @@ import {
   AuditLog,
   PengeluaranToko,
   DataCabang,
+  AppSettings,
 } from '../types';
 import { formatRupiah, getTodayStr } from '../utils/storage';
 import { getBranchName, getStoreBranchNames } from '../utils/branchHelper';
+import { DEFAULT_BUSINESS_NAME } from '../utils/theme';
 import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
 interface LaporanViewProps {
@@ -45,6 +47,7 @@ interface LaporanViewProps {
   auditLogList?: AuditLog[];
   pengeluaranList?: PengeluaranToko[];
   dataCabangList?: DataCabang[];
+  appSettings?: AppSettings;
   onOpenPrintModal: (type: any, data?: any) => void;
 }
 
@@ -58,8 +61,10 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   auditLogList = [],
   pengeluaranList = [],
   dataCabangList = [],
+  appSettings,
   onOpenPrintModal,
 }) => {
+  const brandName = appSettings?.namaUsaha || DEFAULT_BUSINESS_NAME;
   const today = getTodayStr();
   const currentMonth = today.slice(0, 7); // 'YYYY-MM'
 
@@ -250,12 +255,12 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <BarChart2 className="w-5 h-5 text-orange-600" />
-            <h2 className="text-xl font-black text-slate-800">
+            <BarChart2 className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">
               Laporan Penjualan, Keuangan & Print
             </h2>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Rekap omzet harian per cabang, laporan bulanan, grafik visual menu terlaris, audit bulanan per cabang, dan cetak dokumen format A4.
           </p>
         </div>
@@ -274,7 +279,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                   untung: dailyUntung,
                 })
               }
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>Cetak Laporan Harian A4</span>
@@ -294,7 +299,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                   totalUntung: totalMonthlyUntung,
                 })
               }
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>Cetak Laporan Bulanan A4</span>
@@ -317,7 +322,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                   logs: auditMonthlyLogs,
                 })
               }
-              className="px-3.5 py-2 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+              className="px-3.5 py-2 brand-gradient hover:brightness-110 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>Cetak Audit Bulanan Cabang A4</span>
@@ -327,13 +332,13 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       </div>
 
       {/* Sub Tabs */}
-      <div className="flex gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
+      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto">
         <button
           onClick={() => setActiveSubTab('harian')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeSubTab === 'harian'
-              ? 'bg-orange-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              ? 'brand-tab-active'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
           }`}
         >
           <Calendar className="w-4 h-4" />
@@ -344,8 +349,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           onClick={() => setActiveSubTab('bulanan')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeSubTab === 'bulanan'
-              ? 'bg-orange-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              ? 'brand-tab-active'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
           }`}
         >
           <FileText className="w-4 h-4" />
@@ -356,8 +361,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           onClick={() => setActiveSubTab('grafik')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeSubTab === 'grafik'
-              ? 'bg-orange-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              ? 'brand-tab-active'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
           }`}
         >
           <BarChart2 className="w-4 h-4" />
@@ -368,8 +373,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           onClick={() => setActiveSubTab('stokMenipis')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeSubTab === 'stokMenipis'
-              ? 'bg-orange-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              ? 'brand-tab-active'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
           }`}
         >
           <AlertTriangle className="w-4 h-4" />
@@ -380,11 +385,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           onClick={() => setActiveSubTab('auditBulanan')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeSubTab === 'auditBulanan'
-              ? 'bg-orange-600 text-white shadow-xs'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              ? 'brand-tab-active'
+              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
           }`}
         >
-          <Building2 className="w-4 h-4 text-orange-500" />
+          <Building2 className={`w-4 h-4 ${activeSubTab === 'auditBulanan' ? 'text-white' : 'text-orange-500 dark:text-orange-400'}`} />
           <span>Audit Bulanan Cabang</span>
         </button>
 
@@ -392,8 +397,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           onClick={() => setActiveSubTab('auditLog')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeSubTab === 'auditLog'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              ? 'bg-slate-900 dark:bg-slate-700 text-white shadow-xs'
+              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
           }`}
         >
           <Lock className="w-4 h-4 text-amber-400" />
@@ -405,7 +410,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeSubTab === 'divoid'
               ? 'bg-purple-700 text-white shadow-xs'
-              : 'bg-white text-purple-700 hover:bg-purple-50 border border-purple-200'
+              : 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/50 border border-purple-200 dark:border-purple-800'
           }`}
         >
           <RotateCcw className="w-4 h-4" />
@@ -414,14 +419,14 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       </div>
 
       {/* FILTER BAR */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-3 flex-1">
           {activeSubTab !== 'auditBulanan' && (
             <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-600">Filter Cabang:</span>
+              <span className="font-bold text-slate-600 dark:text-slate-300">Filter Cabang:</span>
               <div className="w-auto">
                 <BottomSheetPickerTrigger
-                  valueTitle={filterCabang === 'Semua' ? 'Semua Cabang Telaga' : filterCabang}
+                  valueTitle={filterCabang === 'Semua' ? 'Semua Cabang' : filterCabang}
                   onClick={() => setShowPickerFilterCabang(true)}
                   size="sm"
                   className="min-w-[140px]"
@@ -433,7 +438,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                   selectedId={filterCabang}
                   onSelect={(opt) => setFilterCabang(String(opt.id))}
                   options={[
-                    { id: 'Semua', title: 'Semua Cabang Telaga', subtitle: 'Laporan gabungan seluruh cabang', badge: 'Semua' },
+                    { id: 'Semua', title: 'Semua Cabang', subtitle: 'Laporan gabungan seluruh cabang', badge: 'Semua' },
                     ...storeBranchList.map((cName) => ({
                       id: cName,
                       title: cName,
@@ -448,7 +453,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           {activeSubTab === 'auditBulanan' && (
             <>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-700">Pilih Cabang Audit:</span>
+                <span className="font-bold text-slate-700 dark:text-slate-200">Pilih Cabang Audit:</span>
                 <div className="w-auto">
                   <BottomSheetPickerTrigger
                     valueTitle={auditBulananCabang}
@@ -472,12 +477,12 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-700">Pilih Periode Bulan:</span>
+                <span className="font-bold text-slate-700 dark:text-slate-200">Pilih Periode Bulan:</span>
                 <input
                   type="month"
                   value={auditBulananBulan}
                   onChange={(e) => setAuditBulananBulan(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-semibold"
+                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-lg font-semibold"
                 />
               </div>
             </>
@@ -485,24 +490,24 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
           {activeSubTab === 'harian' && (
             <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-600">Pilih Tanggal:</span>
+              <span className="font-bold text-slate-600 dark:text-slate-300">Pilih Tanggal:</span>
               <input
                 type="date"
                 value={filterTanggal}
                 onChange={(e) => setFilterTanggal(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-semibold"
+                className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-lg font-semibold"
               />
             </div>
           )}
 
           {(activeSubTab === 'bulanan' || activeSubTab === 'grafik') && (
             <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-600">Pilih Bulan:</span>
+              <span className="font-bold text-slate-600 dark:text-slate-300">Pilih Bulan:</span>
               <input
                 type="month"
                 value={filterBulan}
                 onChange={(e) => setFilterBulan(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-semibold"
+                className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-lg font-semibold"
               />
             </div>
           )}
@@ -510,7 +515,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           {activeSubTab === 'auditLog' && (
             <>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-600">Filter Aksi:</span>
+                <span className="font-bold text-slate-600 dark:text-slate-300">Filter Aksi:</span>
                 <div className="w-auto">
                   <BottomSheetPickerTrigger
                     valueTitle={auditFilterAksi === 'Semua' ? 'Semua Aksi' : auditFilterAksi}
@@ -545,7 +550,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                     placeholder="Cari Siapa / Aksi / Catatan..."
                     value={auditSearchTerm}
                     onChange={(e) => setAuditSearchTerm(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-medium text-xs focus:outline-none focus:ring-1 focus:ring-slate-800"
+                    className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-lg font-medium text-xs focus:outline-none focus:ring-1 focus:ring-slate-800 dark:focus:ring-slate-500"
                   />
                 </div>
               </div>
@@ -558,51 +563,51 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       {activeSubTab === 'harian' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Total Omzet Harian
               </span>
-              <span className="text-xl font-black text-orange-600 mt-1 block">
+              <span className="text-xl font-black text-orange-600 dark:text-orange-400 mt-1 block">
                 {formatRupiah(dailyOmzet)}
               </span>
               <span className="text-[10px] text-slate-400">{dailyTrxCount} Transaksi</span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Total HPP (Modal)
               </span>
-              <span className="text-xl font-black text-slate-700 mt-1 block">
+              <span className="text-xl font-black text-slate-700 dark:text-slate-200 mt-1 block">
                 {formatRupiah(dailyModal)}
               </span>
               <span className="text-[10px] text-slate-400">Biaya bahan terpakai</span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Keuntungan Bersih
               </span>
-              <span className="text-xl font-black text-emerald-600 mt-1 block">
+              <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
                 {formatRupiah(dailyUntung)}
               </span>
-              <span className="text-[10px] text-emerald-700 font-bold">
+              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">
                 Margin {dailyOmzet > 0 ? ((dailyUntung / dailyOmzet) * 100).toFixed(1) : 0}%
               </span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Rata-rata per Nota
               </span>
-              <span className="text-xl font-black text-blue-600 mt-1 block">
+              <span className="text-xl font-black text-blue-600 dark:text-blue-400 mt-1 block">
                 {dailyTrxCount > 0 ? formatRupiah(dailyOmzet / dailyTrxCount) : 'Rp 0'}
               </span>
               <span className="text-[10px] text-slate-400">Basket size konsumen</span>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-            <h3 className="font-bold text-slate-800 text-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-3">
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
               Daftar Transaksi Tanggal {filterTanggal} ({filteredDailyTrx.length} Nota)
             </h3>
 
@@ -614,7 +619,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px]">
+                    <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold uppercase text-[10px]">
                       <th className="py-2.5 px-3">No. Invoice</th>
                       <th className="py-2.5 px-2">Waktu</th>
                       <th className="py-2.5 px-3">Nama</th>
@@ -628,7 +633,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                       <th className="py-2.5 px-2 text-center">Metode</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {filteredDailyTrx.map((t) => {
                       const emp = karyawanList.find(
                         (k) => k.id === t.kasirId || k.nama === t.kasirNama
@@ -637,53 +642,53 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                       const kasirBertugas = t.kasirBertugas || t.kasirNama;
 
                       return (
-                        <tr key={t.id} className="hover:bg-slate-50/80">
-                          <td className="py-3 px-3 font-bold text-slate-800">
+                        <tr key={t.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60">
+                          <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-100">
                             {t.invoiceNo}
                           </td>
-                          <td className="py-3 px-2 text-slate-500 whitespace-nowrap">
+                          <td className="py-3 px-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                             {t.jam}
                           </td>
-                          <td className="py-3 px-3 font-bold text-slate-800">
+                          <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-100">
                             {t.kasirNama}
                           </td>
                           <td className="py-3 px-2 whitespace-nowrap">
                             <span
                               className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                 jabatan === 'KEPALA TOKO'
-                                  ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                                  ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-800'
                                   : jabatan === 'CREW STORE'
-                                  ? 'bg-amber-100 text-amber-900'
-                                  : 'bg-blue-100 text-blue-900 border border-blue-200'
+                                  ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200'
+                                  : 'bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-800'
                               }`}
                             >
                               {jabatan}
                             </span>
                           </td>
-                          <td className="py-3 px-2 whitespace-nowrap font-bold text-orange-700">
+                          <td className="py-3 px-2 whitespace-nowrap font-bold text-orange-700 dark:text-orange-400">
                             {t.cabang}
                           </td>
-                          <td className="py-3 px-3 font-semibold text-slate-800 whitespace-nowrap">
+                          <td className="py-3 px-3 font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                             {kasirBertugas}
                           </td>
-                          <td className="py-3 px-3 max-w-xs text-slate-700">
+                          <td className="py-3 px-3 max-w-xs text-slate-700 dark:text-slate-300">
                             {t.items.map((it, idx) => (
                               <span key={idx} className="block text-[11px]">
                                 {it.qty}x {it.nama}
                               </span>
                             ))}
                           </td>
-                          <td className="py-3 px-3 text-right text-slate-600">
+                          <td className="py-3 px-3 text-right text-slate-600 dark:text-slate-300">
                             {formatRupiah(t.totalModal)}
                           </td>
-                          <td className="py-3 px-3 text-right font-black text-slate-900">
+                          <td className="py-3 px-3 text-right font-black text-slate-900 dark:text-slate-100">
                             {formatRupiah(t.total)}
                           </td>
-                          <td className="py-3 px-3 text-right font-bold text-emerald-600">
+                          <td className="py-3 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
                             {formatRupiah(t.totalUntung)}
                           </td>
                           <td className="py-3 px-2 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
                               {t.metodeBayar}
                             </span>
                           </td>
@@ -697,8 +702,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           </div>
 
           {/* Rekap Penutupan Toko & Kasir Bertugas */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-            <h3 className="font-bold text-slate-800 text-sm flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-3">
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center justify-between">
               <span>Rekap Penutupan Toko & Kasir Bertugas</span>
               <span className="text-xs text-slate-400 font-normal">
                 Tersimpan di LocalStorage
@@ -717,7 +722,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px]">
+                    <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold uppercase text-[10px]">
                       <th className="py-2.5 px-3">Tanggal</th>
                       <th className="py-2.5 px-3">Nama</th>
                       <th className="py-2.5 px-3">Jabatan</th>
@@ -731,7 +736,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                       <th className="py-2.5 px-3 text-center">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {laporanHarianList
                       .filter(
                         (l) =>
@@ -747,47 +752,47 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                         const kasirBertugas = lap.kasirBertugas || lap.kasirNama;
 
                         return (
-                          <tr key={lap.id} className="hover:bg-slate-50/80">
-                            <td className="py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">
+                          <tr key={lap.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60">
+                            <td className="py-3 px-3 font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                               {lap.tanggal}
                             </td>
-                            <td className="py-3 px-3 font-bold text-slate-900">
+                            <td className="py-3 px-3 font-bold text-slate-900 dark:text-slate-100">
                               {nama}
                             </td>
                             <td className="py-3 px-3">
                               <span
                                 className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                   jabatan === 'KEPALA TOKO'
-                                    ? 'bg-purple-100 text-purple-900 border border-purple-200'
-                                    : 'bg-blue-100 text-blue-900 border border-blue-200'
+                                    ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-800'
+                                    : 'bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-800'
                                 }`}
                               >
                                 {jabatan}
                               </span>
                             </td>
-                            <td className="py-3 px-3 font-bold text-orange-700 whitespace-nowrap">
+                            <td className="py-3 px-3 font-bold text-orange-700 dark:text-orange-400 whitespace-nowrap">
                               {lap.cabang}
                             </td>
-                            <td className="py-3 px-3 font-semibold text-slate-800 whitespace-nowrap">
+                            <td className="py-3 px-3 font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                               {kasirBertugas}
                             </td>
-                            <td className="py-3 px-3 text-slate-600 whitespace-nowrap">
+                            <td className="py-3 px-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
                               {lap.jamBuka} - {lap.jamTutup || 'Sekarang'}
                             </td>
-                            <td className="py-3 px-3 text-right text-slate-600">
+                            <td className="py-3 px-3 text-right text-slate-600 dark:text-slate-300">
                               {formatRupiah(lap.modalAwal)}
                             </td>
-                            <td className="py-3 px-3 text-right font-black text-slate-900">
+                            <td className="py-3 px-3 text-right font-black text-slate-900 dark:text-slate-100">
                               {formatRupiah(lap.totalOmzet)}
                             </td>
-                            <td className="py-3 px-3 text-right text-red-600 font-semibold">
+                            <td className="py-3 px-3 text-right text-red-600 dark:text-red-400 font-semibold">
                               {formatRupiah(lap.pengeluaran)}
                             </td>
-                            <td className="py-3 px-3 text-right font-bold text-emerald-600">
+                            <td className="py-3 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
                               {formatRupiah(lap.cashLaci)}
                             </td>
                             <td className="py-3 px-3 text-center">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
                                 {lap.statusToko}
                               </span>
                             </td>
@@ -806,41 +811,41 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       {activeSubTab === 'bulanan' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Total Omzet Bulan {filterBulan}
               </span>
-              <span className="text-2xl font-black text-orange-600 mt-1 block">
+              <span className="text-2xl font-black text-orange-600 dark:text-orange-400 mt-1 block">
                 {formatRupiah(totalMonthlyOmzet)}
               </span>
               <span className="text-[10px] text-slate-400">{monthlyTrx.length} Total Transaksi</span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Total Modal HPP
               </span>
-              <span className="text-2xl font-black text-slate-700 mt-1 block">
+              <span className="text-2xl font-black text-slate-700 dark:text-slate-200 mt-1 block">
                 {formatRupiah(totalMonthlyModal)}
               </span>
               <span className="text-[10px] text-slate-400">Total belanja modal resep</span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Total Keuntungan Bersih
               </span>
-              <span className="text-2xl font-black text-emerald-600 mt-1 block">
+              <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
                 {formatRupiah(totalMonthlyUntung)}
               </span>
-              <span className="text-[10px] text-emerald-700 font-bold">
+              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">
                 Margin Bersih: {totalMonthlyOmzet > 0 ? ((totalMonthlyUntung / totalMonthlyOmzet) * 100).toFixed(1) : 0}%
               </span>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-            <h3 className="font-bold text-slate-800 text-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-3">
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
               Rekapitulasi Harian Bulan {filterBulan}
             </h3>
 
@@ -852,7 +857,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px]">
+                    <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold uppercase text-[10px]">
                       <th className="py-3 px-4">Tanggal Transaksi</th>
                       <th className="py-3 px-3 text-center">Jumlah Transaksi</th>
                       <th className="py-3 px-3 text-right">Total Omzet</th>
@@ -861,28 +866,28 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                       <th className="py-3 px-3 text-center">Margin</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {monthlyDates.map((date) => {
                       const row = monthlyGrouped[date];
                       const margin = row.omzet > 0 ? ((row.untung / row.omzet) * 100).toFixed(1) : 0;
                       return (
-                        <tr key={date} className="hover:bg-slate-50/80 transition">
-                          <td className="py-3 px-4 font-bold text-slate-800">
+                        <tr key={date} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition">
+                          <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100">
                             {date}
                           </td>
-                          <td className="py-3 px-3 text-center font-bold text-slate-600">
+                          <td className="py-3 px-3 text-center font-bold text-slate-600 dark:text-slate-300">
                             {row.count} Nota
                           </td>
-                          <td className="py-3 px-3 text-right font-black text-orange-600">
+                          <td className="py-3 px-3 text-right font-black text-orange-600 dark:text-orange-400">
                             {formatRupiah(row.omzet)}
                           </td>
-                          <td className="py-3 px-3 text-right text-slate-600">
+                          <td className="py-3 px-3 text-right text-slate-600 dark:text-slate-300">
                             {formatRupiah(row.modal)}
                           </td>
-                          <td className="py-3 px-3 text-right font-black text-emerald-600">
+                          <td className="py-3 px-3 text-right font-black text-emerald-600 dark:text-emerald-400">
                             {formatRupiah(row.untung)}
                           </td>
-                          <td className="py-3 px-3 text-center font-bold text-emerald-700">
+                          <td className="py-3 px-3 text-center font-bold text-emerald-700 dark:text-emerald-400">
                             {margin}%
                           </td>
                         </tr>
@@ -900,11 +905,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       {activeSubTab === 'grafik' && (
         <div className="space-y-6">
           {/* Grafik Batang Omzet Harian */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                  <BarChart2 className="w-4 h-4 text-orange-600" />
+                <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2">
+                  <BarChart2 className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                   Grafik Batang Penjualan Omzet Harian ({filterBulan})
                 </h3>
                 <p className="text-[11px] text-slate-400">
@@ -919,7 +924,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               </div>
             ) : (
               <div className="space-y-2 pt-4">
-                <div className="flex items-end gap-3 h-48 border-b border-slate-200 pb-2 px-2 overflow-x-auto">
+                <div className="flex items-end gap-3 h-48 border-b border-slate-200 dark:border-slate-700 pb-2 px-2 overflow-x-auto">
                   {monthlyDates.map((date) => {
                     const row = monthlyGrouped[date];
                     const heightPercent = Math.max(8, (row.omzet / maxDayOmzet) * 100);
@@ -929,7 +934,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                         className="flex-1 min-w-[50px] flex flex-col items-center gap-1 group relative"
                       >
                         {/* Tooltip on hover */}
-                        <div className="opacity-0 group-hover:opacity-100 transition absolute -top-10 bg-slate-900 text-white text-[10px] px-2 py-1 rounded shadow pointer-events-none whitespace-nowrap z-10">
+                        <div className="opacity-0 group-hover:opacity-100 transition absolute -top-10 bg-slate-900 dark:bg-slate-700 text-white text-[10px] px-2 py-1 rounded shadow pointer-events-none whitespace-nowrap z-10">
                           {formatRupiah(row.omzet)} ({row.count} trx)
                         </div>
 
@@ -940,7 +945,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                         />
 
                         {/* Date label */}
-                        <span className="text-[10px] font-bold text-slate-500">
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
                           {date.slice(8)}
                         </span>
                       </div>
@@ -955,11 +960,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           </div>
 
           {/* Grafik Batang Menu Terlaris */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
             <div>
-              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-orange-600" />
-                Grafik Batang Menu Terlaris (Katalog TELAGA WARNA)
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                Grafik Batang Menu Terlaris (Katalog {brandName})
               </h3>
               <p className="text-[11px] text-slate-400">
                 Peringkat menu favorit berdasarkan jumlah porsi terjual
@@ -977,11 +982,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                   return (
                     <div key={idx} className="space-y-1">
                       <div className="flex justify-between items-center text-xs">
-                        <span className="font-bold text-slate-800">
+                        <span className="font-bold text-slate-800 dark:text-slate-100">
                           {idx + 1}. {m.nama}
                         </span>
                         <div className="flex items-center gap-3">
-                          <span className="font-black text-orange-600">
+                          <span className="font-black text-orange-600 dark:text-orange-400">
                             {m.qty} Porsi
                           </span>
                           <span className="text-slate-400 text-[11px]">
@@ -990,12 +995,12 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                         </div>
                       </div>
 
-                      <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden">
                         <div
                           style={{ width: `${widthPercent}%` }}
                           className={`h-full rounded-full transition-all duration-500 ${
                             idx === 0
-                              ? 'bg-gradient-to-r from-red-600 to-orange-500'
+                              ? 'brand-gradient'
                               : idx === 1
                               ? 'bg-gradient-to-r from-orange-500 to-amber-500'
                               : 'bg-slate-500'
@@ -1013,28 +1018,28 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
       {/* 4. VIEW LAPORAN STOK MENIPIS */}
       {activeSubTab === 'stokMenipis' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-red-600" />
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
                 Peringatan Bahan Baku Menipis (DC & Seluruh Cabang)
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Daftar bahan baku dengan sisa stok di bawah batas aman minimum operasional.
               </p>
             </div>
           </div>
 
           {lowStockList.length === 0 ? (
-            <div className="py-12 text-center text-emerald-600 font-bold text-xs bg-emerald-50 rounded-xl">
+            <div className="py-12 text-center text-emerald-600 dark:text-emerald-400 font-bold text-xs bg-emerald-50 dark:bg-emerald-950/30 rounded-xl">
               Semua stok di DC Pusat dan seluruh Cabang dalam kondisi aman!
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px]">
+                  <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold uppercase text-[10px]">
                     <th className="py-3 px-4">Lokasi Gudang / Cabang</th>
                     <th className="py-3 px-3">Nama Bahan Baku</th>
                     <th className="py-3 px-3">Satuan</th>
@@ -1043,34 +1048,34 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                     <th className="py-3 px-3 text-center">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {lowStockList.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-red-50/50 transition">
-                      <td className="py-3 px-4 font-black text-slate-800">
+                    <tr key={idx} className="hover:bg-red-50/50 dark:hover:bg-red-950/30 transition">
+                      <td className="py-3 px-4 font-black text-slate-800 dark:text-slate-100">
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                             item.lokasi === 'DC PUSAT'
-                              ? 'bg-purple-100 text-purple-800'
-                              : 'bg-orange-100 text-orange-800'
+                              ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300'
+                              : 'bg-orange-100 dark:bg-orange-950/60 text-orange-800 dark:text-orange-300'
                           }`}
                         >
                           {item.lokasi}
                         </span>
                       </td>
-                      <td className="py-3 px-3 font-bold text-slate-800">
+                      <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-100">
                         {item.bahan.nama}
                       </td>
-                      <td className="py-3 px-3 text-slate-600">
+                      <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
                         {item.bahan.satuan}
                       </td>
-                      <td className="py-3 px-3 text-right text-slate-500 font-semibold">
+                      <td className="py-3 px-3 text-right text-slate-500 dark:text-slate-400 font-semibold">
                         {item.stokMin} {item.bahan.satuan}
                       </td>
-                      <td className="py-3 px-3 text-right font-black text-red-600 text-sm">
+                      <td className="py-3 px-3 text-right font-black text-red-600 dark:text-red-400 text-sm">
                         {item.stokSaatIni} {item.bahan.satuan}
                       </td>
                       <td className="py-3 px-3 text-center">
-                        <span className="px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 font-extrabold text-[10px]">
+                        <span className="px-2.5 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 font-extrabold text-[10px]">
                           Kritis (Restock Segera)
                         </span>
                       </td>
@@ -1117,58 +1122,58 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
           {/* Quick Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold">
                 Total Entri Ditampilkan
               </span>
-              <span className="text-lg font-black text-slate-800 mt-0.5 block">
+              <span className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5 block">
                 {filteredAuditLogs.length}
               </span>
-              <span className="text-[10px] text-slate-400">Dari total {auditLogList.length} aktivitas</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">Dari total {auditLogList.length} aktivitas</span>
             </div>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold">
                 Total Akumulasi Nominal
               </span>
-              <span className="text-lg font-black text-orange-600 mt-0.5 block">
+              <span className="text-lg font-black text-orange-600 dark:text-orange-400 mt-0.5 block">
                 {formatRupiah(totalAuditNominal)}
               </span>
-              <span className="text-[10px] text-slate-400">Total volume uang tercatat</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">Total volume uang tercatat</span>
             </div>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold">
                 Aktivitas Tutup Toko
               </span>
-              <span className="text-lg font-black text-emerald-600 mt-0.5 block">
+              <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5 block">
                 {auditLogList.filter((l) => l.aksi === 'Tutup Toko').length} Kali
               </span>
-              <span className="text-[10px] text-slate-400">Closing kas laci tersimpan</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">Closing kas laci tersimpan</span>
             </div>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold">
                 Pengeluaran Kas Laci
               </span>
-              <span className="text-lg font-black text-red-600 mt-0.5 block">
+              <span className="text-lg font-black text-red-600 dark:text-red-400 mt-0.5 block">
                 {auditLogList.filter((l) => l.aksi === 'Pengeluaran Kas Laci').length} Kali
               </span>
-              <span className="text-[10px] text-slate-400">Dengan nota terverifikasi</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">Dengan nota terverifikasi</span>
             </div>
           </div>
 
           {/* Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
             {filteredAuditLogs.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 text-xs">
+              <div className="py-12 text-center text-slate-400 dark:text-slate-500 text-xs">
                 Tidak ada riwayat log audit yang sesuai dengan filter pencarian.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px]">
+                    <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold uppercase text-[10px]">
                       <th className="py-3 px-4 w-12 text-center">No</th>
                       <th className="py-3 px-3">Waktu (Tgl & Jam)</th>
                       <th className="py-3 px-3">Siapa (Petugas)</th>
@@ -1178,40 +1183,40 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                       <th className="py-3 px-4">Keterangan Aktivitas</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {filteredAuditLogs
                       .slice()
                       .reverse()
                       .map((log, idx) => {
                         const aksiColor =
                           log.aksi === 'Tutup Toko'
-                            ? 'bg-red-100 text-red-800 border-red-200'
+                            ? 'bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800'
                             : log.aksi === 'Buka Toko'
-                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                            ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                             : log.aksi === 'Pengeluaran Kas Laci'
-                            ? 'bg-amber-100 text-amber-800 border-amber-200'
+                            ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
                             : log.aksi === 'Transaksi Kasir'
-                            ? 'bg-blue-100 text-blue-800 border-blue-200'
+                            ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800'
                             : log.aksi === 'Retur Transaksi'
-                            ? 'bg-purple-100 text-purple-800 border-purple-200'
-                            : 'bg-slate-100 text-slate-800 border-slate-200';
+                            ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700';
 
                         return (
-                          <tr key={log.id} className="hover:bg-slate-50/80 transition">
-                            <td className="py-3 px-4 text-center font-bold text-slate-400 text-[11px]">
+                          <tr key={log.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition">
+                            <td className="py-3 px-4 text-center font-bold text-slate-400 dark:text-slate-500 text-[11px]">
                               {filteredAuditLogs.length - idx}
                             </td>
-                            <td className="py-3 px-3 font-semibold text-slate-800 whitespace-nowrap">
+                            <td className="py-3 px-3 font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                               <div>{log.tanggal}</div>
-                              <div className="text-[10px] text-slate-400 font-mono">
+                              <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
                                 {log.jam}
                               </div>
                             </td>
-                            <td className="py-3 px-3 text-slate-700 whitespace-nowrap font-bold">
+                            <td className="py-3 px-3 text-slate-700 dark:text-slate-200 whitespace-nowrap font-bold">
                               {log.siapa}
                             </td>
                             <td className="py-3 px-3 whitespace-nowrap">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-orange-50 text-orange-800 border border-orange-200">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-orange-50 dark:bg-orange-950/50 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
                                 {log.cabang}
                               </span>
                             </td>
@@ -1222,24 +1227,24 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                                 {log.aksi}
                               </span>
                             </td>
-                            <td className="py-3 px-3 text-right font-black text-slate-800 whitespace-nowrap">
+                            <td className="py-3 px-3 text-right font-black text-slate-800 dark:text-slate-100 whitespace-nowrap">
                               {log.nominal !== undefined ? (
                                 <span
                                   className={
                                     log.aksi === 'Pengeluaran Kas Laci'
-                                      ? 'text-red-600'
+                                      ? 'text-red-600 dark:text-red-400'
                                       : log.aksi === 'Tutup Toko'
-                                      ? 'text-emerald-700 font-black'
-                                      : 'text-slate-800'
+                                      ? 'text-emerald-700 dark:text-emerald-400 font-black'
+                                      : 'text-slate-800 dark:text-slate-100'
                                   }
                                 >
                                   {formatRupiah(log.nominal)}
                                 </span>
                               ) : (
-                                <span className="text-slate-400 font-normal">-</span>
+                                <span className="text-slate-400 dark:text-slate-500 font-normal">-</span>
                               )}
                             </td>
-                            <td className="py-3 px-4 text-slate-600 max-w-xs break-words">
+                            <td className="py-3 px-4 text-slate-600 dark:text-slate-300 max-w-xs break-words">
                               {log.keterangan || '-'}
                             </td>
                           </tr>
@@ -1257,20 +1262,20 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       {activeSubTab === 'auditBulanan' && (
         <div className="space-y-5 animate-in fade-in duration-200">
           {/* Header Banner */}
-          <div className="bg-gradient-to-r from-orange-600 via-amber-600 to-amber-700 rounded-2xl p-5 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="brand-gradient rounded-2xl p-5 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-1 bg-white/20 backdrop-blur-xs rounded-lg text-[11px] font-black tracking-wider uppercase">
                   Audit Bulanan Resmi
                 </span>
-                <span className="text-orange-200 text-xs font-semibold">
+                <span className="text-white/80 text-xs font-semibold">
                   Cabang {auditBulananCabang}
                 </span>
               </div>
               <h3 className="text-xl font-black mt-1">
                 Laporan & Rekapitulasi Audit Periode {auditBulananBulan}
               </h3>
-              <p className="text-xs text-orange-100 mt-0.5">
+              <p className="text-xs text-white/90 mt-0.5">
                 Pencocokan omzet POS kasir, pengeluaran toko yang telah disetujui (ACC) Owner, setoran akhir kas, dan log aktivitas operasional.
               </p>
             </div>
@@ -1290,7 +1295,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                   logs: auditMonthlyLogs,
                 })
               }
-              className="px-4 py-2.5 bg-white text-orange-900 hover:bg-orange-50 font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg transition cursor-pointer shrink-0"
+              className="px-4 py-2.5 bg-white text-slate-900 hover:bg-slate-50 font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg transition cursor-pointer shrink-0"
             >
               <Printer className="w-4 h-4 text-orange-600" />
               <span>Cetak / Simpan PDF Audit Cabang</span>
@@ -1299,78 +1304,78 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
           {/* Metric Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
                 Total Omzet POS
               </span>
-              <span className="text-lg font-black text-slate-800 mt-1 block">
+              <span className="text-lg font-black text-slate-800 dark:text-slate-100 mt-1 block">
                 {formatRupiah(auditMonthlyOmzet)}
               </span>
-              <span className="text-[10px] text-slate-500 font-medium">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                 {auditMonthlyTrx.length} transaksi sukses
               </span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
                 Pengeluaran Toko (ACC)
               </span>
-              <span className="text-lg font-black text-red-600 mt-1 block">
+              <span className="text-lg font-black text-red-600 dark:text-red-400 mt-1 block">
                 {formatRupiah(auditMonthlyExpensesAcc)}
               </span>
-              <span className="text-[10px] text-slate-500 font-medium">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                 Disetujui DC Pusat / Owner
               </span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-emerald-200 bg-emerald-50/30 shadow-xs">
-              <span className="text-emerald-700 block text-[10px] uppercase font-black tracking-wider">
+            <div className="bg-emerald-50/30 dark:bg-emerald-950/30 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800 shadow-xs">
+              <span className="text-emerald-700 dark:text-emerald-400 block text-[10px] uppercase font-black tracking-wider">
                 Setoran Akhir Bersih
               </span>
-              <span className="text-lg font-black text-emerald-700 mt-1 block">
+              <span className="text-lg font-black text-emerald-700 dark:text-emerald-300 mt-1 block">
                 {formatRupiah(auditMonthlySetoran)}
               </span>
-              <span className="text-[10px] text-emerald-600 font-medium">
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
                 Omzet - Pengeluaran ACC
               </span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
                 Pengeluaran Menunggu ACC
               </span>
-              <span className="text-lg font-black text-amber-600 mt-1 block">
+              <span className="text-lg font-black text-amber-600 dark:text-amber-400 mt-1 block">
                 {formatRupiah(auditMonthlyExpensesPending)}
               </span>
-              <span className="text-[10px] text-amber-700 font-medium">
+              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
                 Belum dihitung ke setoran
               </span>
             </div>
           </div>
 
           {/* TABEL 1: REKAP CLOSING TUTUP TOKO CABANG */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800">
               <div className="flex items-center gap-2">
-                <Store className="w-4 h-4 text-orange-600" />
-                <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wide">
+                <Store className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-xs uppercase tracking-wide">
                   Riwayat Closing Tutup Toko ({auditMonthlyClosings.length} Hari)
                 </h4>
               </div>
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
                 Pencatatan kas laci & crew absen pulang
               </span>
             </div>
 
             {auditMonthlyClosings.length === 0 ? (
-              <div className="py-10 text-center text-slate-400 text-xs">
+              <div className="py-10 text-center text-slate-400 dark:text-slate-500 text-xs">
                 Belum ada data closing tutup toko untuk cabang <strong>{auditBulananCabang}</strong> di periode {auditBulananBulan}.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px]">
+                    <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold uppercase text-[10px]">
                       <th className="py-2.5 px-3 w-10 text-center">No</th>
                       <th className="py-2.5 px-3">Tanggal</th>
                       <th className="py-2.5 px-3">Jam Operasional</th>
@@ -1382,38 +1387,38 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                       <th className="py-2.5 px-3 text-center">Crew Pulang</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {auditMonthlyClosings
                       .slice()
                       .sort((a, b) => b.tanggal.localeCompare(a.tanggal))
                       .map((lap, idx) => (
-                        <tr key={lap.id} className="hover:bg-slate-50/80 transition">
-                          <td className="py-2.5 px-3 text-center font-bold text-slate-400">
+                        <tr key={lap.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition">
+                          <td className="py-2.5 px-3 text-center font-bold text-slate-400 dark:text-slate-500">
                             {idx + 1}
                           </td>
-                          <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">
+                          <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap">
                             {lap.tanggal}
                           </td>
-                          <td className="py-2.5 px-3 text-slate-600 font-mono text-[11px] whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300 font-mono text-[11px] whitespace-nowrap">
                             {lap.jamBuka || '-'} s/d {lap.jamTutup || '-'}
                           </td>
-                          <td className="py-2.5 px-3 font-semibold text-slate-700 whitespace-nowrap">
+                          <td className="py-2.5 px-3 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
                             {lap.kasirNama}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-black text-slate-800 whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-right font-black text-slate-800 dark:text-slate-100 whitespace-nowrap">
                             {formatRupiah(lap.totalOmzet)}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-black text-red-600 whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-right font-black text-red-600 dark:text-red-400 whitespace-nowrap">
                             {formatRupiah(lap.pengeluaranAcc || 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-black text-emerald-700 whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-right font-black text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
                             {formatRupiah(lap.setoran)}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-semibold text-slate-700 whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-right font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
                             {formatRupiah(lap.cashLaci)}
                           </td>
                           <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
                               {lap.crewPulangCount || 0} Orang
                             </span>
                           </td>
@@ -1426,28 +1431,28 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           </div>
 
           {/* TABEL 2: RINCIAN PENGELUARAN TOKO DI BULAN INI */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800">
               <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-orange-600" />
-                <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wide">
+                <DollarSign className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-xs uppercase tracking-wide">
                   Rincian Pengeluaran Toko ({auditMonthlyExpenses.length} Pengajuan)
                 </h4>
               </div>
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
                 Persetujuan 1-Klik Owner DC Pusat
               </span>
             </div>
 
             {auditMonthlyExpenses.length === 0 ? (
-              <div className="py-10 text-center text-slate-400 text-xs">
+              <div className="py-10 text-center text-slate-400 dark:text-slate-500 text-xs">
                 Tidak ada pengajuan pengeluaran toko untuk cabang <strong>{auditBulananCabang}</strong> di periode {auditBulananBulan}.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px]">
+                    <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold uppercase text-[10px]">
                       <th className="py-2.5 px-3 w-10 text-center">No</th>
                       <th className="py-2.5 px-3">Tanggal & Jam</th>
                       <th className="py-2.5 px-3">Pengaju (Kasir)</th>
@@ -1457,34 +1462,34 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                       <th className="py-2.5 px-3">Verifikator / Waktu</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {auditMonthlyExpenses
                       .slice()
                       .sort((a, b) => b.tanggal.localeCompare(a.tanggal))
                       .map((p, idx) => {
                         const statusBadge =
                           p.status === 'Disetujui'
-                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
                             : p.status === 'Ditolak'
-                            ? 'bg-red-100 text-red-800 border-red-300'
-                            : 'bg-amber-100 text-amber-800 border-amber-300';
+                            ? 'bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 border-red-300 dark:border-red-800'
+                            : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800';
 
                         return (
-                          <tr key={p.id} className="hover:bg-slate-50/80 transition">
-                            <td className="py-2.5 px-3 text-center font-bold text-slate-400">
+                          <tr key={p.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition">
+                            <td className="py-2.5 px-3 text-center font-bold text-slate-400 dark:text-slate-500">
                               {idx + 1}
                             </td>
-                            <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">
+                            <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                               <div>{p.tanggal}</div>
-                              <div className="text-[10px] text-slate-400 font-mono">{p.jam}</div>
+                              <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{p.jam}</div>
                             </td>
-                            <td className="py-2.5 px-3 font-bold text-slate-700 whitespace-nowrap">
+                            <td className="py-2.5 px-3 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">
                               {p.pengajuNama || p.kasirNama}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-black text-slate-900 whitespace-nowrap">
+                            <td className="py-2.5 px-3 text-right font-black text-slate-900 dark:text-slate-100 whitespace-nowrap">
                               {formatRupiah(p.nominal)}
                             </td>
-                            <td className="py-2.5 px-4 text-slate-700 max-w-xs break-words">
+                            <td className="py-2.5 px-4 text-slate-700 dark:text-slate-300 max-w-xs break-words">
                               {p.keterangan}
                             </td>
                             <td className="py-2.5 px-3 text-center whitespace-nowrap">
@@ -1492,14 +1497,14 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                                 {p.status}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-slate-600 text-[11px] whitespace-nowrap">
+                            <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300 text-[11px] whitespace-nowrap">
                               {p.accOleh ? (
                                 <>
-                                  <div className="font-semibold text-slate-800">{p.accOleh}</div>
-                                  <div className="text-[10px] text-slate-400 font-mono">{p.accWaktu || '-'}</div>
+                                  <div className="font-semibold text-slate-800 dark:text-slate-200">{p.accOleh}</div>
+                                  <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{p.accWaktu || '-'}</div>
                                 </>
                               ) : (
-                                <span className="text-slate-400 italic">Menunggu respon</span>
+                                <span className="text-slate-400 dark:text-slate-500 italic">Menunggu respon</span>
                               )}
                             </td>
                           </tr>
@@ -1512,28 +1517,28 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           </div>
 
           {/* TABEL 3: LOG AUDIT PERMANEN CABANG DI BULAN INI */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800">
               <div className="flex items-center gap-2">
                 <Lock className="w-4 h-4 text-amber-500" />
-                <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wide">
+                <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-xs uppercase tracking-wide">
                   Audit Trail Permanen Cabang ({auditMonthlyLogs.length} Catatan)
                 </h4>
               </div>
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
                 Data permanen tidak dapat diubah atau dihapus
               </span>
             </div>
 
             {auditMonthlyLogs.length === 0 ? (
-              <div className="py-8 text-center text-slate-400 text-xs">
+              <div className="py-8 text-center text-slate-400 dark:text-slate-500 text-xs">
                 Tidak ada log aktivitas audit di cabang {auditBulananCabang} pada bulan ini.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px]">
+                    <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold uppercase text-[10px]">
                       <th className="py-2 px-3 w-10 text-center">No</th>
                       <th className="py-2 px-3">Waktu</th>
                       <th className="py-2 px-3">Petugas</th>
@@ -1542,31 +1547,31 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                       <th className="py-2 px-4">Keterangan</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {auditMonthlyLogs
                       .slice()
                       .reverse()
                       .slice(0, 50)
                       .map((log, idx) => (
-                        <tr key={log.id} className="hover:bg-slate-50/80 transition">
-                          <td className="py-2 px-3 text-center font-bold text-slate-400">
+                        <tr key={log.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition">
+                          <td className="py-2 px-3 text-center font-bold text-slate-400 dark:text-slate-500">
                             {idx + 1}
                           </td>
-                          <td className="py-2 px-3 font-mono text-[11px] text-slate-700 whitespace-nowrap">
+                          <td className="py-2 px-3 font-mono text-[11px] text-slate-700 dark:text-slate-300 whitespace-nowrap">
                             {log.tanggal} {log.jam}
                           </td>
-                          <td className="py-2 px-3 font-bold text-slate-800 whitespace-nowrap">
+                          <td className="py-2 px-3 font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap">
                             {log.siapa}
                           </td>
                           <td className="py-2 px-3 whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
                               {log.aksi}
                             </span>
                           </td>
-                          <td className="py-2 px-3 text-right font-black text-slate-900 whitespace-nowrap">
+                          <td className="py-2 px-3 text-right font-black text-slate-900 dark:text-slate-100 whitespace-nowrap">
                             {log.nominal ? formatRupiah(log.nominal) : '-'}
                           </td>
-                          <td className="py-2 px-4 text-slate-600 text-[11px] max-w-sm truncate">
+                          <td className="py-2 px-4 text-slate-600 dark:text-slate-300 text-[11px] max-w-sm truncate">
                             {log.keterangan || '-'}
                           </td>
                         </tr>
@@ -1584,29 +1589,29 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
         <div className="space-y-4">
           {/* Ringkasan Akuntansi Void */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-4 bg-white rounded-2xl border border-purple-200 shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-purple-200 dark:border-purple-800 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
                 <RotateCcw className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wider">
                   Total Transaksi Di-VOID
                 </span>
-                <span className="text-xl font-black text-purple-950">
+                <span className="text-xl font-black text-purple-950 dark:text-purple-200">
                   {divoidTrxList.length} Transaksi
                 </span>
               </div>
             </div>
 
-            <div className="p-4 bg-white rounded-2xl border border-emerald-200 shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-emerald-200 dark:border-emerald-800 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
                 <DollarSign className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wider">
                   Total Uang Kembalian (Kasir ➔ Pelanggan)
                 </span>
-                <span className="text-xl font-black text-emerald-700">
+                <span className="text-xl font-black text-emerald-700 dark:text-emerald-400">
                   {formatRupiah(
                     divoidTrxList
                       .filter((t) => (t.selisihVoid || 0) < 0)
@@ -1616,15 +1621,15 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               </div>
             </div>
 
-            <div className="p-4 bg-white rounded-2xl border border-amber-200 shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-amber-200 dark:border-amber-800 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
                 <TrendingUp className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wider">
                   Total Tagihan Tambahan (Pelanggan ➔ Kasir)
                 </span>
-                <span className="text-xl font-black text-amber-700">
+                <span className="text-xl font-black text-amber-700 dark:text-amber-400">
                   {formatRupiah(
                     divoidTrxList
                       .filter((t) => (t.selisihVoid || 0) > 0)
@@ -1636,12 +1641,12 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           </div>
 
           {/* Banner SOP Audit Void */}
-          <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-2xl text-xs text-purple-900 flex items-center justify-between gap-3">
+          <div className="p-3.5 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-2xl text-xs text-purple-900 dark:text-purple-200 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-purple-600 shrink-0" />
+              <ShieldCheck className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0" />
               <div>
                 <span className="font-bold block">Audit Transparansi Pesanan DIVOID</span>
-                <span className="text-[11px] text-purple-700">
+                <span className="text-[11px] text-purple-700 dark:text-purple-300">
                   Pesanan lama yang di-VOID dikunci dan tidak dihapus dari Firebase untuk rekam jejak akuntansi, selisih uang kas, dan pengembalian stok.
                 </span>
               </div>
@@ -1650,8 +1655,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
           {/* List Kartu Perbandingan Menu Lama vs Menu Pengganti */}
           {divoidTrxList.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 space-y-2">
-              <RotateCcw className="w-10 h-10 mx-auto text-slate-300" />
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-12 text-center text-slate-400 dark:text-slate-500 space-y-2">
+              <RotateCcw className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
               <p className="font-bold text-sm">Tidak ada transaksi DIVOID</p>
               <p className="text-xs">
                 {filterCabang === 'Semua'
@@ -1677,10 +1682,10 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                   return (
                     <div
                       key={trx.id}
-                      className="bg-white rounded-2xl border border-purple-200 shadow-xs overflow-hidden"
+                      className="bg-white dark:bg-slate-900 rounded-2xl border border-purple-200 dark:border-purple-800 shadow-xs overflow-hidden"
                     >
                       {/* Card Header */}
-                      <div className="p-3.5 bg-purple-50/70 border-b border-purple-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="p-3.5 bg-purple-50/70 dark:bg-purple-950/30 border-b border-purple-100 dark:border-purple-900 flex flex-wrap items-center justify-between gap-2 text-xs">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="px-2.5 py-0.5 rounded-lg bg-purple-600 text-white font-black text-xs">
                             VOID #{trx.invoiceNo}
@@ -1689,55 +1694,55 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                           <span className="px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white font-black text-xs">
                             PENGGANTI #{trx.voidKeInvoice || replacementTrx?.invoiceNo || '-'}
                           </span>
-                          <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-bold text-[10px]">
+                          <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-[10px]">
                             {trx.cabang}
                           </span>
                         </div>
 
-                        <div className="text-right text-[11px] text-slate-500 font-medium">
-                          <span>{trx.tanggal} {trx.jam}</span> • <span className="font-bold text-slate-700">Kasir: {trx.kasirNama || '-'}</span>
+                        <div className="text-right text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                          <span>{trx.tanggal} {trx.jam}</span> • <span className="font-bold text-slate-700 dark:text-slate-200">Kasir: {trx.kasirNama || '-'}</span>
                         </div>
                       </div>
 
                       {/* Card Body: Perbandingan Dua Kolom */}
                       <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                         {/* Kolom 1: Menu Lama */}
-                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                          <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                            <span className="font-black text-slate-700 uppercase tracking-wide text-[11px]">
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5">
+                            <span className="font-black text-slate-700 dark:text-slate-200 uppercase tracking-wide text-[11px]">
                               1. Menu Lama yang Dibatalkan:
                             </span>
-                            <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded">
+                            <span className="text-[10px] font-bold text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded">
                               Dibatalkan
                             </span>
                           </div>
 
                           <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
                             {oldItems.map((it, idx) => (
-                              <div key={idx} className="flex justify-between items-center text-slate-700 text-[11px]">
+                              <div key={idx} className="flex justify-between items-center text-slate-700 dark:text-slate-300 text-[11px]">
                                 <span className="truncate pr-2">
                                   <strong>{it.qty}x</strong> {it.nama}
                                 </span>
-                                <span className="font-bold text-slate-900 shrink-0">
+                                <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0">
                                   {formatRupiah(it.subtotal)}
                                 </span>
                               </div>
                             ))}
                           </div>
 
-                          <div className="pt-2 border-t border-slate-200 flex justify-between items-center font-black text-xs text-slate-800">
+                          <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center font-black text-xs text-slate-800 dark:text-slate-100">
                             <span>Total Pesanan Lama:</span>
                             <span className="text-sm">{formatRupiah(oldTotal)}</span>
                           </div>
                         </div>
 
                         {/* Kolom 2: Menu Pengganti */}
-                        <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-200 space-y-2">
-                          <div className="flex items-center justify-between border-b border-purple-200 pb-1.5">
-                            <span className="font-black text-purple-900 uppercase tracking-wide text-[11px]">
+                        <div className="p-3 bg-purple-50/50 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800 space-y-2">
+                          <div className="flex items-center justify-between border-b border-purple-200 dark:border-purple-800 pb-1.5">
+                            <span className="font-black text-purple-900 dark:text-purple-200 uppercase tracking-wide text-[11px]">
                               2. Menu Pengganti yang Dibuat:
                             </span>
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
                               Aktif Baru
                             </span>
                           </div>
@@ -1745,23 +1750,23 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                           {newItems.length > 0 ? (
                             <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
                               {newItems.map((it, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-purple-950 text-[11px]">
+                                <div key={idx} className="flex justify-between items-center text-purple-950 dark:text-purple-100 text-[11px]">
                                   <span className="truncate pr-2">
                                     <strong>{it.qty}x</strong> {it.nama}
                                   </span>
-                                  <span className="font-bold text-purple-900 shrink-0">
+                                  <span className="font-bold text-purple-900 dark:text-purple-200 shrink-0">
                                     {formatRupiah(it.subtotal)}
                                   </span>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <p className="text-slate-400 italic text-[11px] py-4 text-center">
+                            <p className="text-slate-400 dark:text-slate-500 italic text-[11px] py-4 text-center">
                               Rincian item ada di invoice #{trx.voidKeInvoice}
                             </p>
                           )}
 
-                          <div className="pt-2 border-t border-purple-200 flex justify-between items-center font-black text-xs text-purple-950">
+                          <div className="pt-2 border-t border-purple-200 dark:border-purple-800 flex justify-between items-center font-black text-xs text-purple-950 dark:text-purple-100">
                             <span>Total Pesanan Baru:</span>
                             <span className="text-sm">{formatRupiah(newTotal)}</span>
                           </div>
@@ -1769,31 +1774,31 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                       </div>
 
                       {/* Card Footer: Status Selisih (Kembalian atau Tagihan Tambahan) */}
-                      <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/70 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-500">Alasan Void:</span>
-                          <span className="font-semibold text-slate-800 italic">
+                          <span className="font-bold text-slate-500 dark:text-slate-400">Alasan Void:</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 italic">
                             "{trx.keteranganVoid || trx.alasanRetur || 'Perubahan menu pelanggan'}"
                           </span>
                         </div>
 
                         <div className="flex items-center gap-2">
                           {selisih < 0 ? (
-                            <div className="px-3 py-1 bg-emerald-100 text-emerald-950 border border-emerald-300 rounded-xl font-black text-xs flex items-center gap-1.5">
+                            <div className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 rounded-xl font-black text-xs flex items-center gap-1.5">
                               <span>KEMBALIAN (Uang ke Pelanggan):</span>
-                              <span className="text-sm font-black text-emerald-800">
+                              <span className="text-sm font-black text-emerald-800 dark:text-emerald-300">
                                 {formatRupiah(Math.abs(selisih))}
                               </span>
                             </div>
                           ) : selisih > 0 ? (
-                            <div className="px-3 py-1 bg-amber-100 text-amber-950 border border-amber-300 rounded-xl font-black text-xs flex items-center gap-1.5">
+                            <div className="px-3 py-1 bg-amber-100 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-800 rounded-xl font-black text-xs flex items-center gap-1.5">
                               <span>TAGIHAN (Kekurangan Dibayar):</span>
-                              <span className="text-sm font-black text-amber-900">
+                              <span className="text-sm font-black text-amber-900 dark:text-amber-300">
                                 {formatRupiah(selisih)}
                               </span>
                             </div>
                           ) : (
-                            <div className="px-3 py-1 bg-blue-100 text-blue-900 border border-blue-300 rounded-xl font-black text-xs">
+                            <div className="px-3 py-1 bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 border border-blue-300 dark:border-blue-800 rounded-xl font-black text-xs">
                               SELISIH: Rp 0 (Harga Sama Pas)
                             </div>
                           )}
