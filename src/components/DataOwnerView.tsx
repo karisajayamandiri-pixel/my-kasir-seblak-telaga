@@ -26,19 +26,6 @@ export const DataOwnerView: React.FC<DataOwnerViewProps> = ({
   currentUser,
   onUpdateOwner,
 }) => {
-  // Only owner can view this page
-  if (currentUser.jabatan !== 'Owner') {
-    return (
-      <div className="bg-red-50 dark:bg-red-950/60 border-2 border-red-200 dark:border-red-800 rounded-3xl p-8 text-center text-red-800 dark:text-red-200 space-y-2">
-        <AlertTriangle className="w-10 h-10 text-red-600 dark:text-red-400 mx-auto" />
-        <h3 className="font-black text-lg">Akses Ditolak</h3>
-        <p className="text-xs">
-          Menu ini bersifat rahasia dan hanya dapat diakses serta diedit langsung oleh Akun Owner.
-        </p>
-      </div>
-    );
-  }
-
   const [nama, setNama] = useState(currentUser.nama);
   const [nib, setNib] = useState(currentUser.nib || '1902240012345');
   const [email, setEmail] = useState(currentUser.email || 'karisajayamandiri@gmail.com');
@@ -60,6 +47,19 @@ export const DataOwnerView: React.FC<DataOwnerViewProps> = ({
     setUsername(currentUser.username);
     setPassword(currentUser.password);
   }, [currentUser]);
+
+  // Only owner can view this page
+  if ((currentUser.jabatan || '').trim().toLowerCase() !== 'owner') {
+    return (
+      <div className="bg-red-50 dark:bg-red-950/60 border-2 border-red-200 dark:border-red-800 rounded-3xl p-8 text-center text-red-800 dark:text-red-200 space-y-2">
+        <AlertTriangle className="w-10 h-10 text-red-600 dark:text-red-400 mx-auto" />
+        <h3 className="font-black text-lg">Akses Ditolak</h3>
+        <p className="text-xs">
+          Menu ini bersifat rahasia dan hanya dapat diakses serta diedit langsung oleh Akun Owner.
+        </p>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,7 +195,8 @@ export const DataOwnerView: React.FC<DataOwnerViewProps> = ({
               className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-amber-400 dark:border-amber-600 rounded-xl font-mono text-sm font-black text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 tracking-wider shadow-inner"
             />
             <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">
-              ⚠️ <strong>Penting:</strong> Jika Anda salah memasukkan kata sandi akun Owner sebanyak 3 kali di layar
+              <AlertTriangle className="w-3.5 h-3.5 inline mr-1 -mt-0.5 text-amber-600 dark:text-amber-400" />
+              <strong>Penting:</strong> Jika Anda salah memasukkan kata sandi akun Owner sebanyak 3 kali di layar
               login, sistem akan menanyakan Nomor Induk Berusaha (NIB) ini untuk verifikasi.
             </p>
           </div>

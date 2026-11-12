@@ -2,16 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   Printer,
   X,
-  Flame,
   Check,
   Bluetooth,
-  FileText,
-  Settings2,
-  RefreshCw,
   ExternalLink,
-  ShieldCheck,
-  Smartphone,
-  Sliders,
   AlertCircle,
 } from 'lucide-react';
 import {
@@ -25,6 +18,7 @@ import {
   AppSettings,
 } from '../types';
 import { formatRupiah } from '../utils/storage';
+import { getBranchName } from '../utils/branchHelper';
 import {
   DEFAULT_BUSINESS_NAME,
   DEFAULT_TAGLINE,
@@ -35,13 +29,11 @@ import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker
 import {
   connectBluetoothPrinter,
   disconnectBluetoothPrinter,
-  isPrinterConnected,
   getConnectedDeviceName,
   printReceiptViaBluetooth,
   printKitchenTicketViaBluetooth,
   printTestBluetooth,
   getRawBtReceiptUrl,
-  isWebBluetoothSupported,
 } from '../utils/bluetoothPrinter';
 
 export type PrintDocumentType =
@@ -78,8 +70,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({
   karyawanList = [],
   appSettings,
 }) => {
-  if (!type) return null;
-
   const brandName = (appSettings?.namaUsaha || DEFAULT_BUSINESS_NAME).trim() || DEFAULT_BUSINESS_NAME;
   const brandTagline = (appSettings?.tagline !== undefined ? appSettings.tagline : DEFAULT_TAGLINE).trim();
   const brandLogoUrl = appSettings?.logoUrl || DEFAULT_LOGO_URL;
@@ -99,20 +89,29 @@ export const PrintModal: React.FC<PrintModalProps> = ({
     setConnectedDevice(getConnectedDeviceName());
   }, []);
 
+  if (!type) return null;
+
   const handlePrint = () => {
     window.print();
   };
 
   const isThermalTicketOrReceipt = type === 'struk' || type === 'tiketDapur';
 
+  const findBranchInfo = (rawCabang?: string) => {
+    const resolved = getBranchName(rawCabang, dataCabangList).trim().toUpperCase();
+    return dataCabangList.find(
+      (c) =>
+        (rawCabang && (c.id === rawCabang || c.branchId === rawCabang)) ||
+        c.nama.trim().toUpperCase() === resolved
+    );
+  };
+
   const handlePrintBluetooth = async () => {
-    if (!isThermalTicketOrReceipt) return;
+    if (!isThermalTicketOrReceipt || !data) return;
     setIsBtPrinting(true);
     setBtStatusMsg({ type: 'info', text: 'Menghubungkan ke printer Bluetooth...' });
 
-    const branchInfo = dataCabangList.find(
-      (c) => c.nama.trim().toUpperCase() === (data.cabang || '').trim().toUpperCase()
-    );
+    const branchInfo = findBranchInfo(data?.cabang);
 
     const result =
       type === 'tiketDapur'
@@ -166,10 +165,13 @@ export const PrintModal: React.FC<PrintModalProps> = ({
   const handleTestPrintBt = async () => {
     setIsBtPrinting(true);
     setBtStatusMsg({ type: 'info', text: 'Mengirim perintah cetak uji coba...' });
-    const result = await printTestBluetooth(data.cabang || 'DC PUSAT', {
-      namaUsaha: brandName,
-      tagline: brandTagline,
-    });
+    const result = await printTestBluetooth(
+      getBranchName(data?.cabang, dataCabangList) || 'DC PUSAT',
+      {
+        namaUsaha: brandName,
+        tagline: brandTagline,
+      }
+    );
     setIsBtPrinting(false);
 
     if (result.success) {
@@ -184,18 +186,26 @@ export const PrintModal: React.FC<PrintModalProps> = ({
     }
   };
 
-  const branchForRawBt = dataCabangList.find(
-    (c) => c.nama.trim().toUpperCase() === (data?.cabang || '').trim().toUpperCase()
-  );
+  const branchForRawBt = findBranchInfo(data?.cabang);
   const rawBtUrl =
-    type === 'struk'
+    type === 'struk' && data
       ? getRawBtReceiptUrl(data, branchForRawBt, { namaUsaha: brandName, tagline: brandTagline })
       : '';
 
+  const dynamicPageSize =
+    paperSize === 'A4'
+      ? 'A4 portrait'
+      : paperSize === 'F4'
+      ? '215mm 330mm'
+      : paperSize === 'Letter'
+      ? 'letter portrait'
+      : 'auto';
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      {/* Container - hide on print, only the printable body will show */}
-      <div className="bg-slate-100 dark:bg-slate-900 rounded-3xl max-w-4xl w-full p-4 shadow-2xl space-y-3 max-h-[95vh] flex flex-col border border-slate-200 dark:border-slate-800">
+    <div className="print-modal-root fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+      <style>{`@media print { @page { size: ${dynamicPageSize}; } }`}</style>
+      {/* Container - hide controls on print, only the printable body will show */}
+      <div className="print-modal-container bg-slate-100 dark:bg-slate-900 rounded-3xl max-w-4xl w-full p-4 shadow-2xl space-y-3 max-h-[95vh] flex flex-col border border-slate-200 dark:border-slate-800">
         {/* Modal Controls Bar (Never printed) */}
         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 no-print shrink-0 space-y-3 shadow-xs">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700 pb-3">
@@ -250,7 +260,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -260,26 +270,26 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           {/* 1. KHUSUS STRUK & TIKET DAPUR: KONTROL CETAK BLUETOOTH */}
           {isThermalTicketOrReceipt && (
             <div className="space-y-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2 bg-blue-50/70 p-3 rounded-xl border border-blue-200 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-blue-50/70 dark:bg-blue-950/40 p-3 rounded-xl border border-blue-200 dark:border-blue-800 text-xs">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 bg-blue-600 text-white rounded-lg">
                     <Bluetooth className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="font-extrabold text-blue-900 flex items-center gap-2">
+                    <div className="font-extrabold text-blue-900 dark:text-blue-200 flex items-center gap-2">
                       <span>Printer Bluetooth {type === 'tiketDapur' ? 'Dapur' : 'Kasir'}:</span>
                       {connectedDevice ? (
-                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                        <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-black px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <Check className="w-3 h-3" />
                           {connectedDevice}
                         </span>
                       ) : (
-                        <span className="bg-slate-200 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        <span className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
                           Belum Terhubung
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-blue-700 mt-0.5">
+                    <p className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">
                       ESC/POS 58mm/80mm (Panda, GOOJPRT, RPP02N, Epson, MPT, Iware, Paperang, dll.)
                     </p>
                   </div>
@@ -292,14 +302,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                         type="button"
                         onClick={handleTestPrintBt}
                         disabled={isBtPrinting}
-                        className="px-3 py-1.5 bg-white border border-blue-300 hover:bg-blue-100 text-blue-800 font-bold rounded-lg text-xs transition cursor-pointer"
+                        className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-950 text-blue-800 dark:text-blue-200 font-bold rounded-lg text-xs transition cursor-pointer"
                       >
                         Test Print
                       </button>
                       <button
                         type="button"
                         onClick={handleDisconnectBt}
-                        className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg text-xs transition cursor-pointer"
+                        className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-lg text-xs transition cursor-pointer"
                       >
                         Putus Koneksi
                       </button>
@@ -345,24 +355,24 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <div
                   className={`p-2.5 rounded-xl text-xs font-bold flex items-center justify-between ${
                     btStatusMsg.type === 'success'
-                      ? 'bg-emerald-50 text-emerald-900 border border-emerald-300'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800'
                       : btStatusMsg.type === 'error'
-                      ? 'bg-red-50 text-red-900 border border-red-300'
-                      : 'bg-blue-50 text-blue-900 border border-blue-300'
+                      ? 'bg-red-50 dark:bg-red-950/60 text-red-900 dark:text-red-200 border border-red-300 dark:border-red-800'
+                      : 'bg-blue-50 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 border border-blue-300 dark:border-blue-800'
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     {btStatusMsg.type === 'success' ? (
-                      <Check className="w-4 h-4 text-emerald-600" />
+                      <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                     ) : (
-                      <AlertCircle className="w-4 h-4 text-orange-600" />
+                      <AlertCircle className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                     )}
                     <span>{btStatusMsg.text}</span>
                   </div>
                   {rawBtUrl && btStatusMsg.type === 'error' && (
                     <a
                       href={rawBtUrl}
-                      className="text-xs underline text-blue-700 font-bold hover:text-blue-900 flex items-center gap-1"
+                      className="text-xs underline text-blue-700 dark:text-blue-300 font-bold hover:text-blue-900 flex items-center gap-1"
                     >
                       <span>Coba via Aplikasi RawBT</span>
                       <ExternalLink className="w-3 h-3" />
@@ -375,10 +385,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
           {/* 2. KHUSUS LAPORAN: KONTROL PRINTER KOMPUTER UNIVERSAL */}
           {!isThermalTicketOrReceipt && (
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-700">Ukuran Kertas:</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-200">Ukuran Kertas:</span>
                   <BottomSheetPickerTrigger
                     valueTitle={paperSize === 'Auto' ? 'Otomatis' : paperSize}
                     onClick={() => setShowPickerPaperSize(true)}
@@ -400,19 +410,19 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   />
                 </div>
 
-                <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700 select-none">
+                <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700 dark:text-slate-200 select-none">
                   <input
                     type="checkbox"
                     checked={highContrast}
                     onChange={(e) => setHighContrast(e.target.checked)}
-                    className="rounded border-slate-300 text-orange-600 focus:ring-orange-500 w-4 h-4 cursor-pointer"
+                    className="rounded border-slate-300 dark:border-slate-600 text-orange-600 focus:ring-orange-500 w-4 h-4 cursor-pointer"
                   />
                   <span>Monokrom Kontras Tinggi (Rekomendasi Dot Matrix / Laserjet B&W)</span>
                 </label>
               </div>
 
-              <div className="text-[11px] text-slate-500 font-medium hidden md:block">
-                Tersedia cetak dokumen ke PDF & fisik printer
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden md:block">
+                Tersedia cetak dokumen ke PDF &amp; fisik printer
               </div>
             </div>
           )}
@@ -420,20 +430,30 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
         {/* Paper Document Preview Area */}
         <div
-          className={`flex-1 overflow-y-auto flex justify-center p-2 ${
+          className={`print-modal-scroll flex-1 overflow-y-auto flex justify-center p-2 ${
             highContrast ? 'print-high-contrast' : ''
           }`}
         >
+          {['struk', 'tiketDapur', 'suratJalan', 'harian', 'bulanan', 'closingReceipt', 'auditBulanan', 'slipGaji'].includes(type) && !data && (
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-2 max-w-md w-full my-auto no-print">
+              <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
+              <p className="font-bold text-slate-800 dark:text-slate-100 text-sm">
+                Data dokumen cetak tidak tersedia
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Pilih ulang transaksi atau periode laporan sebelum mencetak dokumen.
+              </p>
+            </div>
+          )}
           {/* ==============================================================
               1. STRUK THERMAL 58MM
           ============================================================== */}
-          {type === 'struk' && (() => {
-            const branchInfo = dataCabangList.find(
-              (c) => c.nama.trim().toUpperCase() === (data.cabang || '').trim().toUpperCase()
-            );
-            const branchNama = branchInfo?.nama || data.cabang || 'PADAHERANG 01';
-            const branchAlamat = branchInfo?.alamat || 'Jl. Raya Padaherang No. 01';
-            const branchNoHp = branchInfo?.noHp || '0857-1234-5678';
+          {type === 'struk' && data && (() => {
+            const branchInfo = findBranchInfo(data.cabang);
+            const branchNama =
+              branchInfo?.nama || getBranchName(data.cabang, dataCabangList) || data.cabang || brandName;
+            const branchAlamat = branchInfo?.alamat || '-';
+            const branchNoHp = branchInfo?.noHp || '-';
 
             return (
               <div className="receipt-58mm bg-white p-4 shadow-lg border border-slate-300 rounded-lg w-[280px] text-black font-mono text-[11px] leading-tight printable-area">
@@ -527,16 +547,16 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 </div>
 
                 {/* Items List */}
-                <div className="py-2 border-b border-dashed border-black space-y-1.5 text-[11px]">
+                <div className="py-2 border-b border-dashed border-black space-y-1.5 text-[11px] tabular-nums">
                   {data.items?.map((item: any, idx: number) => (
                     <div key={idx} className="space-y-0.5">
                       <div className="font-bold flex justify-between">
                         <span>{item.nama}</span>
-                        <span>{formatRupiah(item.subtotal)}</span>
+                        <span>{formatRupiah(Number(item.subtotal) || 0)}</span>
                       </div>
                       <div className="text-[10px] text-slate-600 flex justify-between">
                         <span>
-                          {item.qty} x {formatRupiah(item.harga)}
+                          {Number(item.qty) || 0} x {formatRupiah(Number(item.harga) || 0)}
                           {item.levelPedas !== undefined && ` (${item.levelPedas})`}
                         </span>
                       </div>
@@ -550,34 +570,34 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 </div>
 
                 {/* Payment Summary */}
-                <div className="py-2 border-b border-dashed border-black space-y-1 text-[11px]">
+                <div className="py-2 border-b border-dashed border-black space-y-1 text-[11px] tabular-nums">
                   {data.tipePesanan === 'Delivery Order' && data.ongkir !== undefined && (
                     <>
                       <div className="flex justify-between text-[10px]">
                         <span>Subtotal Menu:</span>
                         <span>
-                          {formatRupiah(data.subtotalPesanan || (data.total - (data.ongkir || 0)))}
+                          {formatRupiah(Number(data.subtotalPesanan) || ((Number(data.total) || 0) - (Number(data.ongkir) || 0)))}
                         </span>
                       </div>
                       <div className="flex justify-between text-[10px]">
                         <span>Ongkir{data.jarakKm ? ` (${data.jarakKm} km)` : ''}:</span>
                         <span className="font-bold">
-                          {data.ongkir === 0 ? 'GRATIS' : formatRupiah(data.ongkir || 0)}
+                          {data.ongkir === 0 ? 'GRATIS' : formatRupiah(Number(data.ongkir) || 0)}
                         </span>
                       </div>
                     </>
                   )}
                   <div className="flex justify-between font-bold text-xs pt-0.5 border-t border-dashed border-black">
                     <span>TOTAL:</span>
-                    <span>{formatRupiah(data.total)}</span>
+                    <span>{formatRupiah(Number(data.total) || 0)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>BAYAR ({data.metodeBayar}):</span>
-                    <span>{formatRupiah(data.bayar)}</span>
+                    <span>{formatRupiah(Number(data.bayar) || 0)}</span>
                   </div>
                   <div className="flex justify-between font-bold">
                     <span>KEMBALIAN:</span>
-                    <span>{formatRupiah(data.kembali)}</span>
+                    <span>{formatRupiah(Number(data.kembali) || 0)}</span>
                   </div>
                 </div>
 
@@ -594,12 +614,12 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           {/* ==============================================================
               1B. TIKET DAPUR THERMAL 58MM (TANPA HARGA)
           ============================================================== */}
-          {type === 'tiketDapur' && (() => {
-            const branchInfo = dataCabangList.find(
-              (c) => c.nama.trim().toUpperCase() === (data.cabang || '').trim().toUpperCase()
-            );
-            const branchNama = branchInfo?.nama || data.cabang || 'PADAHERANG 01';
-            const totalQty = data.items?.reduce((acc: number, item: any) => acc + item.qty, 0) || 0;
+          {type === 'tiketDapur' && data && (() => {
+            const branchInfo = findBranchInfo(data.cabang);
+            const branchNama =
+              branchInfo?.nama || getBranchName(data.cabang, dataCabangList) || data.cabang || brandName;
+            const totalQty =
+              data.items?.reduce((acc: number, item: any) => acc + (Number(item.qty) || 0), 0) || 0;
 
             return (
               <div className="receipt-58mm bg-white p-4 shadow-lg border border-slate-300 rounded-lg w-[280px] text-black font-mono text-[11px] leading-tight printable-area">
@@ -619,14 +639,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   {/* Nomor Pesanan / Antrian Otomatis */}
                   <div className="flex justify-between items-center py-1.5 px-2 border-2 border-dashed border-black bg-slate-50 rounded">
                     <span className="font-black text-xs">ANTREAN DAPUR:</span>
-                    <span className="text-base font-black tracking-wider">
+                    <span className="text-base font-black tracking-wider tabular-nums">
                       {data.nomorPesanan || (data.takeAwayId ? data.takeAwayId : '#01')}
                     </span>
                   </div>
 
                   {data.voidDariInvoice && (
                     <div className="py-1 px-1.5 bg-amber-50 border border-amber-400 text-amber-900 font-black text-center text-[10px] rounded">
-                      ⚠️ TIKET MENU PENGGANTI (GANTI VOID #{data.voidDariInvoice?.slice(-6) || data.voidDariInvoice})
+                      TIKET MENU PENGGANTI (GANTI VOID #{data.voidDariInvoice?.slice(-6) || data.voidDariInvoice})
                     </div>
                   )}
 
@@ -686,12 +706,12 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       </div>
                       {item.levelPedas !== undefined && item.levelPedas !== '' && (
                         <div className="text-[10px] font-bold text-red-600 pl-6">
-                          🌶️ Level Pedas: {item.levelPedas}
+                          Level Pedas: {item.levelPedas}
                         </div>
                       )}
                       {item.catatan && (
                         <div className="text-[10px] text-slate-700 italic font-semibold pl-6">
-                          📝 Catatan: {item.catatan}
+                          Catatan: {item.catatan}
                         </div>
                       )}
                     </div>
@@ -715,24 +735,29 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           {/* ==============================================================
               2. SURAT JALAN A4
           ============================================================== */}
-          {type === 'suratJalan' && (() => {
-            // Requirement 2: Resolve recipient name & jabatan automatically for target branch
+          {type === 'suratJalan' && data && (() => {
+            const tujuanName = getBranchName(data.cabangTujuan, dataCabangList) || data.cabangTujuan || '-';
+            const matchesTujuan = (k: Karyawan) => {
+              const kBranch = getBranchName(k.cabang_id || k.cabang, dataCabangList);
+              return (
+                (kBranch === tujuanName || k.cabang === data.cabangTujuan) &&
+                k.status === 'Aktif'
+              );
+            };
             const branchRecipient =
               karyawanList?.find(
-                (k) => k.cabang === data.cabangTujuan && k.jabatan === 'Kepala Toko' && k.status === 'Aktif'
+                (k) => matchesTujuan(k) && (k.jabatan || '').trim().toUpperCase() === 'KEPALA TOKO'
               ) ||
               karyawanList?.find(
-                (k) => k.cabang === data.cabangTujuan && (k.jabatan === 'Cashier' || (k.jabatan as string) === 'Kasir') && k.status === 'Aktif'
+                (k) => matchesTujuan(k) && ['CASHIER', 'KASIR'].includes((k.jabatan || '').trim().toUpperCase())
               ) ||
               karyawanList?.find(
-                (k) => k.cabang === data.cabangTujuan && (k.jabatan === 'Crew Store' || (k.jabatan as string) === 'CREW STORE') && k.status === 'Aktif'
+                (k) => matchesTujuan(k) && (k.jabatan || '').trim().toUpperCase() === 'CREW STORE'
               ) ||
-              karyawanList?.find(
-                (k) => k.cabang === data.cabangTujuan && k.status === 'Aktif'
-              );
+              karyawanList?.find((k) => matchesTujuan(k));
 
             const displayPenerimaNama =
-              data.penerimaNama || branchRecipient?.nama || `Kepala Toko ${data.cabangTujuan}`;
+              data.penerimaNama || branchRecipient?.nama || `Kepala Toko ${tujuanName}`;
             const displayPenerimaJabatan =
               data.penerimaJabatan || branchRecipient?.jabatan || 'Kepala Toko';
 
@@ -765,7 +790,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-3 border border-slate-200 rounded">
                   <div>
                     <div>
-                      <strong>Cabang Tujuan:</strong> {data.cabangTujuan}
+                      <strong>Cabang Tujuan:</strong> {tujuanName}
                     </div>
                     <div>
                       <strong>Penerima di Cabang:</strong>{' '}
@@ -779,14 +804,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       <strong>Driver / Kurir:</strong> {data.driver}
                     </div>
                   </div>
-                  <div>
+                  <div className="tabular-nums">
                     <div>
                       <strong>Biaya Solar (Opsional):</strong>{' '}
-                      {data.biayaSolar > 0 ? formatRupiah(data.biayaSolar) : 'Rp 0'}
+                      {(Number(data.biayaSolar) || 0) > 0 ? formatRupiah(Number(data.biayaSolar) || 0) : 'Rp 0'}
                     </div>
                     <div>
                       <strong>Titipan Setoran:</strong>{' '}
-                      {data.setoran > 0 ? formatRupiah(data.setoran) : 'Rp 0'}
+                      {(Number(data.setoran) || 0) > 0 ? formatRupiah(Number(data.setoran) || 0) : 'Rp 0'}
                     </div>
                     <div>
                       <strong>Catatan:</strong> {data.catatan || '-'}
@@ -795,7 +820,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 </div>
 
                 {/* Items Table */}
-                <table className="w-full text-left border-collapse border border-black text-xs">
+                <table className="w-full text-left border-collapse border border-black text-xs tabular-nums">
                   <thead>
                     <tr className="bg-slate-100 border-b border-black text-slate-900 font-bold uppercase text-[10px]">
                       <th className="border border-black p-2 text-center w-10">No</th>
@@ -819,10 +844,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                           {it.satuan}
                         </td>
                         <td className="border border-black p-2 text-right font-black">
-                          {it.qtyKirim}
+                          {Number(it.qtyKirim) || 0}
                         </td>
                         <td className="border border-black p-2 text-right font-bold text-slate-700">
-                          {it.qtyTerima !== undefined ? it.qtyTerima : it.qtyKirim}
+                          {it.qtyTerima !== undefined ? Number(it.qtyTerima) || 0 : Number(it.qtyKirim) || 0}
                         </td>
                         <td className="border border-black p-2 text-center text-[10px]">
                           Baik / Sesuai
@@ -851,7 +876,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   </div>
 
                   <div className="space-y-16">
-                    <div className="font-bold">Penerima ({data.cabangTujuan})</div>
+                    <div className="font-bold">Penerima ({tujuanName})</div>
                     <div>
                       <div className="border-b border-black w-44 mx-auto"></div>
                       <div className="text-[11px] font-black mt-1 text-slate-900 uppercase">
@@ -870,7 +895,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           {/* ==============================================================
               3. LAPORAN HARIAN A4
           ============================================================== */}
-          {type === 'harian' && (
+          {type === 'harian' && data && (
             <div className="document-a4 bg-white p-8 shadow-lg border border-slate-300 rounded-lg max-w-[210mm] w-full text-black font-sans text-xs printable-area space-y-4">
               <div className="border-b-2 border-black pb-2 flex justify-between items-end">
                 <div>
@@ -887,35 +912,35 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               </div>
 
               {/* Financial Recap Box */}
-              <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 border border-slate-300 rounded text-xs">
+              <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 border border-slate-300 rounded text-xs tabular-nums">
                 <div>
                   <span className="text-slate-500 block text-[10px]">TOTAL OMZET:</span>
                   <span className="font-black text-sm text-slate-900">
-                    {formatRupiah(data.omzet)}
+                    {formatRupiah(Number(data.omzet) || 0)}
                   </span>
                   <span className="block text-[10px] text-slate-500">
-                    {data.trxList?.length} Nota Transaksi
+                    {data.trxList?.length || 0} Nota Transaksi
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px]">TOTAL MODAL HPP:</span>
                   <span className="font-bold text-sm text-slate-700">
-                    {formatRupiah(data.modal)}
+                    {formatRupiah(Number(data.modal) || 0)}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px]">KEUNTUNGAN BERSIH:</span>
                   <span className="font-black text-sm text-emerald-800">
-                    {formatRupiah(data.untung)}
+                    {formatRupiah(Number(data.untung) || 0)}
                   </span>
                   <span className="block text-[10px] text-emerald-700 font-bold">
-                    Margin: {data.omzet > 0 ? ((data.untung / data.omzet) * 100).toFixed(1) : 0}%
+                    Margin: {(Number(data.omzet) || 0) > 0 ? (((Number(data.untung) || 0) / (Number(data.omzet) || 1)) * 100).toFixed(1) : 0}%
                   </span>
                 </div>
               </div>
 
               {/* Transactions Table */}
-              <table className="w-full text-left border-collapse border border-black text-xs">
+              <table className="w-full text-left border-collapse border border-black text-xs tabular-nums">
                 <thead>
                   <tr className="bg-slate-100 border-b border-black font-bold uppercase text-[10px]">
                     <th className="border border-black p-1.5 text-center">No</th>
@@ -939,18 +964,18 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       <td className="border border-black p-1.5">
                         {t.items?.map((it: any, idx: number) => (
                           <div key={idx} className="text-[10px]">
-                            {it.qty}x {it.nama}
+                            {Number(it.qty) || 0}x {it.nama}
                           </div>
                         ))}
                       </td>
                       <td className="border border-black p-1.5 text-right">
-                        {formatRupiah(t.totalModal)}
+                        {formatRupiah(Number(t.totalModal) || 0)}
                       </td>
                       <td className="border border-black p-1.5 text-right font-black">
-                        {formatRupiah(t.total)}
+                        {formatRupiah(Number(t.total) || 0)}
                       </td>
                       <td className="border border-black p-1.5 text-right font-bold text-emerald-800">
-                        {formatRupiah(t.totalUntung)}
+                        {formatRupiah(Number(t.totalUntung) || 0)}
                       </td>
                       <td className="border border-black p-1.5 text-center">{t.metodeBayar}</td>
                     </tr>
@@ -974,7 +999,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           {/* ==============================================================
               4. LAPORAN BULANAN A4
           ============================================================== */}
-          {type === 'bulanan' && (
+          {type === 'bulanan' && data && (
             <div className="document-a4 bg-white p-8 shadow-lg border border-slate-300 rounded-lg max-w-[210mm] w-full text-black font-sans text-xs printable-area space-y-4">
               <div className="border-b-2 border-black pb-2 flex justify-between items-end">
                 <div>
@@ -991,31 +1016,31 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               </div>
 
               {/* Total Monthly Summary */}
-              <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 border border-slate-300 rounded text-xs">
+              <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 border border-slate-300 rounded text-xs tabular-nums">
                 <div>
                   <span className="text-slate-500 block text-[10px]">TOTAL OMZET BULAN INI:</span>
                   <span className="font-black text-base text-slate-900">
-                    {formatRupiah(data.totalOmzet)}
+                    {formatRupiah(Number(data.totalOmzet) || 0)}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px]">TOTAL MODAL HPP:</span>
                   <span className="font-bold text-base text-slate-700">
-                    {formatRupiah(data.totalModal)}
+                    {formatRupiah(Number(data.totalModal) || 0)}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px]">TOTAL LABA BERSIH:</span>
                   <span className="font-black text-base text-emerald-800">
-                    {formatRupiah(data.totalUntung)}
+                    {formatRupiah(Number(data.totalUntung) || 0)}
                   </span>
                   <span className="block text-[10px] text-emerald-700 font-bold">
-                    Margin: {data.totalOmzet > 0 ? ((data.totalUntung / data.totalOmzet) * 100).toFixed(1) : 0}%
+                    Margin: {(Number(data.totalOmzet) || 0) > 0 ? (((Number(data.totalUntung) || 0) / (Number(data.totalOmzet) || 1)) * 100).toFixed(1) : 0}%
                   </span>
                 </div>
               </div>
 
-              <table className="w-full text-left border-collapse border border-black text-xs">
+              <table className="w-full text-left border-collapse border border-black text-xs tabular-nums">
                 <thead>
                   <tr className="bg-slate-100 border-b border-black font-bold uppercase text-[10px]">
                     <th className="border border-black p-2 text-center w-10">No</th>
@@ -1030,20 +1055,22 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <tbody>
                   {data.dates?.map((date: string, i: number) => {
                     const row = data.grouped?.[date] || { count: 0, omzet: 0, modal: 0, untung: 0 };
-                    const margin = row.omzet > 0 ? ((row.untung / row.omzet) * 100).toFixed(1) : 0;
+                    const omzetVal = Number(row.omzet) || 0;
+                    const untungVal = Number(row.untung) || 0;
+                    const margin = omzetVal > 0 ? ((untungVal / omzetVal) * 100).toFixed(1) : 0;
                     return (
                       <tr key={i} className="border-b border-slate-300">
                         <td className="border border-black p-2 text-center font-bold">{i + 1}</td>
                         <td className="border border-black p-2 font-bold">{date}</td>
-                        <td className="border border-black p-2 text-center">{row.count} Nota</td>
+                        <td className="border border-black p-2 text-center">{Number(row.count) || 0} Nota</td>
                         <td className="border border-black p-2 text-right font-black">
-                          {formatRupiah(row.omzet)}
+                          {formatRupiah(omzetVal)}
                         </td>
                         <td className="border border-black p-2 text-right text-slate-700">
-                          {formatRupiah(row.modal)}
+                          {formatRupiah(Number(row.modal) || 0)}
                         </td>
                         <td className="border border-black p-2 text-right font-bold text-emerald-800">
-                          {formatRupiah(row.untung)}
+                          {formatRupiah(untungVal)}
                         </td>
                         <td className="border border-black p-2 text-center">{margin}%</td>
                       </tr>
@@ -1128,16 +1155,16 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                           </td>
                         )}
                         {data?.isPrivileged !== false && (
-                          <td className="border border-black p-2 text-right text-slate-600">
-                            {formatRupiah(m.hargaModal)}
+                          <td className="border border-black p-2 text-right text-slate-600 tabular-nums">
+                            {formatRupiah(Number(m.hargaModal) || 0)}
                           </td>
                         )}
-                        <td className="border border-black p-2 text-right font-black">
-                          {formatRupiah(m.hargaJual)}
+                        <td className="border border-black p-2 text-right font-black tabular-nums">
+                          {formatRupiah(Number(m.hargaJual) || 0)}
                         </td>
                         {data?.isPrivileged !== false && (
-                          <td className="border border-black p-2 text-right font-bold text-emerald-800">
-                            {formatRupiah(m.keuntungan)} ({margin}%)
+                          <td className="border border-black p-2 text-right font-bold text-emerald-800 tabular-nums">
+                            {formatRupiah(Number(m.keuntungan) || 0)} ({margin}%)
                           </td>
                         )}
                       </tr>
@@ -1184,7 +1211,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.map((a: Absensi, i: number) => {
+                  {(Array.isArray(data) ? data : []).map((a: Absensi, i: number) => {
                     const displayJabatan = a.jabatan || 'KASIR';
                     const displayKasir = a.kasirBertugas || a.nama;
 
@@ -1239,7 +1266,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   </p>
                 </div>
                 <div className="text-right text-[10px] text-slate-500">
-                  Total: {data?.length} Karyawan
+                  Total: {Array.isArray(data) ? data.length : 0} Karyawan
                 </div>
               </div>
 
@@ -1258,7 +1285,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.map((k: Karyawan, i: number) => (
+                  {(Array.isArray(data) ? data : []).map((k: Karyawan, i: number) => (
                     <tr key={i} className="border-b border-slate-300">
                       <td className="border border-black p-2 text-center font-bold">{i + 1}</td>
                       <td className="border border-black p-2 font-mono font-bold">{k.nik || '-'}</td>
@@ -1286,7 +1313,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           {/* ==============================================================
               8. LAPORAN CLOSING TUTUP TOKO (THERMAL / A4)
           ============================================================== */}
-          {type === 'closingReceipt' && (
+          {type === 'closingReceipt' && data && (
             <div className="document-thermal bg-white p-6 shadow-lg border border-slate-300 rounded-lg max-w-[420px] w-full text-black font-mono text-xs printable-area space-y-3">
               <div className="text-center border-b-2 border-black pb-3 space-y-1">
                 <div className="flex items-center justify-center gap-2 text-base font-black">
@@ -1297,14 +1324,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   LAPORAN TUTUP TOKO & CLOSING KASIR
                 </div>
                 <div className="text-[11px]">
-                  CABANG {data?.laporan?.cabang || data?.cabang}
+                  CABANG {getBranchName(data?.laporan?.cabang || data?.cabang, dataCabangList) || data?.laporan?.cabang || data?.cabang}
                 </div>
                 <div className="text-[10px] text-slate-600">
                   Tanggal: {data?.laporan?.tanggal || data?.tanggal} | Jam: {data?.laporan?.jamTutup || '-'}
                 </div>
               </div>
 
-              <div className="space-y-1.5 text-[11px] py-1 border-b border-dashed border-slate-400">
+              <div className="space-y-1.5 text-[11px] py-1 border-b border-dashed border-slate-400 tabular-nums">
                 <div className="flex justify-between">
                   <span>Kasir Closing:</span>
                   <span className="font-bold">{data?.laporan?.kasirNama}</span>
@@ -1315,30 +1342,30 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span>Modal Kas Awal:</span>
-                  <span>{formatRupiah(data?.laporan?.modalAwal || 0)}</span>
+                  <span>{formatRupiah(Number(data?.laporan?.modalAwal) || 0)}</span>
                 </div>
               </div>
 
-              <div className="space-y-2 py-2 border-b-2 border-black text-xs">
+              <div className="space-y-2 py-2 border-b-2 border-black text-xs tabular-nums">
                 <div className="flex justify-between font-bold">
                   <span>TOTAL OMZET POS:</span>
-                  <span>{formatRupiah(data?.laporan?.totalOmzet || 0)}</span>
+                  <span>{formatRupiah(Number(data?.laporan?.totalOmzet) || 0)}</span>
                 </div>
                 <div className="flex justify-between text-red-600 font-bold">
                   <span>PENGELUARAN ACC:</span>
-                  <span>- {formatRupiah(data?.laporan?.pengeluaranAcc || 0)}</span>
+                  <span>- {formatRupiah(Number(data?.laporan?.pengeluaranAcc) || 0)}</span>
                 </div>
                 <div className="flex justify-between font-black text-sm bg-slate-100 p-2 rounded">
                   <span>SETORAN AKHIR:</span>
-                  <span>{formatRupiah(data?.laporan?.setoran || 0)}</span>
+                  <span>{formatRupiah(Number(data?.laporan?.setoran) || 0)}</span>
                 </div>
                 <div className="flex justify-between text-[11px]">
                   <span>Fisik Kas di Laci:</span>
-                  <span className="font-bold">{formatRupiah(data?.laporan?.cashLaci || 0)}</span>
+                  <span className="font-bold">{formatRupiah(Number(data?.laporan?.cashLaci) || 0)}</span>
                 </div>
                 <div className="flex justify-between text-[11px]">
                   <span>Crew Hadir & Pulang:</span>
-                  <span className="font-bold">{data?.laporan?.crewPulangCount || 0} Orang</span>
+                  <span className="font-bold">{Number(data?.laporan?.crewPulangCount) || 0} Orang</span>
                 </div>
                 {Array.isArray(data?.laporan?.crewPulangNames) && data.laporan.crewPulangNames.length > 0 && (
                   <div className="text-[10px] text-slate-600">
@@ -1370,7 +1397,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           {/* ==============================================================
               9. LAPORAN AUDIT BULANAN CABANG A4
           ============================================================== */}
-          {type === 'auditBulanan' && (
+          {type === 'auditBulanan' && data && (
             <div className="document-a4 bg-white p-8 shadow-lg border border-slate-300 rounded-lg max-w-[210mm] w-full text-black font-sans text-xs printable-area space-y-4">
               <div className="border-b-2 border-black pb-3 flex justify-between items-end">
                 <div>
@@ -1381,7 +1408,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </h1>
                   </div>
                   <p className="text-xs font-bold text-slate-700">
-                    {brandName.toUpperCase()} - CABANG {data?.cabang?.toUpperCase()}
+                    {brandName.toUpperCase()} - CABANG {(getBranchName(data?.cabang, dataCabangList) || data?.cabang || '-').toUpperCase()}
                   </p>
                   <p className="text-[11px] text-slate-600">
                     Periode Audit: {data?.bulan} | Rekapitulasi Kasir, Pengeluaran Toko ACC & Setoran
@@ -1394,25 +1421,25 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               </div>
 
               {/* Ringkasan Finansial A4 */}
-              <div className="grid grid-cols-4 gap-2 border border-black p-3 bg-slate-50 text-xs">
+              <div className="grid grid-cols-4 gap-2 border border-black p-3 bg-slate-50 text-xs tabular-nums">
                 <div>
                   <div className="text-[10px] text-slate-600 uppercase font-bold">Total Omzet POS</div>
-                  <div className="font-black text-sm">{formatRupiah(data?.omzet || 0)}</div>
-                  <div className="text-[9px] text-slate-500">{data?.trxCount || 0} Transaksi</div>
+                  <div className="font-black text-sm">{formatRupiah(Number(data?.omzet) || 0)}</div>
+                  <div className="text-[9px] text-slate-500">{Number(data?.trxCount) || 0} Transaksi</div>
                 </div>
                 <div>
                   <div className="text-[10px] text-red-700 uppercase font-bold">Pengeluaran ACC</div>
-                  <div className="font-black text-sm text-red-700">{formatRupiah(data?.pengeluaranAcc || 0)}</div>
+                  <div className="font-black text-sm text-red-700">{formatRupiah(Number(data?.pengeluaranAcc) || 0)}</div>
                   <div className="text-[9px] text-slate-500">Disetujui Owner</div>
                 </div>
                 <div>
                   <div className="text-[10px] text-emerald-800 uppercase font-bold">Setoran Bersih</div>
-                  <div className="font-black text-sm text-emerald-800">{formatRupiah(data?.setoran || 0)}</div>
+                  <div className="font-black text-sm text-emerald-800">{formatRupiah(Number(data?.setoran) || 0)}</div>
                   <div className="text-[9px] text-slate-500">Omzet - Pengeluaran</div>
                 </div>
                 <div>
                   <div className="text-[10px] text-amber-700 uppercase font-bold">Pending ACC</div>
-                  <div className="font-black text-sm text-amber-700">{formatRupiah(data?.pengeluaranPending || 0)}</div>
+                  <div className="font-black text-sm text-amber-700">{formatRupiah(Number(data?.pengeluaranPending) || 0)}</div>
                   <div className="text-[9px] text-slate-500">Menunggu ACC</div>
                 </div>
               </div>
@@ -1444,15 +1471,15 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       </tr>
                     ) : (
                       data.closings.map((c: any, i: number) => (
-                        <tr key={i} className="border-b border-slate-300">
+                        <tr key={i} className="border-b border-slate-300 tabular-nums">
                           <td className="border border-black p-1 text-center">{i + 1}</td>
                           <td className="border border-black p-1 font-semibold">{c.tanggal}</td>
                           <td className="border border-black p-1">{c.kasirNama}</td>
-                          <td className="border border-black p-1 text-right font-bold">{formatRupiah(c.totalOmzet)}</td>
-                          <td className="border border-black p-1 text-right text-red-700 font-bold">{formatRupiah(c.pengeluaranAcc || 0)}</td>
-                          <td className="border border-black p-1 text-right font-black text-emerald-800">{formatRupiah(c.setoran)}</td>
-                          <td className="border border-black p-1 text-right">{formatRupiah(c.cashLaci)}</td>
-                          <td className="border border-black p-1 text-center">{c.crewPulangCount || 0} org</td>
+                          <td className="border border-black p-1 text-right font-bold">{formatRupiah(Number(c.totalOmzet) || 0)}</td>
+                          <td className="border border-black p-1 text-right text-red-700 font-bold">{formatRupiah(Number(c.pengeluaranAcc) || 0)}</td>
+                          <td className="border border-black p-1 text-right font-black text-emerald-800">{formatRupiah(Number(c.setoran) || 0)}</td>
+                          <td className="border border-black p-1 text-right">{formatRupiah(Number(c.cashLaci) || 0)}</td>
+                          <td className="border border-black p-1 text-center">{Number(c.crewPulangCount) || 0} org</td>
                         </tr>
                       ))
                     )}
@@ -1465,7 +1492,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <div className="font-black text-[11px] uppercase tracking-wide">
                   2. Rincian Pengeluaran Toko Yang Diajukan
                 </div>
-                <table className="w-full text-left border-collapse border border-black text-[10px]">
+                <table className="w-full text-left border-collapse border border-black text-[10px] tabular-nums">
                   <thead>
                     <tr className="bg-slate-100 border-b border-black font-bold uppercase">
                       <th className="border border-black p-1 text-center w-8">No</th>
@@ -1490,8 +1517,15 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                           <td className="border border-black p-1 text-center">{i + 1}</td>
                           <td className="border border-black p-1">{e.tanggal} {e.jam}</td>
                           <td className="border border-black p-1">{e.pengajuNama}</td>
-                          <td className="border border-black p-1 text-right font-bold">{formatRupiah(e.nominal)}</td>
-                          <td className="border border-black p-1">{e.keterangan}</td>
+                          <td className="border border-black p-1 text-right font-bold">{formatRupiah(Number(e.nominal) || 0)}</td>
+                          <td className="border border-black p-1">
+                            <div>{e.keterangan}</div>
+                            {(e.catatanAcc || e.catatanOwner) && (
+                              <div className="text-[9px] text-slate-500 italic">
+                                Catatan ACC: {e.catatanAcc || e.catatanOwner}
+                              </div>
+                            )}
+                          </td>
                           <td className="border border-black p-1 text-center font-bold">{e.status}</td>
                           <td className="border border-black p-1">{e.accOleh || '-'}</td>
                         </tr>
@@ -1589,30 +1623,30 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <div className="font-black text-[11px] uppercase tracking-wide text-slate-800">
                   1. Rincian Kehadiran & Jadwal Kerja
                 </div>
-                <div className="grid grid-cols-6 gap-2 text-center text-xs">
+                <div className="grid grid-cols-6 gap-2 text-center text-xs tabular-nums">
                   <div className="p-2 border border-slate-300 rounded bg-emerald-50">
                     <div className="text-[9px] text-slate-600 font-bold uppercase">Total Hadir</div>
-                    <div className="text-sm font-black text-emerald-700">{data.hadirCount || 0} Hari</div>
+                    <div className="text-sm font-black text-emerald-700">{Number(data.hadirCount) || 0} Hari</div>
                   </div>
                   <div className="p-2 border border-slate-300 rounded bg-white">
                     <div className="text-[9px] text-slate-600 font-bold uppercase">Tepat Waktu</div>
-                    <div className="text-sm font-bold text-slate-800">{data.tepatWaktuCount || 0} Hari</div>
+                    <div className="text-sm font-bold text-slate-800">{Number(data.tepatWaktuCount) || 0} Hari</div>
                   </div>
                   <div className="p-2 border border-slate-300 rounded bg-amber-50">
                     <div className="text-[9px] text-amber-700 font-bold uppercase">Terlambat</div>
-                    <div className="text-sm font-black text-amber-700">{data.telatCount || 0} Kali</div>
+                    <div className="text-sm font-black text-amber-700">{Number(data.telatCount) || 0} Kali</div>
                   </div>
                   <div className="p-2 border border-slate-300 rounded bg-purple-50">
                     <div className="text-[9px] text-purple-700 font-bold uppercase">Jadwal OFF</div>
-                    <div className="text-sm font-black text-purple-700">{data.offCount || 0} Hari</div>
+                    <div className="text-sm font-black text-purple-700">{Number(data.offCount) || 0} Hari</div>
                   </div>
                   <div className="p-2 border border-slate-300 rounded bg-blue-50">
                     <div className="text-[9px] text-blue-700 font-bold uppercase">Izin</div>
-                    <div className="text-sm font-bold text-blue-700">{data.izinCount || 0} Hari</div>
+                    <div className="text-sm font-bold text-blue-700">{Number(data.izinCount) || 0} Hari</div>
                   </div>
                   <div className="p-2 border border-slate-300 rounded bg-rose-50">
                     <div className="text-[9px] text-rose-700 font-bold uppercase">Sakit</div>
-                    <div className="text-sm font-bold text-rose-700">{data.sakitCount || 0} Hari</div>
+                    <div className="text-sm font-bold text-rose-700">{Number(data.sakitCount) || 0} Hari</div>
                   </div>
                 </div>
               </div>
@@ -1622,7 +1656,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <div className="font-black text-[11px] uppercase tracking-wide text-slate-800">
                   2. Rincian Penghasilan & Potongan Gaji
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 tabular-nums">
                   {/* Kolom Penghasilan */}
                   <div className="border border-black rounded p-3 bg-white space-y-2">
                     <div className="font-black text-[11px] text-emerald-900 border-b border-black pb-1 uppercase">
@@ -1633,32 +1667,32 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                         <div>
                           <div className="font-bold">Gaji Pokok Harian</div>
                           <div className="text-[9px] text-slate-500">
-                            {data.hadirCount} hari x {formatRupiah(data.gajiPokokHarian)}
+                            {Number(data.hadirCount) || 0} hari x {formatRupiah(Number(data.gajiPokokHarian) || 0)}
                           </div>
                         </div>
                         <div className="font-black text-slate-900">
-                          {formatRupiah(data.totalGajiPokok)}
+                          {formatRupiah(Number(data.totalGajiPokok) || 0)}
                         </div>
                       </div>
                       <div className="flex justify-between items-center">
                         <div>
                           <div className="font-bold">Uang Makan & Transport</div>
                           <div className="text-[9px] text-slate-500">
-                            {data.hadirCount} hari x {formatRupiah(data.uangMakanHarian)}
+                            {Number(data.hadirCount) || 0} hari x {formatRupiah(Number(data.uangMakanHarian) || 0)}
                           </div>
                         </div>
                         <div className="font-black text-slate-900">
-                          {formatRupiah(data.totalUangMakan)}
+                          {formatRupiah(Number(data.totalUangMakan) || 0)}
                         </div>
                       </div>
-                      {(data.bonus || 0) > 0 && (
+                      {(Number(data.bonus) || 0) > 0 && (
                         <div className="flex justify-between items-center text-emerald-800">
                           <div>
                             <div className="font-bold">Bonus / Insentif Tambahan</div>
                             <div className="text-[9px] text-slate-500">Apresiasi performa</div>
                           </div>
                           <div className="font-black">
-                            {formatRupiah(data.bonus)}
+                            {formatRupiah(Number(data.bonus) || 0)}
                           </div>
                         </div>
                       )}
@@ -1666,7 +1700,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     <div className="border-t border-dashed border-slate-400 pt-2 flex justify-between font-bold text-xs bg-emerald-50 p-1.5 rounded">
                       <span>Total Penghasilan Kotor:</span>
                       <span className="font-black text-emerald-900">
-                        {formatRupiah(data.penghasilanKotor)}
+                        {formatRupiah(Number(data.penghasilanKotor) || 0)}
                       </span>
                     </div>
                   </div>
@@ -1681,25 +1715,25 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                         <div>
                           <div className="font-bold">Denda Keterlambatan</div>
                           <div className="text-[9px] text-slate-500">
-                            {data.telatCount}x telat (&gt;08:00) x {formatRupiah(data.dendaTelat)}
+                            {Number(data.telatCount) || 0}x telat (&gt;08:00) x {formatRupiah(Number(data.dendaTelat) || 0)}
                           </div>
                         </div>
                         <div className="font-black text-rose-700">
-                          {formatRupiah(data.potonganTelat)}
+                          {formatRupiah(Number(data.potonganTelat) || 0)}
                         </div>
                       </div>
-                      {(data.potonganLain || 0) > 0 && (
+                      {(Number(data.potonganLain) || 0) > 0 && (
                         <div className="flex justify-between items-center text-rose-700">
                           <div>
                             <div className="font-bold">Potongan Lainnya</div>
                             <div className="text-[9px] text-slate-500">Administrasi / Lainnya</div>
                           </div>
                           <div className="font-black">
-                            {formatRupiah(data.potonganLain)}
+                            {formatRupiah(Number(data.potonganLain) || 0)}
                           </div>
                         </div>
                       )}
-                      {data.potonganTelat === 0 && (data.potonganLain || 0) === 0 && (
+                      {(Number(data.potonganTelat) || 0) === 0 && (Number(data.potonganLain) || 0) === 0 && (
                         <div className="text-slate-400 text-[10px] italic py-1">
                           Tidak ada potongan keterlambatan. Disiplin hadir tepat waktu!
                         </div>
@@ -1708,7 +1742,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     <div className="border-t border-dashed border-slate-400 pt-2 flex justify-between font-bold text-xs bg-rose-50 p-1.5 rounded">
                       <span>Total Potongan:</span>
                       <span className="font-black text-rose-800">
-                        {formatRupiah(data.totalPotongan)}
+                        {formatRupiah(Number(data.totalPotongan) || 0)}
                       </span>
                     </div>
                   </div>
@@ -1725,8 +1759,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     * Rincian resmi hasil rekapitulasi kehadiran bulanan
                   </div>
                 </div>
-                <div className="text-xl font-black text-emerald-900 tracking-wide font-mono">
-                  {formatRupiah(data.totalGajiBersih)}
+                <div className="text-xl font-black text-emerald-900 tracking-wide font-mono tabular-nums">
+                  {formatRupiah(Number(data.totalGajiBersih) || 0)}
                 </div>
               </div>
 

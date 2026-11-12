@@ -1,15 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Package,
   Plus,
   Send,
   Clock,
-  CheckCircle,
-  AlertTriangle,
   Search,
   FileText,
   Warehouse,
-  ChevronRight,
   X,
 } from 'lucide-react';
 import {
@@ -17,7 +14,6 @@ import {
   BahanBaku,
   StokCabangMap,
   PermintaanBarang,
-  Cabang,
   PermintaanBarangItem,
   DataCabang,
 } from '../types';
@@ -26,6 +22,7 @@ import {
   getNowShortTime,
   generatePermintaanNo,
 } from '../utils/storage';
+import { getBranchName, isPusatBranch } from '../utils/branchHelper';
 import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
 interface StokCabangViewProps {
@@ -45,26 +42,39 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
   dataCabangList = [],
   onAddPermintaan,
 }) => {
+  const jabatanUpper = (currentUser.jabatan || '').trim().toUpperCase();
   const isRoving =
-    currentUser.jabatan === 'Supervisor Area' ||
-    currentUser.jabatan === 'Owner' ||
-    currentUser.jabatan === 'Admin DC Pusat' ||
-    currentUser.cabang === 'DC PUSAT';
+    ['SUPERVISOR AREA', 'OWNER', 'ADMIN DC PUSAT', 'ADMIN'].includes(jabatanUpper) ||
+    isPusatBranch(currentUser.cabang, dataCabangList);
 
-  const availableBranches = (dataCabangList && dataCabangList.length > 0)
-    ? dataCabangList.filter((c) => c.nama.trim().toUpperCase() !== 'DC PUSAT')
-    : [
-        { id: '1', nama: 'PADAHERANG 01', status: 'Aktif' },
-        { id: '2', nama: 'BANJARSARI 02', status: 'Aktif' },
-        { id: '3', nama: 'CIAWTALI 03', status: 'Aktif' },
-      ];
+  const availableBranches = (dataCabangList || []).filter(
+    (c) => c.nama.trim().toUpperCase() !== 'DC PUSAT'
+  );
 
-  const defaultCabang = (
-    currentUser.cabang === 'DC PUSAT' ? (availableBranches[0]?.nama || 'PADAHERANG 01') : currentUser.cabang
-  ) as string;
+  const userBranchResolved =
+    getBranchName(currentUser.cabang_id || currentUser.cabang, dataCabangList) ||
+    currentUser.cabang;
+
+  const defaultCabang = isPusatBranch(currentUser.cabang, dataCabangList)
+    ? (availableBranches[0]?.nama || '')
+    : userBranchResolved;
 
   const [activeBranch, setActiveBranch] = useState<string>(defaultCabang);
-  const branchStock = stokCabang[activeBranch] || {};
+
+  useEffect(() => {
+    if (!activeBranch && defaultCabang) {
+      setActiveBranch(defaultCabang);
+    }
+  }, [activeBranch, defaultCabang]);
+
+  const activeBranchObj = dataCabangList.find(
+    (c) => c.nama === activeBranch || c.id === activeBranch || c.branchId === activeBranch
+  );
+  const branchStock =
+    stokCabang[activeBranch] ||
+    (activeBranchObj?.branchId ? stokCabang[activeBranchObj.branchId] : undefined) ||
+    (activeBranchObj?.id ? stokCabang[activeBranchObj.id] : undefined) ||
+    {};
 
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'stok' | 'permintaan'>('stok');
@@ -80,11 +90,13 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
 
   // Filtered ingredients
   const filteredBahan = bahanBakuList.filter((b) =>
-    b.nama.toLowerCase().includes(search.toLowerCase())
+    (b.nama || '').toLowerCase().includes(search.toLowerCase())
   );
 
   // Requests for currently active branch
-  const myRequests = permintaanList.filter((p) => p.cabang === activeBranch);
+  const myRequests = permintaanList.filter(
+    (p) => (getBranchName(p.cabang, dataCabangList) || p.cabang) === activeBranch
+  );
 
   const openMintaModal = () => {
     setItemsMinta([
@@ -159,12 +171,12 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Package className="w-5 h-5 text-orange-600" />
-            <h2 className="text-xl font-black text-slate-800">
-              Permintaan & Stok Cabang ({activeBranch})
+            <Package className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">
+              Permintaan & Stok Cabang ({activeBranch || '-'})
             </h2>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Setiap cabang dapat mengirim permintaan barang ke DC Pusat dan memantau persediaan stok harian.
           </p>
         </div>
@@ -174,7 +186,8 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
           {isRoving && (
             <div className="w-auto">
               <BottomSheetPickerTrigger
-                valueTitle={`Cabang: ${activeBranch}`}
+                valueTitle={activeBranch ? `Cabang: ${activeBranch}` : ''}
+                placeholder="Pilih cabang..."
                 onClick={() => setShowPickerBranch(true)}
                 size="sm"
                 className="min-w-[140px]"
@@ -188,7 +201,7 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
                 options={availableBranches.map((c) => ({
                   id: c.nama,
                   title: c.nama,
-                  subtitle: 'Cabang Toko Operasional',
+                  subtitle: c.alamat || 'Cabang Toko Operasional',
                 }))}
               />
             </div>
@@ -196,22 +209,23 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
 
           <button
             onClick={openMintaModal}
-            className="px-4 py-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-sm transition cursor-pointer self-start md:self-auto"
+            disabled={!activeBranch}
+            className="px-4 py-2 brand-gradient hover:brightness-110 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-sm transition cursor-pointer self-start md:self-auto"
           >
             <Send className="w-4 h-4" />
-            <span>+ Kirim Permintaan ke DC</span>
+            <span>Kirim Permintaan ke DC</span>
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-slate-200 pb-2">
+      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab('stok')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
             activeTab === 'stok'
-              ? 'bg-orange-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              ? 'brand-tab-active'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
           }`}
         >
           <Warehouse className="w-4 h-4" />
@@ -220,10 +234,10 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
 
         <button
           onClick={() => setActiveTab('permintaan')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
             activeTab === 'permintaan'
-              ? 'bg-orange-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              ? 'brand-tab-active'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
           }`}
         >
           <Clock className="w-4 h-4" />
@@ -234,7 +248,7 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
       {activeTab === 'stok' ? (
         <div className="space-y-3">
           {/* Search Bar Card */}
-          <div className="bg-white rounded-[16px] border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="bg-white dark:bg-slate-900 rounded-[16px] border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="relative w-full sm:w-72">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <input
@@ -242,11 +256,11 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
                 placeholder="Cari bahan baku..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
 
-            <div className="text-xs text-slate-500 font-medium">
+            <div className="text-xs text-slate-500 dark:text-slate-400 font-medium tabular-nums">
               Sisa stok berkurang otomatis setiap transaksi POS berhasil ({filteredBahan.length} bahan).
             </div>
           </div>
@@ -254,47 +268,48 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
           {/* Vertical Card List (1 Baris = 1 Card Putih rounded-16px) */}
           <div className="space-y-3">
             {filteredBahan.length === 0 ? (
-              <div className="bg-white rounded-[16px] border border-slate-200 p-8 text-center text-slate-400 text-xs shadow-xs">
+              <div className="bg-white dark:bg-slate-900 rounded-[16px] border border-slate-200 dark:border-slate-800 p-8 text-center text-slate-400 dark:text-slate-500 text-xs shadow-xs">
                 Tidak ada bahan baku yang cocok dengan pencarian.
               </div>
             ) : (
               filteredBahan.map((b) => {
-                const currentQty = branchStock[b.id] ?? 0;
-                const isLow = currentQty <= (b.stokMinimum * 0.4); // threshold for branch
+                const currentQty = Number(branchStock[b.id] ?? 0) || 0;
+                const branchMin = (Number(b.stokMinimum) || 0) * 0.4;
+                const isLow = currentQty <= branchMin;
 
                 return (
                   <div
                     key={b.id}
-                    className={`bg-white rounded-[16px] border p-4 sm:p-5 shadow-xs hover:shadow-sm transition space-y-3 ${
-                      isLow ? 'border-red-300 ring-1 ring-red-200' : 'border-slate-200'
+                    className={`bg-white dark:bg-slate-900 rounded-[16px] border p-4 sm:p-5 shadow-xs hover:shadow-sm transition space-y-3 ${
+                      isLow ? 'border-red-300 dark:border-red-800 ring-1 ring-red-200 dark:ring-red-900/50' : 'border-slate-200 dark:border-slate-800'
                     }`}
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                       <div className="space-y-1.5 flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           {b.kategori && (
-                            <span className="px-2 py-0.5 rounded-md font-bold text-[10px] bg-orange-100 text-orange-800">
+                            <span className="px-2 py-0.5 rounded-md font-bold text-[10px] bg-orange-100 dark:bg-orange-950/60 text-orange-800 dark:text-orange-300">
                               {b.kategori}
                             </span>
                           )}
-                          <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-semibold">
+                          <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-[11px] font-semibold">
                             Satuan: {b.satuan}
                           </span>
                           <span
                             className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                               isLow
-                                ? 'bg-red-100 text-red-800 border border-red-200'
-                                : 'bg-emerald-100 text-emerald-800'
+                                ? 'bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800'
+                                : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
                             }`}
                           >
                             {isLow ? 'Menipis' : 'Aman'}
                           </span>
                         </div>
-                        <h3 className="text-base sm:text-lg font-black text-slate-800 break-words whitespace-normal">
+                        <h3 className="text-base sm:text-lg font-black text-slate-800 dark:text-slate-100 break-words whitespace-normal">
                           {b.nama}
                         </h3>
                         {b.keterangan && (
-                          <p className="text-xs text-slate-400 break-words whitespace-normal leading-relaxed">
+                          <p className="text-xs text-slate-400 dark:text-slate-500 break-words whitespace-normal leading-relaxed">
                             {b.keterangan}
                           </p>
                         )}
@@ -309,13 +324,13 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
                                 bahanId: b.id,
                                 namaBahan: b.nama,
                                 satuan: b.satuan,
-                                qtyMinta: b.stokMinimum,
+                                qtyMinta: Number(b.stokMinimum) || 1,
                               },
                             ]);
                             setCatatanMinta(`Permintaan mendesak stok ${b.nama} menipis`);
                             setShowModalMinta(true);
                           }}
-                          className="px-3.5 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5"
+                          className="px-3.5 py-2 bg-orange-50 dark:bg-orange-950/60 hover:bg-orange-100 dark:hover:bg-orange-900/60 text-orange-700 dark:text-orange-300 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           <span>Minta Ini ke DC</span>
@@ -323,37 +338,32 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-slate-50/80 p-3 sm:p-3.5 rounded-xl border border-slate-100">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-slate-50/80 dark:bg-slate-800/60 p-3 sm:p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 tabular-nums">
                       <div>
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
+                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 block uppercase tracking-wider">
                           Sisa Stok Cabang ({activeBranch})
                         </span>
                         <span
                           className={`text-sm sm:text-base font-black break-words whitespace-normal ${
-                            isLow ? 'text-red-600' : 'text-slate-900'
+                            isLow ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-slate-100'
                           }`}
                         >
-                          {typeof currentQty === 'number'
-                            ? currentQty % 1 === 0
-                              ? currentQty
-                              : currentQty.toFixed(2)
-                            : currentQty}{' '}
-                          {b.satuan}
+                          {currentQty % 1 === 0 ? currentQty : currentQty.toFixed(2)} {b.satuan}
                         </span>
                       </div>
                       <div>
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
+                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 block uppercase tracking-wider">
                           Batas Min. Aman Cabang
                         </span>
-                        <span className="text-xs sm:text-sm font-bold text-slate-600 break-words whitespace-normal">
-                          {(b.stokMinimum * 0.4).toFixed(1)} {b.satuan}
+                        <span className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 break-words whitespace-normal">
+                          {branchMin.toFixed(1)} {b.satuan}
                         </span>
                       </div>
                       <div className="col-span-2 sm:col-span-1">
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
+                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 block uppercase tracking-wider">
                           Status Ketersediaan
                         </span>
-                        <span className={`text-xs sm:text-sm font-bold ${isLow ? 'text-red-600' : 'text-emerald-700'}`}>
+                        <span className={`text-xs sm:text-sm font-bold ${isLow ? 'text-red-600 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
                           {isLow ? 'Perlu Restock Segera' : 'Stok Masih Cukup'}
                         </span>
                       </div>
@@ -366,18 +376,18 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
         </div>
       ) : (
         /* TAB: Riwayat Permintaan */
-        <div className="bg-white rounded-[16px] border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="bg-white dark:bg-slate-900 rounded-[16px] border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <h3 className="font-bold text-slate-800 text-sm">
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
               Status Permintaan Barang ke DC Pusat
             </h3>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               *Stok belum bertambah saat status Menunggu/Dikirim. Stok bertambah saat Anda klik Terima Barang.
             </span>
           </div>
 
           {myRequests.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-xs">
+            <div className="py-12 text-center text-slate-400 dark:text-slate-500 text-xs">
               Belum ada permintaan barang yang diajukan ke DC.
             </div>
           ) : (
@@ -385,46 +395,46 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
               {myRequests.slice().reverse().map((req) => (
                 <div
                   key={req.id}
-                  className="p-4 sm:p-5 bg-white rounded-[16px] border border-slate-200 shadow-xs space-y-3 text-xs"
+                  className="p-4 sm:p-5 bg-white dark:bg-slate-800/50 rounded-[16px] border border-slate-200 dark:border-slate-700 shadow-xs space-y-3 text-xs"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700 pb-2.5">
                     <div className="flex flex-wrap items-center gap-2">
-                      <FileText className="w-4 h-4 text-orange-600" />
-                      <span className="font-black text-slate-800 text-sm break-words">
+                      <FileText className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                      <span className="font-black text-slate-800 dark:text-slate-100 text-sm break-words tabular-nums">
                         {req.noPermintaan}
                       </span>
-                      <span className="text-slate-400">• {req.tanggal} {req.jam}</span>
+                      <span className="text-slate-400 tabular-nums">• {req.tanggal} {req.jam}</span>
                     </div>
 
                     <span
                       className={`px-3 py-1 rounded-full font-extrabold text-[10px] self-start sm:self-auto ${
                         req.status === 'Selesai'
-                          ? 'bg-emerald-100 text-emerald-800'
+                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
                           : req.status === 'Dikirim'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-amber-100 text-amber-800'
+                          ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300'
+                          : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
                       }`}
                     >
                       Status: {req.status}
                     </span>
                   </div>
 
-                  <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-100 space-y-2">
-                    <div className="text-[11px] font-bold text-slate-600">
+                  <div className="bg-slate-50/80 dark:bg-slate-900/60 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2 tabular-nums">
+                    <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
                       Daftar Bahan Baku Diminta:
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                      {req.items.map((item, idx) => (
+                      {(req.items || []).map((item, idx) => (
                         <span
                           key={idx}
-                          className="bg-white px-2.5 py-1 rounded-lg font-semibold text-slate-700 text-[11px] border border-slate-200 shadow-2xs break-words"
+                          className="bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg font-semibold text-slate-700 dark:text-slate-200 text-[11px] border border-slate-200 dark:border-slate-700 shadow-2xs break-words"
                         >
-                          {item.namaBahan}: <strong className="text-orange-600">{item.qtyMinta} {item.satuan}</strong>
+                          {item.namaBahan}: <strong className="text-orange-600 dark:text-orange-400">{Number(item.qtyMinta) || 0} {item.satuan}</strong>
                         </span>
                       ))}
                     </div>
                     {req.catatan && (
-                      <p className="text-[11px] text-slate-500 italic pt-1 border-t border-slate-200/60 break-words whitespace-normal">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 italic pt-1 border-t border-slate-200/60 dark:border-slate-700 break-words whitespace-normal">
                         Catatan: "{req.catatan}"
                       </p>
                     )}
@@ -439,59 +449,57 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
       {/* MODAL: Minta Barang ke DC */}
       {showModalMinta && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b pb-3">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between border-b dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <Send className="w-5 h-5 text-orange-600" />
-                <h3 className="font-black text-slate-800 text-base">
+                <Send className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                <h3 className="font-black text-slate-800 dark:text-slate-100 text-base">
                   Form Permintaan Bahan ke DC Pusat
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowModalMinta(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSubmitPermintaan} className="space-y-4 text-xs">
-              <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl space-y-1">
-                <div className="flex items-center justify-between">
-                  <p className="text-[11px] text-orange-900 font-semibold">
+              <div className="p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800/60 rounded-xl space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="text-[11px] text-orange-900 dark:text-orange-200 font-semibold">
                     Cabang Pemohon: <strong>{activeBranch}</strong>
                   </p>
-                  <span className="text-[10px] text-orange-700 bg-orange-100/80 px-2 py-0.5 rounded-md font-bold">
+                  <span className="text-[10px] text-orange-700 dark:text-orange-300 bg-orange-100/80 dark:bg-orange-900/60 px-2 py-0.5 rounded-md font-bold">
                     Oleh: {currentUser.nama} ({currentUser.jabatan})
                   </span>
                 </div>
                 {isRoving && (
-                  <div className="pt-1 flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-bold text-orange-800">Ubah Cabang Pemohon:</span>
-                    <button
-                      type="button"
+                  <div className="pt-1">
+                    <BottomSheetPickerTrigger
+                      label="Ubah Cabang Pemohon"
+                      valueTitle={activeBranch}
                       onClick={() => setShowPickerBranch(true)}
-                      className="text-xs bg-white border border-orange-300 rounded-lg px-2.5 py-1 font-bold text-orange-900 hover:bg-orange-50/50 cursor-pointer"
-                    >
-                      {activeBranch} ▼
-                    </button>
+                      size="sm"
+                    />
                   </div>
                 )}
-                <p className="text-[10px] text-orange-700 pt-0.5">
+                <p className="text-[10px] text-orange-700 dark:text-orange-300 pt-0.5">
                   Permintaan langsung diteruskan ke DC Pusat. Petugas DC akan menyiapkan bahan baku dan menerbitkan Surat Jalan resmi.
                 </p>
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="font-bold text-slate-700">
+                  <label className="font-bold text-slate-700 dark:text-slate-200">
                     Bahan Baku yang Diminta:
                   </label>
                   <button
                     type="button"
                     onClick={addItemRow}
-                    className="text-orange-600 hover:underline font-bold text-[11px] cursor-pointer"
+                    className="text-orange-600 dark:text-orange-400 hover:underline font-bold text-[11px] cursor-pointer"
                   >
                     + Tambah Baris Bahan
                   </button>
@@ -500,22 +508,18 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
                 {itemsMinta.map((row, index) => (
                   <div
                     key={index}
-                    className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200"
+                    className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700"
                   >
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       {(() => {
                         const selBhn = bahanBakuList.find((b) => b.id === row.bahanId);
                         return (
-                          <button
-                            type="button"
+                          <BottomSheetPickerTrigger
+                            valueTitle={selBhn ? `${selBhn.nama} (${selBhn.satuan})` : ''}
+                            placeholder="Pilih Bahan..."
                             onClick={() => setPickerItemRowIndex(index)}
-                            className="w-full px-2.5 py-1.5 bg-white hover:bg-orange-50/40 border border-slate-300 hover:border-orange-400 rounded-lg text-xs text-left flex items-center justify-between"
-                          >
-                            <span className="font-semibold text-slate-800 line-clamp-1">
-                              {selBhn ? `${selBhn.nama} (${selBhn.satuan})` : 'Pilih Bahan...'}
-                            </span>
-                            <ChevronRight size={14} className="text-slate-400 shrink-0" />
-                          </button>
+                            size="sm"
+                          />
                         );
                       })()}
                     </div>
@@ -535,11 +539,11 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
                             Number(e.target.value)
                           )
                         }
-                        className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-center font-bold"
+                        className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-lg text-xs text-center font-bold tabular-nums"
                       />
                     </div>
 
-                    <span className="text-[11px] text-slate-500 font-semibold w-8">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold w-8">
                       {row.satuan}
                     </span>
 
@@ -572,7 +576,7 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
                     options={bahanBakuList.map((b) => ({
                       id: b.id,
                       title: b.nama,
-                      subtitle: `Stok DC: ${b.stokDC} ${b.satuan} • Kategori: ${b.kategori || 'Bahan'}`,
+                      subtitle: `Stok DC: ${Number(b.stokDC) || 0} ${b.satuan} • Kategori: ${b.kategori || 'Bahan'}`,
                       category: b.kategori,
                     }))}
                   />
@@ -580,7 +584,7 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
+                <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
                   Catatan Keperluan / Pesan untuk DC
                 </label>
                 <textarea
@@ -588,15 +592,15 @@ export const StokCabangView: React.FC<StokCabangViewProps> = ({
                   placeholder="Contoh: Stok telur dan bakso segera habis menjelang malam minggu..."
                   value={catatanMinta}
                   onChange={(e) => setCatatanMinta(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-xs"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-xs"
                 />
               </div>
 
-              <div className="flex gap-2 justify-end pt-3 border-t">
+              <div className="flex gap-2 justify-end pt-3 border-t dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowModalMinta(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer"
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl cursor-pointer"
                 >
                   Batal
                 </button>

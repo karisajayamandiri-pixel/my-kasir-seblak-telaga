@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Karyawan,
   BahanBaku,
@@ -28,6 +28,7 @@ import {
   PengaturanOff,
   MenuCabang,
   AppSettings,
+  GajiKaryawanSetting,
   OWNER_EMAIL,
   FullResetOptions,
   FullResetResult,
@@ -39,21 +40,6 @@ import {
   syncDocumentBranding,
   replaceBusinessNameText,
 } from './utils/theme';
-import {
-  INITIAL_KARYAWAN,
-  INITIAL_BAHAN_BAKU,
-  INITIAL_KATALOG,
-  INITIAL_STOK_CABANG,
-  INITIAL_TRANSAKSI,
-  INITIAL_PERMINTAAN,
-  INITIAL_SURAT_JALAN,
-  INITIAL_ABSENSI,
-  INITIAL_LAPORAN_HARIAN,
-  INITIAL_TOKO_STATE,
-  INITIAL_DATA_CABANG,
-  INITIAL_AUDIT_LOG,
-  INITIAL_PENGELUARAN,
-} from './data/initialData';
 import {
   STORAGE_KEYS,
   loadFromStorage,
@@ -67,7 +53,6 @@ import {
 import {
   resetToDemoDataInFirestore,
   executeFullResetInFirestore,
-  executeQuickOrdersReset,
   subscribeToRealtimeFirestore,
   firestoreSaveCabang,
   firestoreDeleteCabang,
@@ -90,6 +75,7 @@ import {
   firestoreSavePengaturanOff,
   firestoreSaveMenuCabang,
   firestoreSaveMenuCabangBatch,
+  firestoreSavePengaturanGajiBatch,
   firestoreSaveAppSettings,
 } from './services/firestoreSync';
 import { testConnection } from './firebase';
@@ -119,6 +105,25 @@ import { ResetTotalModal } from './components/ResetTotalModal';
 import { RotateCcw, AlertTriangle, LogOut, CheckCircle, X } from 'lucide-react';
 import { getBranchName } from './utils/branchHelper';
 
+const isOwnerRole = (jabatan?: string) => (jabatan || '').trim().toLowerCase() === 'owner';
+const isAdminDcRole = (jabatan?: string) => {
+  const j = (jabatan || '').trim().toLowerCase();
+  return j === 'admin dc pusat' || j === 'admin';
+};
+const isPusatBranch = (cabang?: string) => (cabang || '').trim().toUpperCase() === 'DC PUSAT';
+
+const normalizeOwnerRecord = (k: Karyawan): Karyawan => {
+  if (!isOwnerRole(k.jabatan)) return k;
+  const legacy = ['Haji Hendra (Owner)', 'Rizal (Owner)', ''];
+  const nama = legacy.includes((k.nama || '').trim()) ? 'Rizal Maulana' : k.nama;
+  return {
+    ...k,
+    nama,
+    username: k.username || 'rizal',
+    password: k.password || '990002',
+  };
+};
+
 export default function App() {
   // Requirement 2: "Saat buka link, redirect WAJIB ke /login dulu. Jangan langsung dashboard. Semua route harus cek login."
   // Initialize currentUser as null on fresh app load
@@ -135,16 +140,7 @@ export default function App() {
   // Master & Operational Datasets: persistent from Firestore (cached in storage)
   const [karyawanList, setKaryawanList] = useState<Karyawan[]>(() => {
     const loaded = loadFromStorage<Karyawan[]>(STORAGE_KEYS.KARYAWAN, []);
-    return loaded.map((k) => {
-      if (k.jabatan === 'Owner') {
-        return {
-          ...k,
-          username: k.username || 'rizal',
-          password: k.password || '990002',
-        };
-      }
-      return k;
-    });
+    return loaded.map((k) => normalizeOwnerRecord(k));
   });
 
   const [bahanBakuList, setBahanBakuList] = useState<BahanBaku[]>(() =>
@@ -208,6 +204,20 @@ export default function App() {
     loadFromStorage<MenuCabang[]>(STORAGE_KEYS.MENU_CABANG, [])
   );
 
+  // Pengaturan Gaji Harian per Karyawan
+  const [gajiSettings, setGajiSettings] = useState<Record<string, GajiKaryawanSetting>>(() =>
+    loadFromStorage<Record<string, GajiKaryawanSetting>>(STORAGE_KEYS.PENGATURAN_GAJI, {})
+  );
+  const gajiSettingsRef = useRef(gajiSettings);
+  useEffect(() => {
+    gajiSettingsRef.current = gajiSettings;
+  }, [gajiSettings]);
+
+  const stokCabangRef = useRef(stokCabang);
+  useEffect(() => {
+    stokCabangRef.current = stokCabang;
+  }, [stokCabang]);
+
   // Pengaturan Identitas Usaha (Logo, Nama Usaha) & Tema
   const [appSettings, setAppSettings] = useState<AppSettings>(() =>
     normalizeAppSettings(
@@ -237,6 +247,14 @@ export default function App() {
   // Full Reset Modal State (Owner Total Reset)
   const [showFullResetModal, setShowFullResetModal] = useState(false);
   const [resetToastMessage, setResetToastMessage] = useState<string | null>(null);
+  const [appToast, setAppToast] = useState<{ type: 'error' | 'success' | 'info'; message: string } | null>(null);
+
+  const showAppToast = (type: 'error' | 'success' | 'info', message: string) => {
+    setAppToast({ type, message });
+    setTimeout(() => {
+      setAppToast((prev) => (prev?.message === message ? null : prev));
+    }, 5000);
+  };
 
   // Sync route in browser address bar & enforce login check on every route
   useEffect(() => {
@@ -271,11 +289,7 @@ export default function App() {
         saveToStorage(STORAGE_KEYS.KATALOG, list);
       },
       onKaryawan: (list) => {
-        const formatted = list.map((k) =>
-          k.jabatan === 'Owner'
-            ? { ...k, username: k.username || 'rizal', password: k.password || '990002' }
-            : k
-        );
+        const formatted = list.map((k) => normalizeOwnerRecord(k));
         setKaryawanList(formatted);
         saveToStorage(STORAGE_KEYS.KARYAWAN, formatted);
       },
@@ -326,6 +340,7 @@ export default function App() {
         saveToStorage(STORAGE_KEYS.PENGATURAN_OFF, list);
       },
       onPengaturanGaji: (map) => {
+        setGajiSettings(map);
         saveToStorage(STORAGE_KEYS.PENGATURAN_GAJI, map);
       },
       onMenuCabang: (list) => {
@@ -369,30 +384,27 @@ export default function App() {
 
   // Auth Handlers
   const handleLoginSuccess = (user: Karyawan, selectedCabang: string) => {
+    const normalizedUser = normalizeOwnerRecord(user);
+    const roleNorm = (normalizedUser.jabatan || '').trim().toLowerCase();
     // If Owner chooses a specific branch, set duty to that branch
     const effectiveCabang = (
-      user.jabatan === 'Owner' && selectedCabang !== 'DC PUSAT'
+      roleNorm === 'owner' && !isPusatBranch(selectedCabang)
         ? selectedCabang
-        : user.cabang
+        : normalizedUser.cabang
     ) as Cabang;
 
     const loggedInUser: Karyawan = {
-      ...user,
+      ...normalizedUser,
       cabang: effectiveCabang,
     };
 
     setCurrentUser(loggedInUser);
 
-    if (
-      loggedInUser.jabatan === 'Kitchen' ||
-      (loggedInUser.jabatan as string) === 'KITCHEN' ||
-      loggedInUser.jabatan === 'Crew Store' ||
-      (loggedInUser.jabatan as string) === 'CREW STORE'
-    ) {
+    if (roleNorm === 'kitchen' || roleNorm === 'crew store') {
       setActiveTab('pesanan');
-    } else if (loggedInUser.jabatan === 'Driver') {
+    } else if (roleNorm === 'driver') {
       setActiveTab('pengirimanDriver');
-    } else if (effectiveCabang === 'DC PUSAT' || loggedInUser.jabatan === 'Owner') {
+    } else if (isPusatBranch(effectiveCabang) || roleNorm === 'owner') {
       setActiveTab('dashboard');
     } else {
       setActiveTab('pos');
@@ -423,15 +435,26 @@ export default function App() {
     firestoreSaveBahanBaku(updated);
   };
 
-  // Surat Jalan Creation Handler (Kurangi stok DC)
+  // Surat Jalan Creation Handler (Kurangi stok DC secara lokal dan ke Firestore)
   const handleAddSuratJalan = (newSj: SuratJalan) => {
-    newSj.items.forEach((it) => {
-      const b = bahanBakuList.find((x) => x.id === it.bahanId);
-      if (b) {
-        const updatedB = { ...b, stokDC: Math.max(0, b.stokDC - it.qtyKirim) };
-        firestoreSaveBahanBaku(updatedB);
-      }
+    const deductMap = new Map<string, number>();
+    (newSj.items || []).forEach((it) => {
+      deductMap.set(it.bahanId, (deductMap.get(it.bahanId) || 0) + it.qtyKirim);
     });
+    const updatedBahanList: BahanBaku[] = [];
+    const nextBahanState = bahanBakuList.map((b) => {
+      const deduct = deductMap.get(b.id) || 0;
+      if (deduct > 0) {
+        const updatedB = { ...b, stokDC: Math.max(0, b.stokDC - deduct) };
+        updatedBahanList.push(updatedB);
+        return updatedB;
+      }
+      return b;
+    });
+    if (updatedBahanList.length > 0) {
+      setBahanBakuList(nextBahanState);
+      updatedBahanList.forEach((ub) => firestoreSaveBahanBaku(ub));
+    }
     setSuratJalanList((prev) => [...prev, newSj]);
     firestoreSaveSuratJalan(newSj);
   };
@@ -640,7 +663,7 @@ export default function App() {
       cabang: trx.cabang,
       aksi: 'Transaksi Kasir',
       nominal: trx.total,
-      keterangan: `Invoice #${trx.invoiceNo} (${trx.metodeBayar}) - ${trx.items.length} menu`,
+      keterangan: `Invoice #${trx.invoiceNo} (${trx.metodeBayar}) - ${(trx.items || []).length} menu`,
       tanggal: trx.tanggal,
       jam: trx.jam,
     });
@@ -651,11 +674,11 @@ export default function App() {
     const targetTrx = transaksiList.find((t) => t.id === trxId);
     if (!targetTrx || targetTrx.status === 'Retur') return;
 
-    const currentCabang = targetTrx.cabang as Exclude<Cabang, 'DC PUSAT'>;
-    const branchStock = { ...(stokCabang[currentCabang] || {}) };
+    const currentCabang = getBranchName(targetTrx.cabang, dataCabangList) as Exclude<Cabang, 'DC PUSAT'>;
+    const branchStock = { ...(stokCabang[currentCabang] || stokCabang[targetTrx.cabang] || {}) };
 
-    targetTrx.items.forEach((cartItem) => {
-      cartItem.resep.forEach((recipe) => {
+    (targetTrx.items || []).forEach((cartItem) => {
+      (cartItem.resep || []).forEach((recipe) => {
         const returnedQty = recipe.qtyPakai * cartItem.qty;
         const current = branchStock[recipe.bahanId] || 0;
         branchStock[recipe.bahanId] = current + returnedQty;
@@ -694,13 +717,15 @@ export default function App() {
     items: TransaksiItem[],
     tipePesanan?: TipePesanan
   ) => {
-    if (cabang === 'DC PUSAT') return;
-    const currentCabang = cabang as Exclude<Cabang, 'DC PUSAT'>;
-    const branchStock = { ...(stokCabang[currentCabang] || {}) };
+    const branchKey = getBranchName(cabang, dataCabangList);
+    if (branchKey === 'DC PUSAT' || cabang === 'DC PUSAT') return;
+    const currentCabang = branchKey as Exclude<Cabang, 'DC PUSAT'>;
+    const branchStock = { ...(stokCabang[currentCabang] || stokCabang[cabang] || {}) };
+    const safeItems = items || [];
 
     // 1. Kembalikan stok bahan makanan/minuman
-    items.forEach((cartItem) => {
-      cartItem.resep.forEach((recipe) => {
+    safeItems.forEach((cartItem) => {
+      (cartItem.resep || []).forEach((recipe) => {
         const returnedQty = recipe.qtyPakai * cartItem.qty;
         branchStock[recipe.bahanId] = (branchStock[recipe.bahanId] || 0) + returnedQty;
       });
@@ -718,17 +743,17 @@ export default function App() {
         (b) => (b.kategori === 'Kemasan' && b.nama.toLowerCase().includes('cup')) || b.id === 'bhn-19'
       );
 
-      items.forEach((cartItem) => {
-        const hasKemasanInResep = cartItem.resep.some((r) => {
+      safeItems.forEach((cartItem) => {
+        const hasKemasanInResep = (cartItem.resep || []).some((r) => {
           const b = bahanBakuList.find((bk) => bk.id === r.bahanId);
           return b?.kategori === 'Kemasan';
         });
 
         if (!hasKemasanInResep) {
           const isDrink =
-            cartItem.nama.toLowerCase().includes('teh') ||
-            cartItem.nama.toLowerCase().includes('jeruk') ||
-            cartItem.kode.startsWith('MN');
+            (cartItem.nama || '').toLowerCase().includes('teh') ||
+            (cartItem.nama || '').toLowerCase().includes('jeruk') ||
+            (cartItem.kode || '').startsWith('MN');
 
           if (isDrink && kemasanCup) {
             branchStock[kemasanCup.id] = (branchStock[kemasanCup.id] || 0) + cartItem.qty;
@@ -757,13 +782,15 @@ export default function App() {
     items: TransaksiItem[],
     tipePesanan?: TipePesanan
   ) => {
-    if (cabang === 'DC PUSAT') return;
-    const currentCabang = cabang as Exclude<Cabang, 'DC PUSAT'>;
-    const branchStock = { ...(stokCabang[currentCabang] || {}) };
+    const branchKey = getBranchName(cabang, dataCabangList);
+    if (branchKey === 'DC PUSAT' || cabang === 'DC PUSAT') return;
+    const currentCabang = branchKey as Exclude<Cabang, 'DC PUSAT'>;
+    const branchStock = { ...(stokCabang[currentCabang] || stokCabang[cabang] || {}) };
+    const safeItems = items || [];
 
     // 1. Kurangi stok bahan makanan & resep
-    items.forEach((cartItem) => {
-      cartItem.resep.forEach((recipe) => {
+    safeItems.forEach((cartItem) => {
+      (cartItem.resep || []).forEach((recipe) => {
         const usedQty = recipe.qtyPakai * cartItem.qty;
         branchStock[recipe.bahanId] = Math.max(0, (branchStock[recipe.bahanId] || 0) - usedQty);
       });
@@ -781,17 +808,17 @@ export default function App() {
         (b) => (b.kategori === 'Kemasan' && b.nama.toLowerCase().includes('cup')) || b.id === 'bhn-19'
       );
 
-      items.forEach((cartItem) => {
-        const hasKemasanInResep = cartItem.resep.some((r) => {
+      safeItems.forEach((cartItem) => {
+        const hasKemasanInResep = (cartItem.resep || []).some((r) => {
           const b = bahanBakuList.find((bk) => bk.id === r.bahanId);
           return b?.kategori === 'Kemasan';
         });
 
         if (!hasKemasanInResep) {
           const isDrink =
-            cartItem.nama.toLowerCase().includes('teh') ||
-            cartItem.nama.toLowerCase().includes('jeruk') ||
-            cartItem.kode.startsWith('MN');
+            (cartItem.nama || '').toLowerCase().includes('teh') ||
+            (cartItem.nama || '').toLowerCase().includes('jeruk') ||
+            (cartItem.kode || '').startsWith('MN');
 
           if (isDrink && kemasanCup) {
             branchStock[kemasanCup.id] = Math.max(0, (branchStock[kemasanCup.id] || 0) - cartItem.qty);
@@ -825,13 +852,14 @@ export default function App() {
       targetTrx.statusPesanan === 'Selesai';
 
     const isOwnerOrAdminPusat =
-      currentUser?.jabatan === 'Owner' ||
-      currentUser?.cabang === 'DC PUSAT' ||
-      currentUser?.jabatan === 'Admin DC Pusat';
+      isOwnerRole(currentUser?.jabatan) ||
+      isPusatBranch(currentUser?.cabang) ||
+      isAdminDcRole(currentUser?.jabatan);
 
     if (isLunas && !isOwnerOrAdminPusat) {
-      alert(
-        '⛔ Pesanan yang SUDAH LUNAS tidak bisa dibatalkan oleh Crew Store!\nHanya Owner atau Admin DC Pusat yang berhak membatalkan pesanan lunas. Untuk pelanggan yang ingin ubah menu, silakan gunakan fitur Void & Ganti.'
+      showAppToast(
+        'error',
+        'Pesanan yang SUDAH LUNAS tidak bisa dibatalkan oleh Crew Store. Hanya Owner atau Admin DC Pusat yang berhak, atau gunakan fitur Void & Ganti.'
       );
       return;
     }
@@ -883,8 +911,9 @@ export default function App() {
       targetTrx.statusPesanan === 'Selesai';
 
     if (isLunas) {
-      alert(
-        '⛔ Pesanan yang sudah lunas tidak bisa diedit secara langsung! Gunakan fitur VOID & Ganti Pesanan.'
+      showAppToast(
+        'error',
+        'Pesanan yang sudah lunas tidak bisa diedit secara langsung! Gunakan fitur VOID & Ganti Pesanan.'
       );
       return;
     }
@@ -952,7 +981,7 @@ export default function App() {
   ): { oldTrx: Transaksi; newTrx: Transaksi; selisih: number } | null => {
     const oldTrx = transaksiList.find((t) => t.id === oldTrxId);
     if (!oldTrx || oldTrx.status === 'Retur' || oldTrx.statusPesanan === 'DIVOID') {
-      alert('Pesanan tidak ditemukan atau sudah divoid/retur.');
+      showAppToast('error', 'Pesanan tidak ditemukan atau sudah divoid/retur.');
       return null;
     }
 
@@ -962,20 +991,20 @@ export default function App() {
       oldTrx.statusPesanan === 'Selesai';
 
     if (!isLunas) {
-      alert('Pesanan belum lunas dapat langsung diedit atau dibatalkan tanpa proses void!');
+      showAppToast('info', 'Pesanan belum lunas dapat langsung diedit atau dibatalkan tanpa proses void.');
       return null;
     }
 
     // Requirement 3: Hanya bisa di-VOID saat status masih MENUNGGU
     const normStatus = normalizeStatusPesanan(oldTrx.statusPesanan, oldTrx.status);
     if (normStatus !== 'MENUNGGU') {
-      alert('Sesuai aturan, pesanan lunas hanya dapat di-VOID saat masih berstatus MENUNGGU sebelum diproses/dimasak di dapur.');
+      showAppToast('error', 'Sesuai aturan, pesanan lunas hanya dapat di-VOID saat masih berstatus MENUNGGU sebelum diproses/dimasak di dapur.');
       return null;
     }
 
     // Requirement 7: Hanya 1 kali VOID
     if (oldTrx.voidDariInvoice) {
-      alert('Pesanan ini sudah pernah melalui proses VOID pengganti. Pesanan hanya dapat di-VOID maksimal 1 kali.');
+      showAppToast('error', 'Pesanan ini sudah pernah melalui proses VOID pengganti. Maksimal VOID 1 kali.');
       return null;
     }
 
@@ -1113,49 +1142,44 @@ export default function App() {
     statusPesanan: StatusPesanan,
     paymentMeta?: { bayar?: number; kembali?: number; metodeBayar?: 'Cash' | 'QRIS' }
   ): Transaksi | null => {
+    const existing = transaksiList.find((t) => t.id === trxId);
+    if (!existing) return null;
+
     const nowTime = getNowTimeStr();
-    let updatedTarget: Transaksi | null = null;
-    setTransaksiList((prev) =>
-      prev.map((t) => {
-        if (t.id !== trxId) return t;
+    const currentRank = getStatusRank(existing.statusPesanan);
+    const targetRank = getStatusRank(statusPesanan);
+    const isBatalOrVoid = statusPesanan === 'DIBATALKAN' || statusPesanan === 'DIVOID';
 
-        // Requirement 2: Status hanya boleh maju, tidak boleh mundur
-        const currentRank = getStatusRank(t.statusPesanan);
-        const targetRank = getStatusRank(statusPesanan);
-        const isBatalOrVoid = statusPesanan === 'DIBATALKAN' || statusPesanan === 'DIVOID';
-
-        if (!isBatalOrVoid && currentRank > 0 && targetRank > 0 && targetRank < currentRank) {
-          console.warn(`[Status Protection] Mencegah status pesanan mundur dari ${t.statusPesanan} (rank ${currentRank}) ke ${statusPesanan} (rank ${targetRank})`);
-          updatedTarget = t;
-          return t;
-        }
-
-        const normTarget = normalizeStatusPesanan(statusPesanan);
-        const isDiproses = normTarget === 'DIPROSES';
-        const isSelesai = normTarget === 'LUNAS';
-
-        const updated: Transaksi = {
-          ...t,
-          statusPesanan: normTarget,
-          ...(paymentMeta || isSelesai ? { statusPembayaran: 'LUNAS' } : {}),
-          ...(paymentMeta?.metodeBayar ? { metodeBayar: paymentMeta.metodeBayar } : {}),
-          ...(paymentMeta?.bayar !== undefined ? { bayar: paymentMeta.bayar } : {}),
-          ...(paymentMeta?.kembali !== undefined ? { kembali: paymentMeta.kembali } : {}),
-          ...((isDiproses || t.waktuMulaiDibuat)
-            ? { waktuMulaiDibuat: t.waktuMulaiDibuat || nowTime }
-            : {}),
-          ...((isSelesai || t.waktuSelesai)
-            ? { waktuSelesai: t.waktuSelesai || nowTime }
-            : {}),
-        };
-        updatedTarget = updated;
-        return updated;
-      })
-    );
-
-    if (updatedTarget) {
-      firestoreSaveTransaksi(updatedTarget);
+    if (!isBatalOrVoid && currentRank > 0 && targetRank > 0 && targetRank < currentRank) {
+      console.warn(
+        `[Status Protection] Mencegah status pesanan mundur dari ${existing.statusPesanan} (rank ${currentRank}) ke ${statusPesanan} (rank ${targetRank})`
+      );
+      return existing;
     }
+
+    const normTarget = normalizeStatusPesanan(statusPesanan);
+    const isDiproses = normTarget === 'DIPROSES';
+    const isSelesai = normTarget === 'LUNAS';
+
+    const updatedTarget: Transaksi = {
+      ...existing,
+      statusPesanan: normTarget,
+      ...(paymentMeta || isSelesai ? { statusPembayaran: 'LUNAS' } : {}),
+      ...(paymentMeta?.metodeBayar ? { metodeBayar: paymentMeta.metodeBayar } : {}),
+      ...(paymentMeta?.bayar !== undefined ? { bayar: paymentMeta.bayar } : {}),
+      ...(paymentMeta?.kembali !== undefined ? { kembali: paymentMeta.kembali } : {}),
+      ...(isDiproses || existing.waktuMulaiDibuat
+        ? { waktuMulaiDibuat: existing.waktuMulaiDibuat || nowTime }
+        : {}),
+      ...(isSelesai || existing.waktuSelesai
+        ? { waktuSelesai: existing.waktuSelesai || nowTime }
+        : {}),
+    };
+
+    setTransaksiList((prev) =>
+      prev.map((t) => (t.id === trxId ? updatedTarget : t))
+    );
+    firestoreSaveTransaksi(updatedTarget);
     return updatedTarget;
   };
 
@@ -1224,33 +1248,28 @@ export default function App() {
     status: StatusPengeluaran,
     catatan?: string
   ) => {
-    let updatedTarget: PengeluaranToko | null = null;
-    setPengeluaranList((prev) =>
-      prev.map((p) => {
-        if (p.id !== id) return p;
-        const updated: PengeluaranToko = {
-          ...p,
-          status,
-          accOleh: currentUser ? `${currentUser.nama} (${currentUser.jabatan})` : 'Owner DC Pusat',
-          accWaktu: `${getTodayStr()} ${getNowShortTime()}`,
-          catatanAcc:
-            catatan ||
-            (status === 'Disetujui'
-              ? 'Disetujui oleh Owner DC Pusat'
-              : 'Ditolak oleh Owner DC Pusat'),
-        };
-        updatedTarget = updated;
-        return updated;
-      })
-    );
+    const target = pengeluaranList.find((p) => p.id === id);
+    if (!target) return;
 
-    if (updatedTarget) {
-      firestoreSavePengeluaran(updatedTarget);
-    }
+    const updatedTarget: PengeluaranToko = {
+      ...target,
+      status,
+      accOleh: currentUser ? `${currentUser.nama} (${currentUser.jabatan})` : 'Owner DC Pusat',
+      accWaktu: `${getTodayStr()} ${getNowShortTime()}`,
+      catatanAcc:
+        catatan ||
+        (status === 'Disetujui'
+          ? 'Disetujui oleh Owner DC Pusat'
+          : 'Ditolak oleh Owner DC Pusat'),
+    };
+
+    setPengeluaranList((prev) =>
+      prev.map((p) => (p.id === id ? updatedTarget : p))
+    );
+    firestoreSavePengeluaran(updatedTarget);
 
     // Audit Log Permanen Otomatis
-    const target = pengeluaranList.find((p) => p.id === id);
-    if (target && currentUser) {
+    if (currentUser) {
       handleAddAuditLog({
         siapa: `${currentUser.nama} (${currentUser.jabatan})`,
         cabang: target.cabang,
@@ -1385,6 +1404,20 @@ export default function App() {
       setLaporanHarianList((prev) =>
         prev.map((l) => (l.cabang === oldName ? { ...l, cabang: newName } : l))
       );
+
+      // 11. Pengaturan Jadwal OFF Cabang
+      pengaturanOffList.forEach((p) => {
+        if (p.cabangNama === oldName || p.cabangId === updatedC.id) {
+          firestoreSavePengaturanOff({ ...p, cabangNama: newName });
+        }
+      });
+      setPengaturanOffList((prev) =>
+        prev.map((p) =>
+          p.cabangNama === oldName || p.cabangId === updatedC.id
+            ? { ...p, cabangNama: newName }
+            : p
+        )
+      );
     }
   };
 
@@ -1447,6 +1480,18 @@ export default function App() {
     firestoreSavePengaturanOff(poff);
   };
 
+  // Pengaturan Gaji Harian Handlers
+  const handleSaveGajiSettings = async (settingsList: GajiKaryawanSetting[]) => {
+    const next = { ...gajiSettingsRef.current };
+    settingsList.forEach((s) => {
+      next[s.karyawanId] = s;
+    });
+    gajiSettingsRef.current = next;
+    setGajiSettings(next);
+    saveToStorage(STORAGE_KEYS.PENGATURAN_GAJI, next);
+    await firestoreSavePengaturanGajiBatch(settingsList);
+  };
+
   // Bahan Baku Handlers with Firestore Realtime Sync
   const handleAddBahanBaku = (b: BahanBaku) => {
     setBahanBakuList((prev) => [...prev, b]);
@@ -1483,14 +1528,14 @@ export default function App() {
 
   // Stock Cabang Handler with Realtime Firestore Persistence
   const handleUpdateStokCabang: React.Dispatch<React.SetStateAction<StokCabangMap>> = (action) => {
-    setStokCabang((prev) => {
-      const next = typeof action === 'function' ? (action as any)(prev) : action;
-      Object.entries(next).forEach(([cabangName, stockObj]) => {
-        if (JSON.stringify(prev[cabangName]) !== JSON.stringify(stockObj)) {
-          firestoreSaveStokCabang(cabangName, stockObj as Record<string, number>);
-        }
-      });
-      return next;
+    const prev = stokCabangRef.current;
+    const next = typeof action === 'function' ? (action as any)(prev) : action;
+    stokCabangRef.current = next;
+    setStokCabang(next);
+    Object.entries(next).forEach(([cabangName, stockObj]) => {
+      if (JSON.stringify(prev[cabangName]) !== JSON.stringify(stockObj)) {
+        firestoreSaveStokCabang(cabangName, stockObj as Record<string, number>);
+      }
     });
   };
 
@@ -1500,7 +1545,7 @@ export default function App() {
   };
 
   const handleExecuteFullReset = async (options: FullResetOptions): Promise<FullResetResult> => {
-    const userEmail = currentUser?.email || (currentUser?.jabatan === 'Owner' ? OWNER_EMAIL : '');
+    const userEmail = currentUser?.email || (isOwnerRole(currentUser?.jabatan) ? OWNER_EMAIL : '');
     const result = await executeFullResetInFirestore(options, userEmail);
 
     if (result.success) {
@@ -1565,7 +1610,7 @@ export default function App() {
       // 10. Data Cabang
       if (options.dataCabang) {
         setDataCabangList([]);
-        saveToStorage(STORAGE_KEYS.DATA_CABANG, []);
+        saveToStorage(STORAGE_KEYS.CABANG, []);
       }
 
       // 11. Data Karyawan (Amankan Owner)
@@ -1574,7 +1619,7 @@ export default function App() {
           const preserved = prev.filter(
             (k) =>
               k.id === 'usr-0' ||
-              k.jabatan === 'Owner' ||
+              isOwnerRole(k.jabatan) ||
               (k.email && k.email.toLowerCase() === OWNER_EMAIL.toLowerCase())
           );
           saveToStorage(STORAGE_KEYS.KARYAWAN, preserved);
@@ -1595,7 +1640,7 @@ export default function App() {
   };
 
   const handleExecuteFooterReset = async () => {
-    const userEmail = currentUser?.email || (currentUser?.jabatan === 'Owner' ? OWNER_EMAIL : '');
+    const userEmail = currentUser?.email || (isOwnerRole(currentUser?.jabatan) ? OWNER_EMAIL : '');
     if (userEmail.trim().toLowerCase() !== OWNER_EMAIL.toLowerCase()) {
       setFooterResetMsg({
         type: 'error',
@@ -1664,7 +1709,10 @@ export default function App() {
     );
   }
 
-  const isDcPusatOrOwner = currentUser.cabang === 'DC PUSAT' || currentUser.jabatan === 'Owner';
+  const isDcPusatOrOwner =
+    isPusatBranch(currentUser.cabang) ||
+    isOwnerRole(currentUser.jabatan) ||
+    isAdminDcRole(currentUser.jabatan);
   const userBranchName = getBranchName(currentUser.cabang, dataCabangList);
   const activeOrdersCount = transaksiList.filter((t) => {
     if (t.status === 'Retur' || t.statusPesanan === 'DIVOID' || t.statusPesanan === 'DIBATALKAN') return false;
@@ -1683,7 +1731,7 @@ export default function App() {
           .map((c) => c.nama)
           .slice(0, 5)
           .join(', ')
-      : 'PADAHERANG 01, BANJARSARI 02, CIAWTALI 03 & DC Pusat';
+      : 'Semua Cabang Operasional';
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col font-sans text-slate-800 dark:text-slate-100 transition-colors">
@@ -1702,7 +1750,7 @@ export default function App() {
       />
 
       {/* Main Content Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
+      <main className={`flex-1 max-w-7xl w-full mx-auto px-4 py-6 ${printModalState.isOpen ? 'no-print' : ''}`}>
         {activeTab === 'dashboard' && (
           <DashboardView
             currentUser={currentUser}
@@ -1822,13 +1870,14 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'terimaBarang' && currentUser.cabang !== 'DC PUSAT' && (
+        {activeTab === 'terimaBarang' && !isPusatBranch(currentUser.cabang) && (
           <TerimaBarangView
             currentUser={currentUser}
             suratJalanList={suratJalanList}
             stokCabang={stokCabang}
             onUpdateStokCabang={handleUpdateStokCabang}
             onConfirmTerimaSuratJalan={handleConfirmTerimaSuratJalan}
+            dataCabangList={dataCabangList}
           />
         )}
 
@@ -1844,6 +1893,8 @@ export default function App() {
             dataCabangList={dataCabangList}
             pengaturanOffList={pengaturanOffList}
             onSavePengaturanOff={handleSavePengaturanOff}
+            gajiSettings={gajiSettings}
+            onSaveGajiSettings={handleSaveGajiSettings}
             appSettings={appSettings}
           />
         )}
@@ -1862,6 +1913,7 @@ export default function App() {
             pengeluaranList={pengeluaranList}
             onOpenPrintModal={openPrintModal}
             dataCabangList={dataCabangList}
+            appSettings={appSettings}
           />
         )}
 
@@ -1903,7 +1955,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'dataOwner' && currentUser.jabatan === 'Owner' && (
+        {activeTab === 'dataOwner' && isOwnerRole(currentUser.jabatan) && (
           <DataOwnerView
             currentUser={currentUser}
             onUpdateOwner={handleUpdateOwner}
@@ -2016,7 +2068,7 @@ export default function App() {
 
       {/* RESET DATA DEMO UI MODAL (Bukan confirm() browser) */}
       {showFooterResetModal && (() => {
-        const userEmail = currentUser?.email || (currentUser?.jabatan === 'Owner' ? OWNER_EMAIL : '');
+        const userEmail = currentUser?.email || (isOwnerRole(currentUser?.jabatan) ? OWNER_EMAIL : '');
         const isOwnerEmail = userEmail.trim().toLowerCase() === OWNER_EMAIL.toLowerCase();
 
         return (
@@ -2064,7 +2116,7 @@ export default function App() {
                     </p>
                   ) : (
                     <div className="p-2.5 bg-red-100/80 dark:bg-red-950/60 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-200 rounded-xl font-bold text-center">
-                      ⛔ Akses Ditolak: Hanya akun dengan email <strong>{OWNER_EMAIL}</strong> yang berhak menjalankan reset data demo.
+                      Akses Ditolak: Hanya akun dengan email <strong>{OWNER_EMAIL}</strong> yang berhak menjalankan reset data demo.
                     </div>
                   )}
                 </div>
@@ -2100,8 +2152,8 @@ export default function App() {
         <ResetTotalModal
           isOpen={showFullResetModal}
           onClose={() => setShowFullResetModal(false)}
-          userEmail={currentUser.email || (currentUser.jabatan === 'Owner' ? OWNER_EMAIL : '')}
-          isOwner={currentUser.jabatan === 'Owner'}
+          userEmail={currentUser.email || (isOwnerRole(currentUser.jabatan) ? OWNER_EMAIL : '')}
+          isOwner={isOwnerRole(currentUser.jabatan)}
           onExecuteReset={handleExecuteFullReset}
           dataCounts={{
             pesanan: transaksiList.length,
@@ -2117,7 +2169,7 @@ export default function App() {
             dataKaryawan: karyawanList.filter(
               (k) =>
                 k.id !== 'usr-0' &&
-                k.jabatan !== 'Owner' &&
+                !isOwnerRole(k.jabatan) &&
                 (!k.email || k.email.toLowerCase() !== OWNER_EMAIL.toLowerCase())
             ).length,
           }}
@@ -2126,7 +2178,7 @@ export default function App() {
 
       {/* FLOATING SUCCESS TOAST NOTIFICATION */}
       {resetToastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-md bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border-2 border-emerald-500 flex items-start gap-3 animate-in slide-in-from-bottom duration-300">
+        <div className="fixed bottom-6 right-6 z-50 max-w-md bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border-2 border-emerald-500 flex items-start gap-3 animate-in slide-in-from-bottom duration-300 no-print">
           <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
           <div className="text-xs space-y-1">
             <div className="font-extrabold text-white">Full Reset Berhasil!</div>
@@ -2135,6 +2187,35 @@ export default function App() {
           <button
             onClick={() => setResetToastMessage(null)}
             className="text-slate-400 hover:text-white p-1 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* GLOBAL APP FEEDBACK TOAST */}
+      {appToast && (
+        <div
+          className={`fixed bottom-6 left-6 z-[70] max-w-md p-4 rounded-2xl shadow-2xl border-2 flex items-start gap-3 no-print ${
+            appToast.type === 'error'
+              ? 'bg-red-950 text-red-100 border-red-500'
+              : appToast.type === 'success'
+              ? 'bg-emerald-950 text-emerald-100 border-emerald-500'
+              : 'bg-slate-900 text-slate-100 border-amber-500'
+          }`}
+        >
+          {appToast.type === 'error' || appToast.type === 'info' ? (
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+          ) : (
+            <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+          )}
+          <div className="text-xs font-semibold leading-relaxed flex-1">
+            {appToast.message}
+          </div>
+          <button
+            type="button"
+            onClick={() => setAppToast(null)}
+            className="opacity-70 hover:opacity-100 p-1 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>

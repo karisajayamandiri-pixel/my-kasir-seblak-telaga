@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Clock,
   CheckCircle,
@@ -9,7 +9,6 @@ import {
   Check,
   UserMinus,
   HeartPulse,
-  Info,
   X,
   Shield,
   User,
@@ -22,16 +21,15 @@ import {
   Settings,
   FileSpreadsheet,
   Building2,
-  CalendarDays,
   DollarSign,
-  ChevronRight,
-  UserX,
   Share2,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
-import { Karyawan, Absensi, Cabang, DataCabang, PengaturanOff, GajiKaryawanSetting, SlipGajiData } from '../types';
+import { Karyawan, Absensi, DataCabang, PengaturanOff, GajiKaryawanSetting, SlipGajiData, AppSettings } from '../types';
 import { getTodayStr, getNowTimeStr, formatRupiah, STORAGE_KEYS, loadFromStorage, saveToStorage } from '../utils/storage';
 import { getBranchName, getStoreBranchNames } from '../utils/branchHelper';
-import { BottomSheetPicker, BottomSheetPickerTrigger, BottomSheetOption } from './BottomSheetPicker';
+import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 import { firestoreSavePengaturanGaji, firestoreSavePengaturanGajiBatch } from '../services/firestoreSync';
 
 interface AbsensiViewProps {
@@ -45,6 +43,9 @@ interface AbsensiViewProps {
   dataCabangList?: DataCabang[];
   pengaturanOffList?: PengaturanOff[];
   onSavePengaturanOff?: (poff: PengaturanOff) => void;
+  gajiSettings?: Record<string, GajiKaryawanSetting>;
+  onSaveGajiSettings?: (settingsList: GajiKaryawanSetting[]) => void | Promise<void>;
+  appSettings?: AppSettings;
 }
 
 export const AbsensiView: React.FC<AbsensiViewProps> = ({
@@ -58,12 +59,35 @@ export const AbsensiView: React.FC<AbsensiViewProps> = ({
   dataCabangList = [],
   pengaturanOffList = [],
   onSavePengaturanOff,
+  gajiSettings: propGajiSettings,
+  onSaveGajiSettings,
+  appSettings,
 }) => {
-  const isDcPusatOrOwner = currentUser.cabang === 'DC PUSAT' || currentUser.jabatan === 'Owner';
+  const roleNorm = (currentUser.jabatan || '').trim().toLowerCase();
+  const isOwner = roleNorm === 'owner';
+  const isAdminDcPusat = roleNorm === 'admin dc pusat' || roleNorm === 'admin';
+  const isPusatBranch = (currentUser.cabang || '').trim().toUpperCase() === 'DC PUSAT';
   const currentBranchName = getBranchName(currentUser.cabang, dataCabangList);
+  const isDcPusatOrOwner =
+    isOwner ||
+    isAdminDcPusat ||
+    isPusatBranch ||
+    currentBranchName.trim().toUpperCase() === 'DC PUSAT';
+
+  const brandName = (appSettings?.namaUsaha || 'TELAGA WARNA').trim() || 'TELAGA WARNA';
   const today = getTodayStr();
 
   const activeBranches = getStoreBranchNames(dataCabangList);
+
+  // In-app notice & WhatsApp preview modals (replace alert() & window.open())
+  const [absensiNotice, setAbsensiNotice] = useState<{ title: string; message: string } | null>(null);
+  const [waShareModal, setWaShareModal] = useState<{
+    nama: string;
+    phone: string;
+    message: string;
+    url: string;
+    copied: boolean;
+  } | null>(null);
 
   // DC / Store Filter States
   const [filterCabang, setFilterCabang] = useState<string>(
@@ -89,7 +113,9 @@ export const AbsensiView: React.FC<AbsensiViewProps> = ({
 
   // States untuk Laporan Absensi Bulanan (1 Bulan Full)
   const [laporanBulan, setLaporanBulan] = useState<string>(today.substring(0, 7)); // 'YYYY-MM'
-  const [laporanCabangFilter, setLaporanCabangFilter] = useState<string>('Semua');
+  const [laporanCabangFilter, setLaporanCabangFilter] = useState<string>(
+    isDcPusatOrOwner ? 'Semua' : (currentBranchName || currentUser.cabang)
+  );
   const [laporanSearchNama, setLaporanSearchNama] = useState<string>('');
 
   // Search bar input for searching branch name (pengganti tombol atas)
@@ -105,8 +131,14 @@ export const AbsensiView: React.FC<AbsensiViewProps> = ({
 
   // Pengaturan Gaji Karyawan oleh Owner
   const [gajiSettings, setGajiSettings] = useState<Record<string, GajiKaryawanSetting>>(() =>
-    loadFromStorage<Record<string, GajiKaryawanSetting>>(STORAGE_KEYS.PENGATURAN_GAJI, {})
+    propGajiSettings || loadFromStorage<Record<string, GajiKaryawanSetting>>(STORAGE_KEYS.PENGATURAN_GAJI, {})
   );
+
+  useEffect(() => {
+    if (propGajiSettings && Object.keys(propGajiSettings).length > 0) {
+      setGajiSettings(propGajiSettings);
+    }
+  }, [propGajiSettings]);
   const [editingGajiEmp, setEditingGajiEmp] = useState<Karyawan | null>(null);
   const [editGajiPokok, setEditGajiPokok] = useState<number>(100000);
   const [editUangMakan, setEditUangMakan] = useState<number>(20000);
@@ -157,9 +189,11 @@ export const AbsensiView: React.FC<AbsensiViewProps> = ({
 
     setGajiSettings(nextSettings);
     saveToStorage(STORAGE_KEYS.PENGATURAN_GAJI, nextSettings);
-
-    // Persist to Firestore via centralized sync service
-    void firestoreSavePengaturanGaji(updatedSetting).catch(() => {});
+    if (onSaveGajiSettings) {
+      void Promise.resolve(onSaveGajiSettings([updatedSetting])).catch(() => {});
+    } else {
+      void firestoreSavePengaturanGaji(updatedSetting).catch(() => {});
+    }
 
     setGajiSaveSuccess(`Pengaturan gaji untuk ${editingGajiEmp.nama} berhasil disimpan!`);
     setTimeout(() => {
@@ -256,7 +290,10 @@ export const AbsensiView: React.FC<AbsensiViewProps> = ({
     );
 
     if (branchEmployees.length === 0) {
-      alert(`Tidak ada karyawan yang terdaftar di Cabang ${selectedCabangForGaji}. Silakan daftarkan karyawan terlebih dahulu di menu Data Karyawan.`);
+      setAbsensiNotice({
+        title: 'Tidak Ada Karyawan',
+        message: `Tidak ada karyawan yang terdaftar di Cabang ${selectedCabangForGaji}. Silakan daftarkan karyawan terlebih dahulu di menu Data Karyawan.`,
+      });
       return;
     }
 
@@ -276,9 +313,12 @@ export const AbsensiView: React.FC<AbsensiViewProps> = ({
 
     setGajiSettings(nextSettings);
     saveToStorage(STORAGE_KEYS.PENGATURAN_GAJI, nextSettings);
-
     const branchSettingsList = branchEmployees.map((emp) => nextSettings[emp.id]);
-    void firestoreSavePengaturanGajiBatch(branchSettingsList).catch(() => {});
+    if (onSaveGajiSettings) {
+      void Promise.resolve(onSaveGajiSettings(branchSettingsList)).catch(() => {});
+    } else {
+      void firestoreSavePengaturanGajiBatch(branchSettingsList).catch(() => {});
+    }
 
     setCabangGajiSuccess(`Berhasil menerapkan tarif gaji baru untuk seluruh ${branchEmployees.length} karyawan di Cabang ${selectedCabangForGaji}!`);
     setTimeout(() => {
@@ -290,7 +330,10 @@ export const AbsensiView: React.FC<AbsensiViewProps> = ({
   const handleShareSlipWhatsApp = (emp: Karyawan, slipData: SlipGajiData) => {
     const rawHp = emp.hp || '';
     if (!rawHp.trim()) {
-      alert(`Nomor WhatsApp/HP untuk ${emp.nama} belum terdaftar di Data Karyawan. Silakan lengkapi nomor HP terlebih dahulu di menu Data Karyawan.`);
+      setAbsensiNotice({
+        title: 'Nomor HP Belum Terdaftar',
+        message: `Nomor WhatsApp/HP untuk ${emp.nama} belum terdaftar di Data Karyawan. Silakan lengkapi nomor HP terlebih dahulu di menu Data Karyawan.`,
+      });
       return;
     }
 
@@ -302,7 +345,7 @@ export const AbsensiView: React.FC<AbsensiViewProps> = ({
     }
 
     const text = `*SLIP GAJI & REKAPITULASI KEHADIRAN*
-*TELAGA WARNA*
+*${brandName.toUpperCase()}*
 ----------------------------------------
 *Nama Karyawan:* ${slipData.nama}
 *NIK:* ${slipData.nik || '-'}
@@ -324,12 +367,18 @@ export const AbsensiView: React.FC<AbsensiViewProps> = ({
 ${slipData.bonus > 0 ? `+ Bonus / Insentif: ${formatRupiah(slipData.bonus)}\n` : ''}- Denda Keterlambatan: ${formatRupiah(slipData.potonganTelat)} (${slipData.telatCount}x telat x ${formatRupiah(slipData.dendaTelat)})
 ${slipData.potonganLain > 0 ? `- Potongan Lainnya: ${formatRupiah(slipData.potonganLain)}\n` : ''}----------------------------------------
 *TOTAL GAJI BERSIH (TAKE HOME PAY):*
-👉 *${formatRupiah(slipData.totalGajiBersih)}*
+*${formatRupiah(slipData.totalGajiBersih)}*
 ----------------------------------------
-_Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAGA WARNA._`;
+_Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat ${brandName}._`;
 
     const waUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`;
-    window.open(waUrl, '_blank');
+    setWaShareModal({
+      nama: emp.nama,
+      phone,
+      message: text,
+      url: waUrl,
+      copied: false,
+    });
   };
 
   const handlePrintSlipGaji = (slipData: SlipGajiData) => {
@@ -389,11 +438,13 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
   const handleAbsenMasukSaya = () => {
     // Proteksi: Jadwal OFF yang sudah ditentukan oleh Admin DC Pusat tidak bisa diubah karyawan
     if (myTodayAbsen && myTodayAbsen.status === 'Off' && !isDcPusatOrOwner) {
-      alert('Hari ini Anda memiliki Jadwal OFF resmi yang telah ditetapkan oleh Admin DC Pusat. Karyawan tidak dapat mengubah jadwal OFF ini.');
+      setAbsensiNotice({
+        title: 'Jadwal OFF Terkunci',
+        message: 'Hari ini Anda memiliki Jadwal OFF resmi yang telah ditetapkan oleh Admin DC Pusat. Karyawan tidak dapat mengubah jadwal OFF ini.',
+      });
       return;
     }
 
-    const isOwner = currentUser.jabatan === 'Owner';
     const jamMasuk = (isOwner && useSimulationTime) ? simulatedTime : getNowTimeStr();
     // Rule: Telat jika > 08:00
     const [hh, mm] = jamMasuk.split(':').map(Number);
@@ -403,7 +454,7 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
     const newAbsen: Absensi = {
       id: 'abs-' + Date.now(),
       tanggal: today,
-      cabang: currentUser.cabang,
+      cabang: currentBranchName || currentUser.cabang,
       karyawanId: currentUser.id,
       nama: currentUser.nama,
       jabatan: currentUser.jabatan,
@@ -421,7 +472,6 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
   // 2. Absen Pulang Mandiri
   const handleAbsenPulangSaya = () => {
     if (!myTodayAbsen) return;
-    const isOwner = currentUser.jabatan === 'Owner';
     const jamPulang = (isOwner && useSimulationTime) ? '17:00:00' : getNowTimeStr();
     const durasi = calculateDuration(myTodayAbsen.jamMasuk, jamPulang);
     onAbsenPulang(myTodayAbsen.id, jamPulang, durasi);
@@ -494,7 +544,10 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
   const handleConfirmReplaceAbsen = () => {
     if (pendingAbsenData) {
       if (myTodayAbsen?.status === 'Off' && !isDcPusatOrOwner) {
-        alert('Jadwal OFF resmi dari Admin DC Pusat tidak dapat diubah oleh karyawan.');
+        setAbsensiNotice({
+          title: 'Jadwal OFF Terkunci',
+          message: 'Jadwal OFF resmi dari Admin DC Pusat tidak dapat diubah oleh karyawan.',
+        });
         setShowReplaceConfirmModal(false);
         setPendingAbsenData(null);
         return;
@@ -685,21 +738,29 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
     }
   };
 
-  // Filtered absensi table
+  // Filtered absensi table (resolves branch ID & searchCabangInput globally)
   const filteredAbsensi = absensiList.filter((a) => {
-    const matchCabang = filterCabang === 'Semua' || a.cabang === filterCabang;
+    const aBranch = getBranchName(a.cabang_id || a.cabang, dataCabangList) || a.cabang || '';
+    const matchCabang =
+      filterCabang === 'Semua' || aBranch === filterCabang || a.cabang === filterCabang;
+    const matchSearchCabang =
+      !searchCabangInput.trim() ||
+      aBranch.toLowerCase().includes(searchCabangInput.toLowerCase().trim()) ||
+      (a.cabang || '').toLowerCase().includes(searchCabangInput.toLowerCase().trim());
     const matchTanggal = !filterTanggal || a.tanggal === filterTanggal;
     const matchStatus = filterStatus === 'Semua' || a.status === filterStatus;
-    const matchNama = !searchNama || a.nama.toLowerCase().includes(searchNama.toLowerCase());
-    return matchCabang && matchTanggal && matchStatus && matchNama;
+    const matchNama = !searchNama || (a.nama || '').toLowerCase().includes(searchNama.toLowerCase());
+    return matchCabang && matchSearchCabang && matchTanggal && matchStatus && matchNama;
   });
 
   // Summary counts for current filter
-  const activeAbsensiSubset = absensiList.filter(
-    (a) =>
+  const activeAbsensiSubset = absensiList.filter((a) => {
+    const aBranch = getBranchName(a.cabang_id || a.cabang, dataCabangList) || a.cabang || '';
+    return (
       (!filterTanggal || a.tanggal === filterTanggal) &&
-      (filterCabang === 'Semua' || a.cabang === filterCabang)
-  );
+      (filterCabang === 'Semua' || aBranch === filterCabang || a.cabang === filterCabang)
+    );
+  });
 
   const countHadirTepat = activeAbsensiSubset.filter((a) => a.status === 'Tepat Waktu').length;
   const countHadirTelat = activeAbsensiSubset.filter((a) => a.status === 'Terlambat').length;
@@ -715,11 +776,11 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
         <div>
           <div className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-orange-600" />
-            <h2 className="text-xl font-black text-slate-800">
+            <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">
               Absensi Kehadiran Karyawan (Akun Mandiri)
             </h2>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Setiap karyawan (Crew Store, Driver, Cashier, Kepala Toko, SPV, Admin) wajib absen masuk, pulang, atau mengajukan izin/sakit menggunakan <strong>akun login masing-masing</strong>.
           </p>
         </div>
@@ -733,7 +794,7 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
               value={searchCabangInput}
               onChange={(e) => setSearchCabangInput(e.target.value)}
               placeholder="Cari nama cabang..."
-              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-xs"
+              className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-xs"
             />
           </div>
 
@@ -749,7 +810,7 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
       </div>
 
       {/* 3 Sub-Tabs Navigation */}
-      <div className="flex border-b border-slate-200 gap-2 pb-px overflow-x-auto">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2 pb-px overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveSubTab('presensi')}
@@ -797,34 +858,34 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
       {activeSubTab === 'presensi' && (
         <div className="space-y-6">
           {/* CARD 1: ABSENSI MANDIRI AKUN LOGIN (Wajib Akun Sendiri) */}
-          <div className="bg-white rounded-3xl border-2 border-orange-200 p-6 shadow-sm space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-orange-200 dark:border-orange-900/60 p-6 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black bg-orange-100 text-orange-800 px-2.5 py-0.5 rounded-full uppercase">
-                {currentUser.cabang}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-black bg-orange-100 dark:bg-orange-950/60 text-orange-800 dark:text-orange-300 px-2.5 py-0.5 rounded-full uppercase">
+                {currentBranchName || currentUser.cabang}
               </span>
-              <span className="text-[10px] font-black bg-purple-100 text-purple-900 px-2.5 py-0.5 rounded-full uppercase">
+              <span className="text-[10px] font-black bg-purple-100 dark:bg-purple-950/60 text-purple-900 dark:text-purple-300 px-2.5 py-0.5 rounded-full uppercase">
                 {currentUser.jabatan}
               </span>
               {currentUser.nik && (
-                <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                <span className="text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-full">
                   NIK: {currentUser.nik}
                 </span>
               )}
             </div>
-            <h3 className="text-lg font-black text-slate-800 mt-1.5">
+            <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 mt-1.5">
               Absensi Mandiri: {currentUser.nama}
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Tanggal Hari Ini: <strong>{today}</strong> • Batas jam masuk kerja tepat waktu: 08:00 WIB
             </p>
           </div>
 
           {/* Time simulation tool - HANYA DITAMPILKAN UNTUK JABATAN OWNER */}
-          {currentUser.jabatan === 'Owner' && (
-            <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 text-xs flex items-center gap-2 self-start sm:self-auto">
-              <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1 cursor-pointer">
+          {isOwner && (
+            <div className="bg-slate-50 dark:bg-slate-800 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs flex items-center gap-2 self-start sm:self-auto">
+              <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={useSimulationTime}
@@ -838,10 +899,10 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
                   <button
                     type="button"
                     onClick={() => setSimulatedTime('07:45:00')}
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer tabular-nums ${
                       simulatedTime === '07:45:00'
                         ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+                        : 'bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50'
                     }`}
                   >
                     07:45 (Tepat)
@@ -849,10 +910,10 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
                   <button
                     type="button"
                     onClick={() => setSimulatedTime('08:15:00')}
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer tabular-nums ${
                       simulatedTime === '08:15:00'
                         ? 'bg-rose-600 text-white shadow-xs'
-                        : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+                        : 'bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50'
                     }`}
                   >
                     08:15 (Telat)
@@ -1034,65 +1095,65 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
 
       {/* QUICK SUMMARY COUNTERS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-0.5">
-          <div className="text-[11px] font-bold text-emerald-800 flex items-center justify-center gap-1">
+        <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-center space-y-0.5">
+          <div className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 flex items-center justify-center gap-1">
             <CheckCircle className="w-3.5 h-3.5" />
             <span>Tepat Waktu</span>
           </div>
-          <div className="text-xl font-black text-emerald-700">{countHadirTepat}</div>
+          <div className="text-xl font-black text-emerald-700 dark:text-emerald-400 tabular-nums">{countHadirTepat}</div>
         </div>
 
-        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-center space-y-0.5">
-          <div className="text-[11px] font-bold text-amber-800 flex items-center justify-center gap-1">
+        <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl text-center space-y-0.5">
+          <div className="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center justify-center gap-1">
             <Clock className="w-3.5 h-3.5" />
             <span>Terlambat (&gt;08:00)</span>
           </div>
-          <div className="text-xl font-black text-amber-700">{countHadirTelat}</div>
+          <div className="text-xl font-black text-amber-700 dark:text-amber-400 tabular-nums">{countHadirTelat}</div>
         </div>
 
-        <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-center space-y-0.5">
-          <div className="text-[11px] font-bold text-blue-800 flex items-center justify-center gap-1">
+        <div className="p-3.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-2xl text-center space-y-0.5">
+          <div className="text-[11px] font-bold text-blue-800 dark:text-blue-300 flex items-center justify-center gap-1">
             <UserMinus className="w-3.5 h-3.5" />
             <span>Izin</span>
           </div>
-          <div className="text-xl font-black text-blue-700">{countIzin}</div>
+          <div className="text-xl font-black text-blue-700 dark:text-blue-400 tabular-nums">{countIzin}</div>
         </div>
 
-        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-center space-y-0.5">
-          <div className="text-[11px] font-bold text-rose-800 flex items-center justify-center gap-1">
+        <div className="p-3.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-2xl text-center space-y-0.5">
+          <div className="text-[11px] font-bold text-rose-800 dark:text-rose-300 flex items-center justify-center gap-1">
             <HeartPulse className="w-3.5 h-3.5" />
             <span>Sakit</span>
           </div>
-          <div className="text-xl font-black text-rose-700">{countSakit}</div>
+          <div className="text-xl font-black text-rose-700 dark:text-rose-400 tabular-nums">{countSakit}</div>
         </div>
 
-        <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-2xl text-center space-y-0.5">
-          <div className="text-[11px] font-bold text-purple-800 flex items-center justify-center gap-1">
+        <div className="p-3.5 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-2xl text-center space-y-0.5">
+          <div className="text-[11px] font-bold text-purple-800 dark:text-purple-300 flex items-center justify-center gap-1">
             <Coffee className="w-3.5 h-3.5" />
             <span>Off (Shift)</span>
           </div>
-          <div className="text-xl font-black text-purple-700">{countOff}</div>
+          <div className="text-xl font-black text-purple-700 dark:text-purple-400 tabular-nums">{countOff}</div>
         </div>
 
-        <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-2xl text-center space-y-0.5">
-          <div className="text-[11px] font-bold text-indigo-800 flex items-center justify-center gap-1">
+        <div className="p-3.5 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-2xl text-center space-y-0.5">
+          <div className="text-[11px] font-bold text-indigo-800 dark:text-indigo-300 flex items-center justify-center gap-1">
             <Calendar className="w-3.5 h-3.5" />
             <span>Libur</span>
           </div>
-          <div className="text-xl font-black text-indigo-700">{countLibur}</div>
+          <div className="text-xl font-black text-indigo-700 dark:text-indigo-400 tabular-nums">{countLibur}</div>
         </div>
       </div>
 
       {/* REKAP TABEL ABSENSI */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-4">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2">
               <Calendar className="w-4 h-4 text-orange-600" />
-              <span>Tabel Rekap Kehadiran, Izin & Sakit</span>
+              <span>Tabel Rekap Kehadiran, Izin &amp; Sakit</span>
             </h3>
             <p className="text-[11px] text-slate-400">
-              Audit kedisiplinan jam masuk kerja & rekap permohonan izin/sakit karyawan
+              Audit kedisiplinan jam masuk kerja &amp; rekap permohonan izin/sakit karyawan
             </p>
           </div>
 
@@ -1346,7 +1407,6 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
           const branchKey = branch.branchId || branch.id;
           const branchSetting = getBranchPengaturanOff(branchKey, branch.nama);
 
-          // Filter karyawan by cabang_id / branchId / cabang name, sorted A-Z
           const branchEmployees = karyawanList
             .filter(
               (k) =>
@@ -1355,7 +1415,7 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
                 k.cabang_id === branch.id ||
                 k.cabang === branch.nama
             )
-            .sort((a, b) => a.nama.localeCompare(b.nama));
+            .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
 
           const daysKeys: Array<'senin' | 'selasa' | 'rabu' | 'kamis' | 'jumat' | 'sabtu' | 'minggu'> = [
             'senin',
@@ -1564,22 +1624,22 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
   {activeSubTab === 'laporanBulanan' && (
     <div className="space-y-6">
       {/* Header & Filter Controls */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-4">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <FileSpreadsheet className="w-5 h-5 text-indigo-600" />
-              <h3 className="text-lg font-black text-slate-800">
-                Laporan Absensi Bulanan (1 Bulan Full & Perhitungan Gaji)
+              <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">
+                Laporan Absensi Bulanan (1 Bulan Full &amp; Perhitungan Gaji)
               </h3>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Otomatis menggabungkan data Presensi Masuk (Hadir/Telat) dan <strong>Jadwal OFF</strong> untuk kalkulasi kehadiran dan estimasi gaji bersih karyawan.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {isDcPusatOrOwner && (
+            {isOwner && (
               <button
                 type="button"
                 onClick={handleOpenEditGajiCabang}
@@ -1678,18 +1738,22 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
 
         const filteredEmployees = karyawanList
           .filter((k) => {
+            const empBranch = getBranchName(k.cabang_id || k.branchId || k.cabang, dataCabangList) || k.cabang || '';
             const matchCabang =
-              laporanCabangFilter === 'Semua' || k.cabang === laporanCabangFilter;
+              laporanCabangFilter === 'Semua' || empBranch === laporanCabangFilter || k.cabang === laporanCabangFilter;
+            const matchSearchCabang =
+              !searchCabangInput.trim() ||
+              empBranch.toLowerCase().includes(searchCabangInput.toLowerCase().trim());
             const matchSearch =
               !laporanSearchNama ||
-              k.nama.toLowerCase().includes(laporanSearchNama.toLowerCase()) ||
+              (k.nama || '').toLowerCase().includes(laporanSearchNama.toLowerCase()) ||
               (k.nik && k.nik.toLowerCase().includes(laporanSearchNama.toLowerCase()));
-            return matchCabang && matchSearch;
+            return matchCabang && matchSearchCabang && matchSearch;
           })
-          .sort((a, b) => a.nama.localeCompare(b.nama));
+          .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
 
         return (
-          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs space-y-4 p-5">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs space-y-4 p-5">
             {/* Legend */}
             <div className="flex flex-wrap items-center gap-3 text-xs border-b pb-3">
               <span className="font-bold text-slate-600">Keterangan Status:</span>
@@ -1876,14 +1940,14 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
                               'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
                               'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
                             ];
-                            const bulanNama = `${monthNamesIndo[monthNum - 1]} ${yearNum}`;
+                            const bulanNama = `${monthNamesIndo[monthNum - 1] || monthStr} ${yearNum}`;
 
                             const slipData: SlipGajiData = {
                               karyawanId: emp.id,
                               nama: emp.nama,
                               nik: emp.nik,
                               jabatan: emp.jabatan,
-                              cabang: emp.cabang,
+                              cabang: getBranchName(emp.cabang_id || emp.cabang, dataCabangList) || emp.cabang,
                               hp: emp.hp,
                               bulan: laporanBulan,
                               bulanNama,
@@ -1909,15 +1973,15 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
 
                             return (
                               <>
-                                <td className="p-2.5 text-right font-black text-emerald-800 bg-emerald-50/60 whitespace-nowrap">
+                                <td className="p-2.5 text-right font-black text-emerald-800 dark:text-emerald-300 bg-emerald-50/60 dark:bg-emerald-950/30 whitespace-nowrap tabular-nums">
                                   <div className="text-xs">{formatRupiah(totalGajiBersih)}</div>
-                                  <div className="text-[9px] text-slate-500 font-normal">
+                                  <div className="text-[9px] text-slate-500 dark:text-slate-400 font-normal">
                                     {hadirCount}x ({formatRupiah(gajiConfig.gajiPokokHarian + gajiConfig.uangMakanHarian)}) - {telatCount}x telat
                                   </div>
                                 </td>
-                                <td className="p-2 text-center bg-white whitespace-nowrap">
+                                <td className="p-2 text-center bg-white dark:bg-slate-900 whitespace-nowrap">
                                   <div className="flex items-center justify-center gap-1.5">
-                                    {isDcPusatOrOwner && (
+                                    {isOwner && (
                                       <button
                                         type="button"
                                         onClick={() => handleOpenEditGaji(emp)}
@@ -2215,7 +2279,7 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
             </div>
 
             {scheduleModalSuccess && (
-              <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs rounded-xl flex items-center gap-2 font-bold animate-pulse">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs rounded-xl flex items-center gap-2 font-bold">
                 <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>{scheduleModalSuccess}</span>
               </div>
@@ -2985,6 +3049,89 @@ _Catatan: Dokumen rincian slip gaji resmi diterbitkan oleh Manajemen Pusat TELAG
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PREVIEW & KIRIM SLIP GAJI VIA WHATSAPP (Pengganti window.open) */}
+      {waShareModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center">
+                  <Share2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm">
+                    Bagikan Slip Gaji WhatsApp
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                    {waShareModal.nama} &bull; +{waShareModal.phone}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWaShareModal(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <pre className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-[11px] text-slate-700 dark:text-slate-200 whitespace-pre-wrap font-mono max-h-60 overflow-y-auto leading-relaxed">
+              {waShareModal.message}
+            </pre>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(waShareModal.message).catch(() => {});
+                  setWaShareModal({ ...waShareModal, copied: true });
+                }}
+                className="flex-1 py-2.5 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>{waShareModal.copied ? 'Tersalin!' : 'Salin Teks'}</span>
+              </button>
+              <a
+                href={waShareModal.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-2 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Buka WhatsApp</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* IN-APP NOTICE DIALOG (Pengganti alert()) */}
+      {absensiNotice && (
+        <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800 text-center">
+            <div className="w-12 h-12 bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="font-black text-slate-800 dark:text-slate-100 text-base">
+                {absensiNotice.title}
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                {absensiNotice.message}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAbsensiNotice(null)}
+              className="w-full py-2.5 bg-slate-900 dark:bg-orange-600 hover:bg-black dark:hover:bg-orange-700 text-white font-black rounded-xl text-xs cursor-pointer"
+            >
+              Mengerti
+            </button>
           </div>
         </div>
       )}

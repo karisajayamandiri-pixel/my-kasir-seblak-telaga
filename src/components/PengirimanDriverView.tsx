@@ -2,21 +2,14 @@ import React, { useState } from 'react';
 import {
   Truck,
   CheckCircle,
-  Clock,
   MapPin,
-  Package,
-  FileText,
-  Calendar,
   Check,
-  AlertCircle,
-  DollarSign,
-  ChevronRight,
   ShieldCheck,
-  User,
+  X,
 } from 'lucide-react';
 import { Karyawan, SuratJalan, StokCabangMap, Cabang, DataCabang, AppSettings } from '../types';
 import { formatRupiah, getTodayStr, getNowShortTime } from '../utils/storage';
-import { getStoreBranchNames } from '../utils/branchHelper';
+import { getBranchName, getStoreBranchNames } from '../utils/branchHelper';
 import { DEFAULT_BUSINESS_NAME } from '../utils/theme';
 import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
@@ -58,9 +51,18 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
   const [showPickerStatus, setShowPickerStatus] = useState(false);
   const [showPickerCabang, setShowPickerCabang] = useState(false);
 
+  // In-app confirmation modals & notice banner
+  const [confirmTerkirimSj, setConfirmTerkirimSj] = useState<SuratJalan | null>(null);
+  const [confirmTerimaSj, setConfirmTerimaSj] = useState<SuratJalan | null>(null);
+  const [penerimaNamaInput, setPenerimaNamaInput] = useState<string>('Kasir Bertugas');
+  const [driverNotice, setDriverNotice] = useState<string | null>(null);
+
+  const resolveBranch = (raw?: string) => getBranchName(raw, dataCabangList) || raw || '';
+
   // Filter deliveries
   const filteredList = suratJalanList.filter((sj) => {
-    const matchCabang = filterCabang === 'Semua' || sj.cabangTujuan === filterCabang;
+    const tujuanName = resolveBranch(sj.cabangTujuan);
+    const matchCabang = filterCabang === 'Semua' || tujuanName === filterCabang;
     let matchStatus = true;
     if (filterStatus === 'Dalam Perjalanan') {
       matchStatus = sj.status === 'Dikirim';
@@ -73,37 +75,31 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
   });
 
   // Action 1: Driver marks as Terkirim (Arrived at destination)
-  const handleMarkTerkirim = (sj: SuratJalan) => {
-    const confirmAction = confirm(
-      `Tandai pengiriman ${sj.noSuratJalan} ke ${sj.cabangTujuan} sudah sampai di lokasi tujuan (Terkirim)?`
+  const executeMarkTerkirim = () => {
+    if (!confirmTerkirimSj) return;
+    onUpdateSuratJalanStatus(confirmTerkirimSj.id, 'Terkirim');
+    setDriverNotice(
+      `Pengiriman ${confirmTerkirimSj.noSuratJalan} ke ${resolveBranch(confirmTerkirimSj.cabangTujuan)} ditandai Terkirim.`
     );
-    if (!confirmAction) return;
-
-    onUpdateSuratJalanStatus(sj.id, 'Terkirim');
+    setConfirmTerkirimSj(null);
   };
 
   // Action 2: Driver marks as Diterima (after branch physical signature)
-  const handleConfirmDiterima = (sj: SuratJalan) => {
-    const confirmSign = confirm(
-      `PENTING:\nApakah Kepala Toko / Kasir ${sj.cabangTujuan} SUDAH memeriksa barang fisik dan MENANDATANGANI lembar Surat Jalan fisik?\n\nKlik OK untuk menyelesaikan pengiriman dan menambah stok bahan baku cabang secara otomatis.`
-    );
-    if (!confirmSign) return;
+  const executeConfirmDiterima = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmTerimaSj) return;
 
-    const penerimaNamaInput = prompt(
-      `Masukkan nama petugas cabang ${sj.cabangTujuan} yang menandatangani Surat Jalan:`,
-      'Kasir Bertugas'
-    );
-    if (penerimaNamaInput === null) return;
-
+    const sj = confirmTerimaSj;
     const today = getTodayStr();
     const timeNow = getNowShortTime();
 
-    // 1. Automatically update branch stock
-    const targetCabang = sj.cabangTujuan as Exclude<Cabang, 'DC PUSAT'>;
-    const currentBranchStock = { ...(stokCabang[targetCabang] || {}) };
-    sj.items.forEach((it) => {
-      const currentVal = currentBranchStock[it.bahanId] || 0;
-      currentBranchStock[it.bahanId] = currentVal + it.qtyKirim;
+    const targetCabang = resolveBranch(sj.cabangTujuan) as Exclude<Cabang, 'DC PUSAT'>;
+    const currentBranchStock = {
+      ...(stokCabang[targetCabang] || stokCabang[sj.cabangTujuan as Exclude<Cabang, 'DC PUSAT'>] || {}),
+    };
+    (sj.items || []).forEach((it) => {
+      const currentVal = Number(currentBranchStock[it.bahanId]) || 0;
+      currentBranchStock[it.bahanId] = currentVal + (Number(it.qtyKirim) || 0);
     });
 
     const newStokMap: StokCabangMap = {
@@ -112,7 +108,6 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
     };
     onUpdateStokCabang(newStokMap);
 
-    // 2. Update Surat Jalan status to 'Diterima' (Selesai)
     onUpdateSuratJalanStatus(sj.id, 'Diterima', {
       penerimaNama: (penerimaNamaInput || 'Petugas Cabang').trim() + ' (Ttd Surat Jalan)',
       tanggalTerima: today,
@@ -120,8 +115,9 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
       catatanPenerima: 'Surat jalan fisik telah ditandatangani dan diverifikasi Driver.',
     });
 
-    alert(
-      `Pengiriman ${sj.noSuratJalan} berhasil diselesaikan (Status: Diterima)! Stok bahan baku cabang ${sj.cabangTujuan} telah otomatis bertambah.`
+    setConfirmTerimaSj(null);
+    setDriverNotice(
+      `Pengiriman ${sj.noSuratJalan} selesai diterima. Stok bahan baku cabang ${targetCabang} otomatis bertambah.`
     );
   };
 
@@ -195,6 +191,22 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
       </div>
 
       {/* Driver Instructions Card */}
+      {driverNotice && (
+        <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-center justify-between gap-2 text-xs text-emerald-800 dark:text-emerald-200 font-bold">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{driverNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDriverNotice(null)}
+            className="text-emerald-700 dark:text-emerald-300 hover:opacity-75 p-0.5 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-800 rounded-2xl flex items-start gap-3 text-xs text-amber-950 dark:text-amber-200">
         <ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
         <div className="space-y-1">
@@ -221,6 +233,8 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
             const isCompleted = sj.status === 'Diterima' || sj.status === 'Selesai';
             const isTerkirim = sj.status === 'Terkirim';
             const isDikirim = sj.status === 'Dikirim';
+            const tujuanName = resolveBranch(sj.cabangTujuan);
+            const sjItems = sj.items || [];
 
             return (
               <div
@@ -242,7 +256,7 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
                           isCompleted
                             ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60'
                             : isTerkirim
-                            ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 animate-pulse'
+                            ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60'
                             : 'bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-300 border border-blue-300 dark:border-blue-700/60'
                         }`}
                       >
@@ -253,13 +267,13 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
                           : 'Dalam Perjalanan (Dikirim)'}
                       </span>
                       <span className="text-xs font-black text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/60 px-2 py-0.5 rounded-md">
-                        Ke: {sj.cabangTujuan}
+                        Ke: {tujuanName}
                       </span>
                     </div>
                     <h3 className="font-black text-slate-800 dark:text-slate-100 text-base mt-1.5 font-mono">
                       {sj.noSuratJalan}
                     </h3>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-slate-400 tabular-nums">
                       Tgl Kirim: {sj.tanggal} {sj.jam} • Driver: <strong className="text-slate-700 dark:text-slate-200">{sj.driver}</strong>
                     </p>
                   </div>
@@ -269,26 +283,26 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
                 <div className="bg-slate-50 dark:bg-slate-800/70 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2 text-xs">
                   <div className="flex justify-between items-center text-[11px] font-bold text-slate-600 dark:text-slate-300 border-b dark:border-slate-700 pb-1">
                     <span>Bahan Baku yang Dikirim:</span>
-                    <span>{sj.items.length} Macam Bahan</span>
+                    <span className="tabular-nums">{sjItems.length} Macam Bahan</span>
                   </div>
                   <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
-                    {sj.items.map((it, idx) => (
+                    {sjItems.map((it, idx) => (
                       <div
                         key={idx}
                         className="flex justify-between items-center text-slate-800 dark:text-slate-100 font-semibold"
                       >
                         <span>{it.namaBahan}</span>
-                        <span className="font-black text-orange-700 dark:text-orange-400">
-                          {it.qtyKirim} {it.satuan}
+                        <span className="font-black tabular-nums text-orange-700 dark:text-orange-400">
+                          {Number(it.qtyKirim) || 0} {it.satuan}
                         </span>
                       </div>
                     ))}
                   </div>
 
-                  {(sj.biayaSolar > 0 || sj.setoran > 0) && (
-                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                      {sj.biayaSolar > 0 && <span>Biaya Solar: {formatRupiah(sj.biayaSolar)}</span>}
-                      {sj.setoran > 0 && <span>Titipan Setoran: {formatRupiah(sj.setoran)}</span>}
+                  {((Number(sj.biayaSolar) || 0) > 0 || (Number(sj.setoran) || 0) > 0) && (
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between text-[11px] font-semibold tabular-nums text-slate-600 dark:text-slate-300">
+                      {(Number(sj.biayaSolar) || 0) > 0 && <span>Biaya Solar: {formatRupiah(Number(sj.biayaSolar) || 0)}</span>}
+                      {(Number(sj.setoran) || 0) > 0 && <span>Titipan Setoran: {formatRupiah(Number(sj.setoran) || 0)}</span>}
                     </div>
                   )}
                 </div>
@@ -303,7 +317,7 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
                     <div className="text-[11px] text-emerald-900 dark:text-emerald-200">
                       Penerima: <strong>{sj.penerimaNama || 'Kasir Cabang'}</strong>
                     </div>
-                    <div className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                    <div className="text-[10px] text-emerald-700 dark:text-emerald-400 tabular-nums">
                       Waktu Terima: {sj.tanggalTerima} {sj.jamTerima}
                     </div>
                   </div>
@@ -312,11 +326,10 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
                 {/* DRIVER ACTION BUTTONS */}
                 {!isCompleted && (
                   <div className="space-y-2 pt-1">
-                    {/* Step 1: Tandai Terkirim */}
                     {isDikirim && (
                       <button
                         type="button"
-                        onClick={() => handleMarkTerkirim(sj)}
+                        onClick={() => setConfirmTerkirimSj(sj)}
                         className="w-full py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 transition cursor-pointer active:scale-95"
                       >
                         <Truck className="w-4 h-4" />
@@ -324,19 +337,21 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
                       </button>
                     )}
 
-                    {/* Step 2: Konfirmasi Diterima (Driver Wajib Klik setelah cabang tanda tangan) */}
                     {isTerkirim && (
                       <div className="space-y-2">
                         <div className="p-2.5 bg-amber-100/70 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 rounded-xl text-[11px] text-amber-900 dark:text-amber-200 font-medium">
-                          ✍️ Minta pihak cabang {sj.cabangTujuan} untuk memeriksa fisik barang & menandatangani lembar Surat Jalan fisik.
+                          Minta pihak cabang {tujuanName} untuk memeriksa fisik barang & menandatangani lembar Surat Jalan fisik.
                         </div>
                         <button
                           type="button"
-                          onClick={() => handleConfirmDiterima(sj)}
-                          className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition cursor-pointer active:scale-95 animate-pulse"
+                          onClick={() => {
+                            setPenerimaNamaInput('Kasir Bertugas');
+                            setConfirmTerimaSj(sj);
+                          }}
+                          className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition cursor-pointer active:scale-95"
                         >
                           <Check className="w-4 h-4 stroke-[3]" />
-                          <span>Cabang Sudah Tanda Tangan: KLIK KONFIRMASI DITERIMA</span>
+                          <span>Cabang Sudah Tanda Tangan: KONFIRMASI DITERIMA</span>
                         </button>
                       </div>
                     )}
@@ -345,6 +360,99 @@ export const PengirimanDriverView: React.FC<PengirimanDriverViewProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Terkirim */}
+      {confirmTerkirimSj && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+              <Truck className="w-5 h-5" />
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
+                Konfirmasi Tiba di Cabang
+              </h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Tandai pengiriman <strong>{confirmTerkirimSj.noSuratJalan}</strong> ke{' '}
+              <strong>{resolveBranch(confirmTerkirimSj.cabangTujuan)}</strong> sudah tiba di lokasi tujuan (Terkirim)?
+            </p>
+            <div className="flex justify-end gap-2 pt-2 border-t dark:border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => setConfirmTerkirimSj(null)}
+                className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold rounded-xl cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={executeMarkTerkirim}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl cursor-pointer"
+              >
+                Ya, Tandai Terkirim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Diterima + Input Nama Penerima */}
+      {confirmTerimaSj && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between border-b dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle className="w-5 h-5" />
+                <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
+                  Verifikasi Penerimaan {confirmTerimaSj.noSuratJalan}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmTerimaSj(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={executeConfirmDiterima} className="space-y-3 text-xs">
+              <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                Pastikan Kepala Toko / Kasir <strong>{resolveBranch(confirmTerimaSj.cabangTujuan)}</strong> telah memeriksa barang fisik dan menandatangani lembar Surat Jalan. Stok bahan baku cabang akan bertambah otomatis.
+              </p>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Nama Petugas Penerima Cabang <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={penerimaNamaInput}
+                  onChange={(e) => setPenerimaNamaInput(e.target.value)}
+                  placeholder="Contoh: Kasir Bertugas"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-slate-100"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setConfirmTerimaSj(null)}
+                  className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold rounded-xl cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl cursor-pointer"
+                >
+                  Konfirmasi & Tambah Stok
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

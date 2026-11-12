@@ -3,19 +3,15 @@ import {
   FileText,
   BarChart2,
   Calendar,
-  Filter,
   Printer,
   DollarSign,
   TrendingUp,
   AlertTriangle,
   Store,
-  PieChart,
   ShoppingBag,
-  Package,
   Lock,
   ShieldCheck,
   Search,
-  CheckCircle,
   Building2,
   RotateCcw,
 } from 'lucide-react';
@@ -25,7 +21,6 @@ import {
   BahanBaku,
   StokCabangMap,
   KatalogMenu,
-  Cabang,
   Karyawan,
   AuditLog,
   PengeluaranToko,
@@ -87,9 +82,19 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   const [showPickerAuditCabang, setShowPickerAuditCabang] = useState(false);
   const [showPickerAuditAksi, setShowPickerAuditAksi] = useState(false);
 
+  const matchesSelectedBranch = (rawBranch?: string) => {
+    if (filterCabang === 'Semua') return true;
+    return getBranchName(rawBranch, dataCabangList) === getBranchName(filterCabang, dataCabangList);
+  };
+
+  const matchesAuditBranch = (rawBranch?: string) => {
+    if (!auditBulananCabang) return false;
+    return getBranchName(rawBranch, dataCabangList) === getBranchName(auditBulananCabang, dataCabangList);
+  };
+
   // Filtered DIVOID Transactions (Requirement 6: Tampilkan menu lama & menu pengganti untuk audit owner/admin)
   const divoidTrxList = transaksiList.filter((t) => {
-    const matchCabang = filterCabang === 'Semua' || t.cabang === filterCabang;
+    const matchCabang = matchesSelectedBranch(t.cabang);
     const isDivoid =
       t.statusPesanan === 'DIVOID' ||
       (t.statusPesanan && t.statusPesanan.toUpperCase().includes('VOID')) ||
@@ -105,20 +110,20 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
   // 1. LAPORAN HARIAN CALCULATION
   const filteredDailyTrx = transaksiList.filter((t) => {
-    const matchCabang = filterCabang === 'Semua' || t.cabang === filterCabang;
-    const matchTanggal = t.tanggal === filterTanggal;
+    const matchCabang = matchesSelectedBranch(t.cabang);
+    const matchTanggal = (t.tanggal || '') === filterTanggal;
     return matchCabang && matchTanggal && t.status === 'Sukses';
   });
 
-  const dailyOmzet = filteredDailyTrx.reduce((acc, t) => acc + t.total, 0);
-  const dailyModal = filteredDailyTrx.reduce((acc, t) => acc + t.totalModal, 0);
-  const dailyUntung = filteredDailyTrx.reduce((acc, t) => acc + t.totalUntung, 0);
+  const dailyOmzet = filteredDailyTrx.reduce((acc, t) => acc + (Number(t.total) || 0), 0);
+  const dailyModal = filteredDailyTrx.reduce((acc, t) => acc + (Number(t.totalModal) || 0), 0);
+  const dailyUntung = filteredDailyTrx.reduce((acc, t) => acc + (Number(t.totalUntung) || 0), 0);
   const dailyTrxCount = filteredDailyTrx.length;
 
   // 2. LAPORAN BULANAN CALCULATION (Grouped by Date)
   const monthlyTrx = transaksiList.filter((t) => {
-    const matchCabang = filterCabang === 'Semua' || t.cabang === filterCabang;
-    const matchMonth = t.tanggal.startsWith(filterBulan);
+    const matchCabang = matchesSelectedBranch(t.cabang);
+    const matchMonth = (t.tanggal || '').startsWith(filterBulan);
     return matchCabang && matchMonth && t.status === 'Sukses';
   });
 
@@ -127,29 +132,32 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   } = {};
 
   monthlyTrx.forEach((t) => {
-    if (!monthlyGrouped[t.tanggal]) {
-      monthlyGrouped[t.tanggal] = { omzet: 0, modal: 0, untung: 0, count: 0 };
+    const tDate = t.tanggal || '';
+    if (!tDate) return;
+    if (!monthlyGrouped[tDate]) {
+      monthlyGrouped[tDate] = { omzet: 0, modal: 0, untung: 0, count: 0 };
     }
-    monthlyGrouped[t.tanggal].omzet += t.total;
-    monthlyGrouped[t.tanggal].modal += t.totalModal;
-    monthlyGrouped[t.tanggal].untung += t.totalUntung;
-    monthlyGrouped[t.tanggal].count += 1;
+    monthlyGrouped[tDate].omzet += Number(t.total) || 0;
+    monthlyGrouped[tDate].modal += Number(t.totalModal) || 0;
+    monthlyGrouped[tDate].untung += Number(t.totalUntung) || 0;
+    monthlyGrouped[tDate].count += 1;
   });
 
   const monthlyDates = Object.keys(monthlyGrouped).sort();
-  const totalMonthlyOmzet = monthlyTrx.reduce((acc, t) => acc + t.total, 0);
-  const totalMonthlyModal = monthlyTrx.reduce((acc, t) => acc + t.totalModal, 0);
-  const totalMonthlyUntung = monthlyTrx.reduce((acc, t) => acc + t.totalUntung, 0);
+  const totalMonthlyOmzet = monthlyTrx.reduce((acc, t) => acc + (Number(t.total) || 0), 0);
+  const totalMonthlyModal = monthlyTrx.reduce((acc, t) => acc + (Number(t.totalModal) || 0), 0);
+  const totalMonthlyUntung = monthlyTrx.reduce((acc, t) => acc + (Number(t.totalUntung) || 0), 0);
 
   // 3. GRAFIK: MENU TERLARIS (Top Selling Menu)
   const menuSalesMap: { [nama: string]: { qty: number; omzet: number } } = {};
   monthlyTrx.forEach((t) => {
-    t.items.forEach((it) => {
-      if (!menuSalesMap[it.nama]) {
-        menuSalesMap[it.nama] = { qty: 0, omzet: 0 };
+    (t.items || []).forEach((it) => {
+      const itemName = it.nama || 'Menu';
+      if (!menuSalesMap[itemName]) {
+        menuSalesMap[itemName] = { qty: 0, omzet: 0 };
       }
-      menuSalesMap[it.nama].qty += it.qty;
-      menuSalesMap[it.nama].omzet += it.subtotal;
+      menuSalesMap[itemName].qty += Number(it.qty) || 0;
+      menuSalesMap[itemName].omzet += Number(it.subtotal) || 0;
     });
   });
 
@@ -171,22 +179,31 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
   // Check DC
   bahanBakuList.forEach((b) => {
-    if (b.stokDC <= b.stokMinimum) {
+    const stokDc = Number(b.stokDC) || 0;
+    const stokMin = Number(b.stokMinimum) || 0;
+    if (stokDc <= stokMin) {
       lowStockList.push({
         lokasi: 'DC PUSAT',
         bahan: b,
-        stokSaatIni: b.stokDC,
-        stokMin: b.stokMinimum,
+        stokSaatIni: stokDc,
+        stokMin,
       });
     }
   });
 
-  // Check Cabang
+  // Check Cabang (resolve both branch name and branch ID keys in stokCabang)
   storeBranchList.forEach((cab) => {
-    const cStock = stokCabang[cab] || {};
+    const branchObj = dataCabangList.find(
+      (d) => d.nama === cab || d.id === cab || d.branchId === cab
+    );
+    const cStock =
+      stokCabang[cab] ||
+      (branchObj?.branchId ? stokCabang[branchObj.branchId] : undefined) ||
+      (branchObj?.id ? stokCabang[branchObj.id] : undefined) ||
+      {};
     bahanBakuList.forEach((b) => {
-      const current = cStock[b.id] ?? 0;
-      const branchMin = b.stokMinimum * 0.4;
+      const current = Number(cStock[b.id] ?? 0) || 0;
+      const branchMin = (Number(b.stokMinimum) || 0) * 0.4;
       if (current <= branchMin) {
         lowStockList.push({
           lokasi: cab,
@@ -200,53 +217,54 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
   // 5. AUDIT LOG CALCULATION (Permanent, immutable audit trail)
   const filteredAuditLogs = auditLogList.filter((log) => {
-    const matchCabang = filterCabang === 'Semua' || log.cabang === filterCabang;
+    const matchCabang = matchesSelectedBranch(log.cabang);
     const matchAksi = auditFilterAksi === 'Semua' || log.aksi === auditFilterAksi;
     const searchLower = auditSearchTerm.toLowerCase();
+    const resolvedBranch = (getBranchName(log.cabang, dataCabangList) || log.cabang || '').toLowerCase();
     const matchSearch =
       !auditSearchTerm.trim() ||
-      log.siapa.toLowerCase().includes(searchLower) ||
-      log.aksi.toLowerCase().includes(searchLower) ||
-      (log.keterangan && log.keterangan.toLowerCase().includes(searchLower)) ||
-      log.cabang.toLowerCase().includes(searchLower);
+      (log.siapa || '').toLowerCase().includes(searchLower) ||
+      (log.aksi || '').toLowerCase().includes(searchLower) ||
+      (log.keterangan || '').toLowerCase().includes(searchLower) ||
+      resolvedBranch.includes(searchLower);
     return matchCabang && matchAksi && matchSearch;
   });
-  const totalAuditNominal = filteredAuditLogs.reduce((acc, log) => acc + (log.nominal || 0), 0);
+  const totalAuditNominal = filteredAuditLogs.reduce((acc, log) => acc + (Number(log.nominal) || 0), 0);
 
   // 6. AUDIT BULANAN SETIAP CABANG (Requirement: Buat Audit bulanan untuk setiap cabang)
   const auditMonthlyTrx = transaksiList.filter(
     (t) =>
-      t.cabang === auditBulananCabang &&
-      t.tanggal.startsWith(auditBulananBulan) &&
+      matchesAuditBranch(t.cabang) &&
+      (t.tanggal || '').startsWith(auditBulananBulan) &&
       t.status === 'Sukses'
   );
-  const auditMonthlyOmzet = auditMonthlyTrx.reduce((acc, t) => acc + t.total, 0);
+  const auditMonthlyOmzet = auditMonthlyTrx.reduce((acc, t) => acc + (Number(t.total) || 0), 0);
 
   const auditMonthlyExpenses = pengeluaranList.filter(
     (p) =>
-      p.cabang === auditBulananCabang &&
-      p.tanggal.startsWith(auditBulananBulan)
+      matchesAuditBranch(p.cabang) &&
+      (p.tanggal || '').startsWith(auditBulananBulan)
   );
   const auditMonthlyExpensesAcc = auditMonthlyExpenses
     .filter((p) => p.status === 'Disetujui')
-    .reduce((acc, p) => acc + p.nominal, 0);
+    .reduce((acc, p) => acc + (Number(p.nominal) || 0), 0);
 
   const auditMonthlyExpensesPending = auditMonthlyExpenses
     .filter((p) => p.status === 'Menunggu ACC')
-    .reduce((acc, p) => acc + p.nominal, 0);
+    .reduce((acc, p) => acc + (Number(p.nominal) || 0), 0);
 
   const auditMonthlySetoran = auditMonthlyOmzet - auditMonthlyExpensesAcc;
 
   const auditMonthlyClosings = laporanHarianList.filter(
     (l) =>
-      l.cabang === auditBulananCabang &&
-      l.tanggal.startsWith(auditBulananBulan)
+      matchesAuditBranch(l.cabang) &&
+      (l.tanggal || '').startsWith(auditBulananBulan)
   );
 
   const auditMonthlyLogs = auditLogList.filter(
     (log) =>
-      log.cabang === auditBulananCabang &&
-      log.tanggal.startsWith(auditBulananBulan)
+      matchesAuditBranch(log.cabang) &&
+      (log.tanggal || '').startsWith(auditBulananBulan)
   );
 
   return (
@@ -457,6 +475,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 <div className="w-auto">
                   <BottomSheetPickerTrigger
                     valueTitle={auditBulananCabang}
+                    placeholder="Pilih cabang audit..."
                     onClick={() => setShowPickerAuditCabang(true)}
                     size="sm"
                     className="min-w-[140px]"
@@ -567,17 +586,17 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Total Omzet Harian
               </span>
-              <span className="text-xl font-black text-orange-600 dark:text-orange-400 mt-1 block">
+              <span className="text-xl font-black text-orange-600 dark:text-orange-400 mt-1 block tabular-nums">
                 {formatRupiah(dailyOmzet)}
               </span>
-              <span className="text-[10px] text-slate-400">{dailyTrxCount} Transaksi</span>
+              <span className="text-[10px] text-slate-400 tabular-nums">{dailyTrxCount} Transaksi</span>
             </div>
 
             <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Total HPP (Modal)
               </span>
-              <span className="text-xl font-black text-slate-700 dark:text-slate-200 mt-1 block">
+              <span className="text-xl font-black text-slate-700 dark:text-slate-200 mt-1 block tabular-nums">
                 {formatRupiah(dailyModal)}
               </span>
               <span className="text-[10px] text-slate-400">Biaya bahan terpakai</span>
@@ -587,10 +606,10 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Keuntungan Bersih
               </span>
-              <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+              <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block tabular-nums">
                 {formatRupiah(dailyUntung)}
               </span>
-              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">
+              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold tabular-nums">
                 Margin {dailyOmzet > 0 ? ((dailyUntung / dailyOmzet) * 100).toFixed(1) : 0}%
               </span>
             </div>
@@ -599,7 +618,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Rata-rata per Nota
               </span>
-              <span className="text-xl font-black text-blue-600 dark:text-blue-400 mt-1 block">
+              <span className="text-xl font-black text-blue-600 dark:text-blue-400 mt-1 block tabular-nums">
                 {dailyTrxCount > 0 ? formatRupiah(dailyOmzet / dailyTrxCount) : 'Rp 0'}
               </span>
               <span className="text-[10px] text-slate-400">Basket size konsumen</span>
@@ -639,14 +658,15 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                         (k) => k.id === t.kasirId || k.nama === t.kasirNama
                       );
                       const jabatan = t.kasirJabatan || emp?.jabatan || 'KASIR';
+                      const jabatanUpper = jabatan.toUpperCase();
                       const kasirBertugas = t.kasirBertugas || t.kasirNama;
 
                       return (
                         <tr key={t.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60">
-                          <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-100">
+                          <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-100 tabular-nums">
                             {t.invoiceNo}
                           </td>
-                          <td className="py-3 px-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                          <td className="py-3 px-2 text-slate-500 dark:text-slate-400 whitespace-nowrap tabular-nums">
                             {t.jam}
                           </td>
                           <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-100">
@@ -655,9 +675,9 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                           <td className="py-3 px-2 whitespace-nowrap">
                             <span
                               className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                jabatan === 'KEPALA TOKO'
+                                jabatanUpper === 'KEPALA TOKO'
                                   ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-800'
-                                  : jabatan === 'CREW STORE'
+                                  : jabatanUpper === 'CREW STORE'
                                   ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200'
                                   : 'bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-800'
                               }`}
@@ -666,25 +686,25 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                             </span>
                           </td>
                           <td className="py-3 px-2 whitespace-nowrap font-bold text-orange-700 dark:text-orange-400">
-                            {t.cabang}
+                            {getBranchName(t.cabang, dataCabangList)}
                           </td>
                           <td className="py-3 px-3 font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                             {kasirBertugas}
                           </td>
                           <td className="py-3 px-3 max-w-xs text-slate-700 dark:text-slate-300">
-                            {t.items.map((it, idx) => (
+                            {(t.items || []).map((it, idx) => (
                               <span key={idx} className="block text-[11px]">
                                 {it.qty}x {it.nama}
                               </span>
                             ))}
                           </td>
-                          <td className="py-3 px-3 text-right text-slate-600 dark:text-slate-300">
+                          <td className="py-3 px-3 text-right text-slate-600 dark:text-slate-300 tabular-nums">
                             {formatRupiah(t.totalModal)}
                           </td>
-                          <td className="py-3 px-3 text-right font-black text-slate-900 dark:text-slate-100">
+                          <td className="py-3 px-3 text-right font-black text-slate-900 dark:text-slate-100 tabular-nums">
                             {formatRupiah(t.total)}
                           </td>
-                          <td className="py-3 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                          <td className="py-3 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                             {formatRupiah(t.totalUntung)}
                           </td>
                           <td className="py-3 px-2 text-center">
@@ -706,17 +726,17 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center justify-between">
               <span>Rekap Penutupan Toko & Kasir Bertugas</span>
               <span className="text-xs text-slate-400 font-normal">
-                Tersimpan di LocalStorage
+                Tersimpan &amp; Sinkron Cloud Firestore
               </span>
             </h3>
 
             {laporanHarianList.filter(
               (l) =>
-                (filterCabang === 'Semua' || l.cabang === filterCabang) &&
+                matchesSelectedBranch(l.cabang) &&
                 l.tanggal === filterTanggal
             ).length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-xs">
-                Belum ada rekapan penutupan toko pada tanggal {filterTanggal}. Laporan otomatis terbuat saat kasir klik "Tutup Toko" di menu Buka/Tutup Toko.
+                Belum ada rekapan penutupan toko pada tanggal {filterTanggal}. Laporan otomatis terbuat saat kasir klik &quot;Tutup Toko&quot; di menu Buka/Tutup Toko.
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -740,7 +760,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                     {laporanHarianList
                       .filter(
                         (l) =>
-                          (filterCabang === 'Semua' || l.cabang === filterCabang) &&
+                          matchesSelectedBranch(l.cabang) &&
                           l.tanggal === filterTanggal
                       )
                       .map((lap) => {
@@ -749,11 +769,12 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                         );
                         const nama = lap.nama || lap.kasirNama;
                         const jabatan = lap.jabatan || emp?.jabatan || 'KASIR';
+                        const jabatanUpper = jabatan.toUpperCase();
                         const kasirBertugas = lap.kasirBertugas || lap.kasirNama;
 
                         return (
                           <tr key={lap.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60">
-                            <td className="py-3 px-3 font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                            <td className="py-3 px-3 font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap tabular-nums">
                               {lap.tanggal}
                             </td>
                             <td className="py-3 px-3 font-bold text-slate-900 dark:text-slate-100">
@@ -762,8 +783,10 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                             <td className="py-3 px-3">
                               <span
                                 className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  jabatan === 'KEPALA TOKO'
+                                  jabatanUpper === 'KEPALA TOKO'
                                     ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-800'
+                                    : jabatanUpper === 'CREW STORE'
+                                    ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200'
                                     : 'bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-800'
                                 }`}
                               >
@@ -771,7 +794,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                               </span>
                             </td>
                             <td className="py-3 px-3 font-bold text-orange-700 dark:text-orange-400 whitespace-nowrap">
-                              {lap.cabang}
+                              {getBranchName(lap.cabang, dataCabangList)}
                             </td>
                             <td className="py-3 px-3 font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                               {kasirBertugas}
@@ -779,16 +802,16 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                             <td className="py-3 px-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
                               {lap.jamBuka} - {lap.jamTutup || 'Sekarang'}
                             </td>
-                            <td className="py-3 px-3 text-right text-slate-600 dark:text-slate-300">
+                            <td className="py-3 px-3 text-right text-slate-600 dark:text-slate-300 tabular-nums">
                               {formatRupiah(lap.modalAwal)}
                             </td>
-                            <td className="py-3 px-3 text-right font-black text-slate-900 dark:text-slate-100">
+                            <td className="py-3 px-3 text-right font-black text-slate-900 dark:text-slate-100 tabular-nums">
                               {formatRupiah(lap.totalOmzet)}
                             </td>
-                            <td className="py-3 px-3 text-right text-red-600 dark:text-red-400 font-semibold">
+                            <td className="py-3 px-3 text-right text-red-600 dark:text-red-400 font-semibold tabular-nums">
                               {formatRupiah(lap.pengeluaran)}
                             </td>
-                            <td className="py-3 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                            <td className="py-3 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                               {formatRupiah(lap.cashLaci)}
                             </td>
                             <td className="py-3 px-3 text-center">
@@ -815,17 +838,17 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Total Omzet Bulan {filterBulan}
               </span>
-              <span className="text-2xl font-black text-orange-600 dark:text-orange-400 mt-1 block">
+              <span className="text-2xl font-black text-orange-600 dark:text-orange-400 mt-1 block tabular-nums">
                 {formatRupiah(totalMonthlyOmzet)}
               </span>
-              <span className="text-[10px] text-slate-400">{monthlyTrx.length} Total Transaksi</span>
+              <span className="text-[10px] text-slate-400 tabular-nums">{monthlyTrx.length} Total Transaksi</span>
             </div>
 
             <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Total Modal HPP
               </span>
-              <span className="text-2xl font-black text-slate-700 dark:text-slate-200 mt-1 block">
+              <span className="text-2xl font-black text-slate-700 dark:text-slate-200 mt-1 block tabular-nums">
                 {formatRupiah(totalMonthlyModal)}
               </span>
               <span className="text-[10px] text-slate-400">Total belanja modal resep</span>
@@ -835,10 +858,10 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Total Keuntungan Bersih
               </span>
-              <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+              <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block tabular-nums">
                 {formatRupiah(totalMonthlyUntung)}
               </span>
-              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">
+              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold tabular-nums">
                 Margin Bersih: {totalMonthlyOmzet > 0 ? ((totalMonthlyUntung / totalMonthlyOmzet) * 100).toFixed(1) : 0}%
               </span>
             </div>
@@ -872,22 +895,22 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                       const margin = row.omzet > 0 ? ((row.untung / row.omzet) * 100).toFixed(1) : 0;
                       return (
                         <tr key={date} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition">
-                          <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100">
+                          <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100 tabular-nums">
                             {date}
                           </td>
-                          <td className="py-3 px-3 text-center font-bold text-slate-600 dark:text-slate-300">
+                          <td className="py-3 px-3 text-center font-bold text-slate-600 dark:text-slate-300 tabular-nums">
                             {row.count} Nota
                           </td>
-                          <td className="py-3 px-3 text-right font-black text-orange-600 dark:text-orange-400">
+                          <td className="py-3 px-3 text-right font-black text-orange-600 dark:text-orange-400 tabular-nums">
                             {formatRupiah(row.omzet)}
                           </td>
-                          <td className="py-3 px-3 text-right text-slate-600 dark:text-slate-300">
+                          <td className="py-3 px-3 text-right text-slate-600 dark:text-slate-300 tabular-nums">
                             {formatRupiah(row.modal)}
                           </td>
-                          <td className="py-3 px-3 text-right font-black text-emerald-600 dark:text-emerald-400">
+                          <td className="py-3 px-3 text-right font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
                             {formatRupiah(row.untung)}
                           </td>
-                          <td className="py-3 px-3 text-center font-bold text-emerald-700 dark:text-emerald-400">
+                          <td className="py-3 px-3 text-center font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
                             {margin}%
                           </td>
                         </tr>
@@ -985,7 +1008,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                         <span className="font-bold text-slate-800 dark:text-slate-100">
                           {idx + 1}. {m.nama}
                         </span>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 tabular-nums">
                           <span className="font-black text-orange-600 dark:text-orange-400">
                             {m.qty} Porsi
                           </span>
@@ -1068,10 +1091,10 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                       <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
                         {item.bahan.satuan}
                       </td>
-                      <td className="py-3 px-3 text-right text-slate-500 dark:text-slate-400 font-semibold">
+                      <td className="py-3 px-3 text-right text-slate-500 dark:text-slate-400 font-semibold tabular-nums">
                         {item.stokMin} {item.bahan.satuan}
                       </td>
-                      <td className="py-3 px-3 text-right font-black text-red-600 dark:text-red-400 text-sm">
+                      <td className="py-3 px-3 text-right font-black text-red-600 dark:text-red-400 text-sm tabular-nums">
                         {item.stokSaatIni} {item.bahan.satuan}
                       </td>
                       <td className="py-3 px-3 text-center">
@@ -1126,17 +1149,17 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold">
                 Total Entri Ditampilkan
               </span>
-              <span className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5 block">
+              <span className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5 block tabular-nums">
                 {filteredAuditLogs.length}
               </span>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500">Dari total {auditLogList.length} aktivitas</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">Dari total {auditLogList.length} aktivitas</span>
             </div>
 
             <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
               <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold">
                 Total Akumulasi Nominal
               </span>
-              <span className="text-lg font-black text-orange-600 dark:text-orange-400 mt-0.5 block">
+              <span className="text-lg font-black text-orange-600 dark:text-orange-400 mt-0.5 block tabular-nums">
                 {formatRupiah(totalAuditNominal)}
               </span>
               <span className="text-[10px] text-slate-400 dark:text-slate-500">Total volume uang tercatat</span>
@@ -1146,7 +1169,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold">
                 Aktivitas Tutup Toko
               </span>
-              <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5 block">
+              <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5 block tabular-nums">
                 {auditLogList.filter((l) => l.aksi === 'Tutup Toko').length} Kali
               </span>
               <span className="text-[10px] text-slate-400 dark:text-slate-500">Closing kas laci tersimpan</span>
@@ -1156,7 +1179,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold">
                 Pengeluaran Kas Laci
               </span>
-              <span className="text-lg font-black text-red-600 dark:text-red-400 mt-0.5 block">
+              <span className="text-lg font-black text-red-600 dark:text-red-400 mt-0.5 block tabular-nums">
                 {auditLogList.filter((l) => l.aksi === 'Pengeluaran Kas Laci').length} Kali
               </span>
               <span className="text-[10px] text-slate-400 dark:text-slate-500">Dengan nota terverifikasi</span>
@@ -1217,7 +1240,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                             </td>
                             <td className="py-3 px-3 whitespace-nowrap">
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-orange-50 dark:bg-orange-950/50 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
-                                {log.cabang}
+                                {getBranchName(log.cabang, dataCabangList) || log.cabang}
                               </span>
                             </td>
                             <td className="py-3 px-3 whitespace-nowrap">
@@ -1227,7 +1250,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                                 {log.aksi}
                               </span>
                             </td>
-                            <td className="py-3 px-3 text-right font-black text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                            <td className="py-3 px-3 text-right font-black text-slate-800 dark:text-slate-100 whitespace-nowrap tabular-nums">
                               {log.nominal !== undefined ? (
                                 <span
                                   className={
@@ -1238,7 +1261,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                                       : 'text-slate-800 dark:text-slate-100'
                                   }
                                 >
-                                  {formatRupiah(log.nominal)}
+                                  {formatRupiah(Number(log.nominal) || 0)}
                                 </span>
                               ) : (
                                 <span className="text-slate-400 dark:text-slate-500 font-normal">-</span>
@@ -1308,10 +1331,10 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
                 Total Omzet POS
               </span>
-              <span className="text-lg font-black text-slate-800 dark:text-slate-100 mt-1 block">
+              <span className="text-lg font-black text-slate-800 dark:text-slate-100 mt-1 block tabular-nums">
                 {formatRupiah(auditMonthlyOmzet)}
               </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium tabular-nums">
                 {auditMonthlyTrx.length} transaksi sukses
               </span>
             </div>
@@ -1320,7 +1343,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
                 Pengeluaran Toko (ACC)
               </span>
-              <span className="text-lg font-black text-red-600 dark:text-red-400 mt-1 block">
+              <span className="text-lg font-black text-red-600 dark:text-red-400 mt-1 block tabular-nums">
                 {formatRupiah(auditMonthlyExpensesAcc)}
               </span>
               <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
@@ -1332,7 +1355,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <span className="text-emerald-700 dark:text-emerald-400 block text-[10px] uppercase font-black tracking-wider">
                 Setoran Akhir Bersih
               </span>
-              <span className="text-lg font-black text-emerald-700 dark:text-emerald-300 mt-1 block">
+              <span className="text-lg font-black text-emerald-700 dark:text-emerald-300 mt-1 block tabular-nums">
                 {formatRupiah(auditMonthlySetoran)}
               </span>
               <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
@@ -1344,7 +1367,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
                 Pengeluaran Menunggu ACC
               </span>
-              <span className="text-lg font-black text-amber-600 dark:text-amber-400 mt-1 block">
+              <span className="text-lg font-black text-amber-600 dark:text-amber-400 mt-1 block tabular-nums">
                 {formatRupiah(auditMonthlyExpensesPending)}
               </span>
               <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
@@ -1390,13 +1413,13 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {auditMonthlyClosings
                       .slice()
-                      .sort((a, b) => b.tanggal.localeCompare(a.tanggal))
+                      .sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''))
                       .map((lap, idx) => (
                         <tr key={lap.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition">
-                          <td className="py-2.5 px-3 text-center font-bold text-slate-400 dark:text-slate-500">
+                          <td className="py-2.5 px-3 text-center font-bold text-slate-400 dark:text-slate-500 tabular-nums">
                             {idx + 1}
                           </td>
-                          <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                          <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap tabular-nums">
                             {lap.tanggal}
                           </td>
                           <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300 font-mono text-[11px] whitespace-nowrap">
@@ -1405,17 +1428,17 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                           <td className="py-2.5 px-3 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
                             {lap.kasirNama}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-black text-slate-800 dark:text-slate-100 whitespace-nowrap">
-                            {formatRupiah(lap.totalOmzet)}
+                          <td className="py-2.5 px-3 text-right font-black text-slate-800 dark:text-slate-100 whitespace-nowrap tabular-nums">
+                            {formatRupiah(Number(lap.totalOmzet) || 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-black text-red-600 dark:text-red-400 whitespace-nowrap">
-                            {formatRupiah(lap.pengeluaranAcc || 0)}
+                          <td className="py-2.5 px-3 text-right font-black text-red-600 dark:text-red-400 whitespace-nowrap tabular-nums">
+                            {formatRupiah(Number(lap.pengeluaranAcc) || 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-black text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
-                            {formatRupiah(lap.setoran)}
+                          <td className="py-2.5 px-3 text-right font-black text-emerald-700 dark:text-emerald-400 whitespace-nowrap tabular-nums">
+                            {formatRupiah(Number(lap.setoran) || 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                            {formatRupiah(lap.cashLaci)}
+                          <td className="py-2.5 px-3 text-right font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap tabular-nums">
+                            {formatRupiah(Number(lap.cashLaci) || 0)}
                           </td>
                           <td className="py-2.5 px-3 text-center whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
@@ -1465,8 +1488,9 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {auditMonthlyExpenses
                       .slice()
-                      .sort((a, b) => b.tanggal.localeCompare(a.tanggal))
+                      .sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''))
                       .map((p, idx) => {
+                        const accNote = p.catatanAcc || p.catatanOwner;
                         const statusBadge =
                           p.status === 'Disetujui'
                             ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
@@ -1476,21 +1500,26 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
                         return (
                           <tr key={p.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition">
-                            <td className="py-2.5 px-3 text-center font-bold text-slate-400 dark:text-slate-500">
+                            <td className="py-2.5 px-3 text-center font-bold text-slate-400 dark:text-slate-500 tabular-nums">
                               {idx + 1}
                             </td>
-                            <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                            <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap tabular-nums">
                               <div>{p.tanggal}</div>
                               <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{p.jam}</div>
                             </td>
                             <td className="py-2.5 px-3 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">
                               {p.pengajuNama || p.kasirNama}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-black text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                              {formatRupiah(p.nominal)}
+                            <td className="py-2.5 px-3 text-right font-black text-slate-900 dark:text-slate-100 whitespace-nowrap tabular-nums">
+                              {formatRupiah(Number(p.nominal) || 0)}
                             </td>
                             <td className="py-2.5 px-4 text-slate-700 dark:text-slate-300 max-w-xs break-words">
-                              {p.keterangan}
+                              <div>{p.keterangan}</div>
+                              {accNote && (
+                                <div className="text-[10px] text-slate-500 dark:text-slate-400 italic mt-0.5">
+                                  Catatan ACC: {accNote}
+                                </div>
+                              )}
                             </td>
                             <td className="py-2.5 px-3 text-center whitespace-nowrap">
                               <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black border ${statusBadge}`}>
@@ -1597,7 +1626,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wider">
                   Total Transaksi Di-VOID
                 </span>
-                <span className="text-xl font-black text-purple-950 dark:text-purple-200">
+                <span className="text-xl font-black text-purple-950 dark:text-purple-200 tabular-nums">
                   {divoidTrxList.length} Transaksi
                 </span>
               </div>
@@ -1609,9 +1638,9 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               </div>
               <div>
                 <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wider">
-                  Total Uang Kembalian (Kasir ➔ Pelanggan)
+                  Total Uang Kembalian (Kasir -&gt; Pelanggan)
                 </span>
-                <span className="text-xl font-black text-emerald-700 dark:text-emerald-400">
+                <span className="text-xl font-black text-emerald-700 dark:text-emerald-400 tabular-nums">
                   {formatRupiah(
                     divoidTrxList
                       .filter((t) => (t.selisihVoid || 0) < 0)
@@ -1627,9 +1656,9 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               </div>
               <div>
                 <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wider">
-                  Total Tagihan Tambahan (Pelanggan ➔ Kasir)
+                  Total Tagihan Tambahan (Pelanggan -&gt; Kasir)
                 </span>
-                <span className="text-xl font-black text-amber-700 dark:text-amber-400">
+                <span className="text-xl font-black text-amber-700 dark:text-amber-400 tabular-nums">
                   {formatRupiah(
                     divoidTrxList
                       .filter((t) => (t.selisihVoid || 0) > 0)
@@ -1675,9 +1704,13 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                   );
                   const oldItems = trx.items || [];
                   const newItems = trx.itemsPengganti || replacementTrx?.items || [];
-                  const oldTotal = trx.total || 0;
-                  const newTotal = trx.totalPengganti || replacementTrx?.total || (oldTotal + (trx.selisihVoid || 0));
-                  const selisih = trx.selisihVoid !== undefined ? trx.selisihVoid : (newTotal - oldTotal);
+                  const oldTotal = Number(trx.total) || 0;
+                  const newTotal =
+                    Number(trx.totalPengganti) ||
+                    Number(replacementTrx?.total) ||
+                    oldTotal + (Number(trx.selisihVoid) || 0);
+                  const selisih =
+                    trx.selisihVoid !== undefined ? Number(trx.selisihVoid) || 0 : newTotal - oldTotal;
 
                   return (
                     <div
@@ -1687,19 +1720,19 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                       {/* Card Header */}
                       <div className="p-3.5 bg-purple-50/70 dark:bg-purple-950/30 border-b border-purple-100 dark:border-purple-900 flex flex-wrap items-center justify-between gap-2 text-xs">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2.5 py-0.5 rounded-lg bg-purple-600 text-white font-black text-xs">
+                          <span className="px-2.5 py-0.5 rounded-lg bg-purple-600 text-white font-black text-xs tabular-nums">
                             VOID #{trx.invoiceNo}
                           </span>
-                          <span className="text-purple-400 font-bold">➔</span>
-                          <span className="px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white font-black text-xs">
+                          <span className="text-purple-400 font-bold">-&gt;</span>
+                          <span className="px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white font-black text-xs tabular-nums">
                             PENGGANTI #{trx.voidKeInvoice || replacementTrx?.invoiceNo || '-'}
                           </span>
                           <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-[10px]">
-                            {trx.cabang}
+                            {getBranchName(trx.cabang, dataCabangList) || trx.cabang}
                           </span>
                         </div>
 
-                        <div className="text-right text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                        <div className="text-right text-[11px] text-slate-500 dark:text-slate-400 font-medium tabular-nums">
                           <span>{trx.tanggal} {trx.jam}</span> • <span className="font-bold text-slate-700 dark:text-slate-200">Kasir: {trx.kasirNama || '-'}</span>
                         </div>
                       </div>
@@ -1721,10 +1754,10 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                             {oldItems.map((it, idx) => (
                               <div key={idx} className="flex justify-between items-center text-slate-700 dark:text-slate-300 text-[11px]">
                                 <span className="truncate pr-2">
-                                  <strong>{it.qty}x</strong> {it.nama}
+                                  <strong>{Number(it.qty) || 0}x</strong> {it.nama}
                                 </span>
-                                <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0">
-                                  {formatRupiah(it.subtotal)}
+                                <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0 tabular-nums">
+                                  {formatRupiah(Number(it.subtotal) || 0)}
                                 </span>
                               </div>
                             ))}
@@ -1732,7 +1765,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
                           <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center font-black text-xs text-slate-800 dark:text-slate-100">
                             <span>Total Pesanan Lama:</span>
-                            <span className="text-sm">{formatRupiah(oldTotal)}</span>
+                            <span className="text-sm tabular-nums">{formatRupiah(oldTotal)}</span>
                           </div>
                         </div>
 
@@ -1752,10 +1785,10 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                               {newItems.map((it, idx) => (
                                 <div key={idx} className="flex justify-between items-center text-purple-950 dark:text-purple-100 text-[11px]">
                                   <span className="truncate pr-2">
-                                    <strong>{it.qty}x</strong> {it.nama}
+                                    <strong>{Number(it.qty) || 0}x</strong> {it.nama}
                                   </span>
-                                  <span className="font-bold text-purple-900 dark:text-purple-200 shrink-0">
-                                    {formatRupiah(it.subtotal)}
+                                  <span className="font-bold text-purple-900 dark:text-purple-200 shrink-0 tabular-nums">
+                                    {formatRupiah(Number(it.subtotal) || 0)}
                                   </span>
                                 </div>
                               ))}
@@ -1768,7 +1801,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
                           <div className="pt-2 border-t border-purple-200 dark:border-purple-800 flex justify-between items-center font-black text-xs text-purple-950 dark:text-purple-100">
                             <span>Total Pesanan Baru:</span>
-                            <span className="text-sm">{formatRupiah(newTotal)}</span>
+                            <span className="text-sm tabular-nums">{formatRupiah(newTotal)}</span>
                           </div>
                         </div>
                       </div>

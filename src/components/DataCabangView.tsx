@@ -7,12 +7,8 @@ import {
   Search,
   Phone,
   MapPin,
-  CheckCircle,
-  XCircle,
   X,
   AlertTriangle,
-  Building2,
-  ShieldCheck,
   CreditCard,
   Wallet,
 } from 'lucide-react';
@@ -49,6 +45,7 @@ export const DataCabangView: React.FC<DataCabangViewProps> = ({
   const [noRekening, setNoRekening] = useState('');
   const [atasNama, setAtasNama] = useState('');
   const [showPickerStatus, setShowPickerStatus] = useState<boolean>(false);
+  const [pendingDeleteCabang, setPendingDeleteCabang] = useState<DataCabang | null>(null);
 
   const openAdd = () => {
     setEditingCabang(null);
@@ -166,7 +163,7 @@ export const DataCabangView: React.FC<DataCabangViewProps> = ({
           />
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
           <span className="font-bold text-slate-700 dark:text-slate-200">Total:</span>
           <span>{dataCabangList.length} Cabang Terdaftar</span>
           <span className="text-slate-300 dark:text-slate-600">•</span>
@@ -276,11 +273,7 @@ export const DataCabangView: React.FC<DataCabangViewProps> = ({
                   {!cbg.isPusat && (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (confirm(`Hapus cabang "${cbg.nama}"?`)) {
-                          onDeleteCabang(cbg.id);
-                        }
-                      }}
+                      onClick={() => setPendingDeleteCabang(cbg)}
                       className="p-1.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-lg transition cursor-pointer"
                       title="Hapus Cabang"
                     >
@@ -442,6 +435,46 @@ export const DataCabangView: React.FC<DataCabangViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Konfirmasi Hapus Cabang */}
+      {pendingDeleteCabang && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-xs">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm">
+                  Hapus Cabang?
+                </h3>
+                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Cabang <strong>{pendingDeleteCabang.nama}</strong> akan dihapus dari daftar master cabang. Tindakan ini tidak dapat dibatalkan.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteCabang(null)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteCabang(pendingDeleteCabang.id);
+                  setPendingDeleteCabang(null);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl cursor-pointer"
+              >
+                Ya, Hapus Cabang
+              </button>
+            </div>
           </div>
         </div>
       )}

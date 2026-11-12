@@ -9,7 +9,6 @@ import {
   CheckCircle,
   Truck,
   ArrowRight,
-  Flame,
   UserCheck,
   ShoppingBag,
   Trash2,
@@ -29,7 +28,7 @@ import {
 } from '../types';
 import { formatRupiah, getTodayStr } from '../utils/storage';
 import { getBranchName, getStoreBranchNames } from '../utils/branchHelper';
-import { DEFAULT_BUSINESS_NAME } from '../utils/theme';
+import { DEFAULT_BUSINESS_NAME, DEFAULT_LOGO_URL } from '../utils/theme';
 
 interface DashboardViewProps {
   currentUser: Karyawan;
@@ -58,8 +57,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   appSettings,
   onOpenResetModal,
 }) => {
-  const brandName = appSettings?.namaUsaha || DEFAULT_BUSINESS_NAME;
-  const isDcPusat = currentUser.cabang === 'DC PUSAT';
+  const brandName = (appSettings?.namaUsaha || DEFAULT_BUSINESS_NAME).trim() || DEFAULT_BUSINESS_NAME;
+  const brandLogoUrl = appSettings?.logoUrl || DEFAULT_LOGO_URL;
+  const currentBranchName = getBranchName(currentUser.cabang, dataCabangList);
+  const isDcPusat =
+    currentBranchName.trim().toUpperCase() === 'DC PUSAT' ||
+    (currentUser.cabang || '').trim().toUpperCase() === 'DC PUSAT';
   const today = getTodayStr();
 
   // Transactions today
@@ -70,11 +73,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // If Cabang, filter for this branch
   const branchTransactions = isDcPusat
     ? todayTransactions
-    : todayTransactions.filter((t) => t.cabang === currentUser.cabang);
+    : todayTransactions.filter((t) => getBranchName(t.cabang, dataCabangList) === currentBranchName);
 
-  const totalOmzet = branchTransactions.reduce((acc, t) => acc + t.total, 0);
-  const totalModal = branchTransactions.reduce((acc, t) => acc + t.totalModal, 0);
-  const totalUntung = branchTransactions.reduce((acc, t) => acc + t.totalUntung, 0);
+  const totalOmzet = branchTransactions.reduce((acc, t) => acc + (Number(t.total) || 0), 0);
+  const totalModal = branchTransactions.reduce((acc, t) => acc + (Number(t.totalModal) || 0), 0);
+  const totalUntung = branchTransactions.reduce((acc, t) => acc + (Number(t.totalUntung) || 0), 0);
   const totalTrxCount = branchTransactions.length;
 
   // DC Pusat Low Stock Alert
@@ -85,10 +88,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Cabang incoming shipments
   const incomingShipments = suratJalanList.filter(
-    (sj) => sj.cabangTujuan === currentUser.cabang && sj.status === 'Dikirim'
+    (sj) => getBranchName(sj.cabangTujuan, dataCabangList) === currentBranchName && sj.status === 'Dikirim'
   );
-
-  const currentBranchName = getBranchName(currentUser.cabang, dataCabangList);
 
   // Current branch status
   const currentBranchState = !isDcPusat
@@ -105,16 +106,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="brand-gradient rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
-        <div className="absolute right-0 top-0 bottom-0 opacity-10 pointer-events-none flex items-center pr-6">
-          <Flame className="w-64 h-64 text-white" />
+      <div className="brand-gradient rounded-2xl p-6 sm:p-7 text-white shadow-md relative overflow-hidden">
+        {/* Large Watermark Logo matching top-left splash-O logo (30% opacity right-aligned behind text) */}
+        <div
+          aria-hidden="true"
+          className="absolute right-2 sm:right-8 top-1/2 -translate-y-1/2 pointer-events-none select-none opacity-30 flex items-center justify-center"
+        >
+          <img
+            src={brandLogoUrl}
+            alt=""
+            referrerPolicy="no-referrer"
+            className="w-52 h-52 sm:w-64 sm:h-64 md:w-72 md:h-72 object-contain brightness-110 contrast-110 drop-shadow-[0_6px_22px_rgba(0,0,0,0.32)]"
+          />
         </div>
+
         <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-xs px-3 py-1 rounded-full text-xs font-semibold mb-3">
-            <Store className="w-3.5 h-3.5" />
+          <div className="inline-flex items-center gap-1.5 text-xs font-bold tracking-wide text-white/95 mb-2">
+            <Store className="w-3.5 h-3.5 shrink-0" />
             <span>Cabang Aktif: {currentBranchName}</span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-balance">
             Selamat Datang, {currentUser.nama}!
           </h1>
           <p className="text-orange-100 text-xs sm:text-sm mt-1">
@@ -164,7 +175,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </button>
 
                 {/* Tombol Khusus Owner: Reset Total */}
-                {currentUser.jabatan === 'Owner' && onOpenResetModal && (
+                {(currentUser.jabatan || '').trim().toLowerCase() === 'owner' && onOpenResetModal && (
                   <div className="pt-1 sm:pt-0 sm:border-l sm:border-white/20 sm:pl-2">
                     <button
                       type="button"
@@ -173,7 +184,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       title="Buka dialog pilih koleksi yang mau dihapus total"
                     >
                       <Trash2 className="w-4 h-4 text-rose-300 stroke-[2.5]" />
-                      <span>🗑️ RESET TOTAL - HAPUS SEMUA DATA TRIAL</span>
+                      <span>RESET TOTAL - HAPUS SEMUA DATA TRIAL</span>
                     </button>
                   </div>
                 )}
@@ -185,7 +196,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Incoming Delivery Alert for Branch */}
       {!isDcPusat && incomingShipments.length > 0 && (
-        <div className="bg-red-50 dark:bg-red-950/40 border-2 border-red-300 dark:border-red-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm animate-pulse">
+        <div className="bg-red-50 dark:bg-red-950/40 border-2 border-red-300 dark:border-red-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0">
               <Truck className="w-5 h-5" />
@@ -195,7 +206,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 Ada {incomingShipments.length} Surat Jalan Dikirim dari DC!
               </h4>
               <p className="text-xs text-red-700 dark:text-red-300">
-                Bahan baku sedang dalam perjalanan menuju {currentUser.cabang}. Harap verifikasi dan terima barang.
+                Bahan baku sedang dalam perjalanan menuju {currentBranchName}. Harap verifikasi dan terima barang.
               </p>
             </div>
           </div>
@@ -220,7 +231,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl font-black text-slate-800 dark:text-slate-100">
+          <div className="text-xl font-black text-slate-800 dark:text-slate-100 tabular-nums">
             {formatRupiah(totalOmzet)}
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
@@ -237,7 +248,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <ShoppingBag className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl font-black text-slate-800 dark:text-slate-100">
+          <div className="text-xl font-black text-slate-800 dark:text-slate-100 tabular-nums">
             {totalTrxCount} Pesanan
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
@@ -254,10 +265,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">
+          <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
             {formatRupiah(totalUntung)}
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-[11px] text-slate-400 mt-1 tabular-nums">
             Margin: {totalOmzet > 0 ? ((totalUntung / totalOmzet) * 100).toFixed(1) : 0}% dari Omzet
           </p>
         </div>
@@ -285,7 +296,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               )}
             </div>
           </div>
-          <div className="text-xl font-black text-slate-800 dark:text-slate-100">
+          <div className="text-xl font-black text-slate-800 dark:text-slate-100 tabular-nums">
             {isDcPusat
               ? `${lowStockDc.length} Bahan Baku`
               : currentBranchState?.status || 'Belum Buka'}
@@ -314,8 +325,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {branchKeys.map((cabang) => {
               const state = tokoState[cabang] || { status: 'Belum Buka' };
-              const branchTrx = todayTransactions.filter((t) => t.cabang === cabang);
-              const branchOmzetToday = branchTrx.reduce((acc, t) => acc + t.total, 0);
+              const branchTrx = todayTransactions.filter(
+                (t) => getBranchName(t.cabang, dataCabangList) === cabang
+              );
+              const branchOmzetToday = branchTrx.reduce((acc, t) => acc + (Number(t.total) || 0), 0);
 
               const badgeColor =
                 state.status === 'Buka'
@@ -348,7 +361,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </span>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-xs">
+                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-xs tabular-nums">
                     <div>
                       <span className="text-slate-400 block text-[10px]">Jam Buka</span>
                       <span className="font-bold text-slate-700 dark:text-slate-200">
@@ -364,7 +377,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <div>
                       <span className="text-slate-400 block text-[10px]">Kas Laci Awal</span>
                       <span className="font-bold text-slate-700 dark:text-slate-200">
-                        {formatRupiah(state.modalAwal || 0)}
+                        {formatRupiah(Number(state.modalAwal) || 0)}
                       </span>
                     </div>
                     <div>
@@ -416,7 +429,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         {p.noPermintaan} • <span className="text-orange-700 dark:text-orange-400">{p.cabang}</span>
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                        {p.items.length} macam bahan baku diminta
+                        {(p.items || []).length} macam bahan baku diminta
                       </div>
                     </div>
                     <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-bold text-[10px]">
@@ -461,7 +474,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         Batas Minimum: {b.stokMinimum} {b.satuan}
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right tabular-nums">
                       <span className="text-red-700 dark:text-red-400 font-extrabold text-sm">
                         {b.stokDC} {b.satuan}
                       </span>
@@ -511,7 +524,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <span className="font-bold text-slate-700 dark:text-slate-200 block">Operasional Toko</span>
                   <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                     {currentBranchState?.status === 'Buka'
-                      ? `Buka sejak ${currentBranchState.jamBuka} (Modal: ${formatRupiah(currentBranchState.modalAwal)})`
+                      ? `Buka sejak ${currentBranchState.jamBuka} (Modal: ${formatRupiah(Number(currentBranchState.modalAwal) || 0)})`
                       : 'Toko belum dibuka atau sedang tutup'}
                   </span>
                 </div>
@@ -546,7 +559,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs">
             <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm mb-3 flex items-center gap-2">
               <ShoppingBag className="w-4 h-4 text-orange-600" />
-              Transaksi Terakhir di {currentUser.cabang}
+              Transaksi Terakhir di {currentBranchName}
             </h4>
 
             {branchTransactions.length === 0 ? (
@@ -562,16 +575,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   >
                     <div>
                       <div className="font-bold text-slate-800 dark:text-slate-100">{trx.invoiceNo}</div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {trx.jam} • {trx.metodeBayar} • {trx.items.length} item
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                        {trx.jam} • {trx.metodeBayar} • {(trx.items || []).length} item
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right tabular-nums">
                       <div className="font-black text-orange-600 dark:text-orange-400">
-                        {formatRupiah(trx.total)}
+                        {formatRupiah(Number(trx.total) || 0)}
                       </div>
                       <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                        Untung {formatRupiah(trx.totalUntung)}
+                        Untung {formatRupiah(Number(trx.totalUntung) || 0)}
                       </div>
                     </div>
                   </div>

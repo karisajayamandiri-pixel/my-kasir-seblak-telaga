@@ -9,15 +9,12 @@ import {
   Search,
   CheckCircle,
   AlertCircle,
-  CreditCard,
   QrCode,
   Banknote,
   Flame,
   Check,
-  ChevronRight,
   Clock,
   Store,
-  Bike,
   MapPin,
   Phone,
   User,
@@ -205,6 +202,11 @@ export const PosView: React.FC<PosViewProps> = ({
   const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState<Transaksi | null>(null);
   const [showQrisModal, setShowQrisModal] = useState<boolean>(false);
   const [isBluetoothPrinting, setIsBluetoothPrinting] = useState<boolean>(false);
+  const [posNotice, setPosNotice] = useState<{ title: string; message: string } | null>(null);
+  const [pendingDeliveryConfirm, setPendingDeliveryConfirm] = useState<{
+    mode: 'BELUM_BAYAR' | 'LUNAS';
+    distKm: number;
+  } | null>(null);
 
   // Retur Modal state
   const [returTarget, setReturTarget] = useState<Transaksi | null>(null);
@@ -222,8 +224,12 @@ export const PosView: React.FC<PosViewProps> = ({
 
   // Filter katalog (mendukung filter per cabang dinamis via menu_cabang / cabang_ids)
   const filteredKatalog = katalogList.filter((item) => {
+    const roleNorm = (currentUser.jabatan || '').trim().toLowerCase();
+    const isPusatUser =
+      (currentBranchName || '').trim().toUpperCase() === 'DC PUSAT' ||
+      (currentUser.cabang || '').trim().toUpperCase() === 'DC PUSAT';
     // Filter ketersediaan cabang dinamis
-    if (currentUser.cabang !== 'DC PUSAT' && currentUser.jabatan !== 'Owner') {
+    if (!isPusatUser && roleNorm !== 'owner') {
       const activeBranchId = currentBranch?.branchId || currentBranch?.id || currentUser.branchId || currentUser.cabang;
       const recordsForMenu = (menuCabangList || []).filter((mc) => mc.menu_id === item.id);
 
@@ -262,8 +268,12 @@ export const PosView: React.FC<PosViewProps> = ({
 
   // Check ingredient availability for a menu item in this branch
   const checkStockAvailability = (menu: KatalogMenu): { available: boolean; limitingBahan?: string } => {
-    const branchStock = stokCabang[currentCabang] || {};
-    for (const res of menu.resep) {
+    const branchStock =
+      stokCabang[currentBranchName] ||
+      stokCabang[currentCabang] ||
+      stokCabang[currentUser.cabang] ||
+      {};
+    for (const res of menu.resep || []) {
       const currentQty = branchStock[res.bahanId] || 0;
       if (currentQty < res.qtyPakai) {
         const bhn = bahanBakuList.find((b) => b.id === res.bahanId);
@@ -287,15 +297,20 @@ export const PosView: React.FC<PosViewProps> = ({
 
   // Pesanan delivery lain hari ini di cabang aktif yang masih berstatus menunggu atau dibuat
   const activeDeliveryOrdersToday = useMemo(() => {
-    return transaksiList.filter(
-      (t) =>
-        t.cabang === (currentBranchName || currentUser.cabang) &&
+    return transaksiList.filter((t) => {
+      const tBranch = getBranchName(t.cabang, dataCabangList);
+      const isBranchMatch =
+        tBranch === currentBranchName || t.cabang === currentUser.cabang;
+      const st = (t.statusPesanan || '').toUpperCase();
+      return (
+        isBranchMatch &&
         t.tanggal === today &&
         t.tipePesanan === 'Delivery Order' &&
         t.status === 'Sukses' &&
-        (t.statusPesanan === 'Menunggu' || t.statusPesanan === 'Sedang Dibuat')
-    );
-  }, [transaksiList, currentBranchName, currentUser.cabang, today]);
+        (st === 'MENUNGGU' || st === 'DIPROSES' || t.statusPesanan === 'Menunggu' || t.statusPesanan === 'Sedang Dibuat')
+      );
+    });
+  }, [transaksiList, currentBranchName, currentUser.cabang, dataCabangList, today]);
 
   const hasOtherCustomerDeliveryOrder = activeDeliveryOrdersToday.length > 0 || gabungPesananLain;
   const parsedDistKm = parseDistanceKm(jarakKm);
@@ -313,13 +328,15 @@ export const PosView: React.FC<PosViewProps> = ({
   const addToCart = (menu: KatalogMenu) => {
     if (!isTokoBuka) {
       if (isSudahTutupHariIni) {
-        alert(
-          `Toko ${currentUser.cabang} sudah DITUTUP untuk hari ini (${today}). Terminal POS terkunci dan tidak dapat melakukan transaksi hingga besok hari.`
-        );
+        setPosNotice({
+          title: 'Terminal POS Terkunci',
+          message: `Toko ${currentBranchName} sudah DITUTUP untuk hari ini (${today}). Terminal POS terkunci dan tidak dapat melakukan transaksi hingga besok hari.`,
+        });
       } else {
-        alert(
-          `Toko ${currentUser.cabang} belum dibuka! Harap buka toko & input modal awal laci terlebih dahulu di menu Buka / Tutup Toko.`
-        );
+        setPosNotice({
+          title: 'Toko Belum Dibuka',
+          message: `Toko ${currentBranchName} belum dibuka! Harap buka toko & input modal awal laci terlebih dahulu di menu Buka / Tutup Toko.`,
+        });
       }
       return;
     }
@@ -373,17 +390,17 @@ export const PosView: React.FC<PosViewProps> = ({
 
   const updateCartQty = (katalogId: string, delta: number) => {
     setCart((prev) =>
-      prev
-        .map((item) => {
-          if (item.katalogId === katalogId) {
-            const newQty = item.qty + delta;
-            return newQty > 0
-              ? { ...item, qty: newQty, subtotal: newQty * item.harga }
-              : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[]
+      prev.reduce<CartItem[]>((acc, item) => {
+        if (item.katalogId !== katalogId) {
+          acc.push(item);
+          return acc;
+        }
+        const newQty = item.qty + delta;
+        if (newQty > 0) {
+          acc.push({ ...item, qty: newQty, subtotal: newQty * item.harga });
+        }
+        return acc;
+      }, [])
     );
   };
 
@@ -404,47 +421,59 @@ export const PosView: React.FC<PosViewProps> = ({
     setInputBayarText(amount.toString());
   };
 
-  // Process Payment / Order
+  // Process Payment / Order validation
   const handleProcessPayment = (mode: 'BELUM_BAYAR' | 'LUNAS' = 'BELUM_BAYAR') => {
     if (!isTokoBuka) {
-      alert(`Toko ${currentUser.cabang} sedang tidak buka. Transaksi tidak dapat diproses.`);
+      setPosNotice({
+        title: 'Toko Tidak Buka',
+        message: `Toko ${currentBranchName} sedang tidak buka. Transaksi tidak dapat diproses.`,
+      });
       return;
     }
     if (cart.length === 0) {
-      alert('Keranjang pesanan masih kosong!');
+      setPosNotice({
+        title: 'Keranjang Kosong',
+        message: 'Keranjang pesanan masih kosong! Pilih minimal satu menu terlebih dahulu.',
+      });
       return;
     }
 
     // Jika mode LUNAS: Kasir WAJIB memasukkan nominal uang yang diterima (Cash atau QRIS)
-    if (mode === 'LUNAS') {
-      if (metodeBayar === 'Cash') {
-        if (!nominalBayar || nominalBayar < totalTagihan) {
-          alert(
-            `Pelanggan ingin langsung bayar:\nKasir WAJIB memasukkan nominal uang tunai yang diterima minimal ${formatRupiah(
-              totalTagihan
-            )} pada kolom "Uang Tunai Diterima"!\n\n(Jika pelanggan belum bayar, silakan klik tombol "Buat Pesanan" di sampingnya).`
-          );
-          return;
-        }
+    if (mode === 'LUNAS' && metodeBayar === 'Cash') {
+      if (!nominalBayar || nominalBayar < totalTagihan) {
+        setPosNotice({
+          title: 'Nominal Uang Tunai Kurang',
+          message: `Kasir wajib memasukkan nominal uang tunai yang diterima minimal ${formatRupiah(
+            totalTagihan
+          )} pada kolom "Uang Tunai Diterima". (Jika pelanggan belum bayar, silakan klik tombol "Buat Pesanan").`,
+        });
+        return;
       }
     }
 
     // Validasi Take Away
-    if (tipePesanan === 'Take Away') {
-      if (!pelangganNama.trim()) {
-        alert('Harap masukkan Nama Pelanggan untuk pesanan Take Away agar pesanan tidak tertukar!');
-        return;
-      }
+    if (tipePesanan === 'Take Away' && !pelangganNama.trim()) {
+      setPosNotice({
+        title: 'Nama Pelanggan Diperlukan',
+        message: 'Harap masukkan Nama Pelanggan untuk pesanan Take Away agar pesanan tidak tertukar!',
+      });
+      return;
     }
 
     // Validasi Delivery Order
     if (tipePesanan === 'Delivery Order') {
       if (!pelangganNama.trim()) {
-        alert('Harap masukkan Nama Pelanggan untuk pesanan Delivery Order!');
+        setPosNotice({
+          title: 'Nama Penerima Diperlukan',
+          message: 'Harap masukkan Nama Pelanggan untuk pesanan Delivery Order!',
+        });
         return;
       }
       if (!pelangganAlamat.trim()) {
-        alert('Harap masukkan Alamat Pengiriman untuk pesanan Delivery Order!');
+        setPosNotice({
+          title: 'Alamat Pengiriman Diperlukan',
+          message: 'Harap masukkan Alamat Pengiriman lengkap untuk pesanan Delivery Order!',
+        });
         return;
       }
 
@@ -452,32 +481,31 @@ export const PosView: React.FC<PosViewProps> = ({
       // Apabila jarak ≥ 1,5 km minimal harus belanja ≥ 10,000, jika kurang dari 10.000 maka DIBLOKIR
       if (distKm >= 1.499) {
         if (subtotalPesanan < 10000) {
-          alert(
-            `Pesanan Delivery DIBLOKIR!\n\nUntuk jarak pengiriman ≥ 1,5 km (${distKm} km), pelanggan WAJIB belanja minimal Rp 10.000.\n\nNama Pelanggan: ${pelangganNama}\nTotal Belanja Saat Ini: ${formatRupiah(subtotalPesanan)}\nKekurangan: ${formatRupiah(10000 - subtotalPesanan)}\n\nTransaksi diblokir dan tidak dapat diproses sampai minimal belanja terpenuhi.`
-          );
+          setPosNotice({
+            title: 'Pesanan Delivery Diblokir',
+            message: `Untuk jarak pengiriman ≥ 1,5 km (${distKm} km), pelanggan wajib belanja minimal Rp 10.000.\n\nNama Pelanggan: ${pelangganNama}\nTotal Belanja: ${formatRupiah(subtotalPesanan)} (kurang ${formatRupiah(10000 - subtotalPesanan)}).`,
+          });
           return;
         }
 
-        // Apabila belanja < 20.000 kasih peringatan "Minimal biaya pesanan Rp 20,000"
-        // Apabila pas Rp 20.000 atau lebih, transaksi otomatis BISA langsung dipesan
-        if (subtotalPesanan < 20000) {
-          if (!hasOtherCustomerDeliveryOrder) {
-            const konfirmasiGabung = confirm(
-              `Peringatan: Minimal biaya pesanan Rp 20,000\n\nPelanggan "${pelangganNama}" berbelanja ${formatRupiah(subtotalPesanan)} (kurang ${formatRupiah(20000 - subtotalPesanan)} untuk mencapai batas pas Rp 20.000).\n\nApakah ada pesanan pelanggan lain yang diantar bersamaan (ongkir per pelanggan Rp 3.500 s/d max 2 km)?\n\n- Klik [OK] jika ADA pesanan pelanggan lain (pesanan otomatis diproses).\n- Klik [Batal] jika ingin menambah belanja pelanggan hingga Rp 20.000 agar transaksi bisa langsung dipesan.`
-            );
-            if (!konfirmasiGabung) {
-              return;
-            }
-            setGabungPesananLain(true);
-          }
+        // Apabila belanja < 20.000 kasih konfirmasi gabung pengantaran
+        if (subtotalPesanan < 20000 && !hasOtherCustomerDeliveryOrder) {
+          setPendingDeliveryConfirm({ mode, distKm });
+          return;
         }
       }
     }
 
+    executeOrderSubmission(mode);
+  };
+
+  const executeOrderSubmission = (mode: 'BELUM_BAYAR' | 'LUNAS') => {
     // 1. Calculate stock deductions based on Tipe Pesanan
-    const currentBranchStock = { ...(stokCabang[currentCabang] || {}) };
+    const currentBranchStock = {
+      ...(stokCabang[currentBranchName] || stokCabang[currentCabang] || stokCabang[currentUser.cabang] || {}),
+    };
     cart.forEach((cartItem) => {
-      cartItem.resep.forEach((recipe) => {
+      (cartItem.resep || []).forEach((recipe) => {
         const bhn = bahanBakuList.find((b) => b.id === recipe.bahanId);
         const kat = bhn?.kategori || 'Bahan Makanan';
 
@@ -527,16 +555,16 @@ export const PosView: React.FC<PosViewProps> = ({
       );
 
       cart.forEach((cartItem) => {
-        const hasKemasanInResep = cartItem.resep.some((r) => {
+        const hasKemasanInResep = (cartItem.resep || []).some((r) => {
           const b = bahanBakuList.find((bk) => bk.id === r.bahanId);
           return b?.kategori === 'Kemasan';
         });
 
         if (!hasKemasanInResep) {
           const isDrink =
-            cartItem.nama.toLowerCase().includes('teh') ||
-            cartItem.nama.toLowerCase().includes('jeruk') ||
-            cartItem.kode.startsWith('MN');
+            (cartItem.nama || '').toLowerCase().includes('teh') ||
+            (cartItem.nama || '').toLowerCase().includes('jeruk') ||
+            (cartItem.kode || '').startsWith('MN');
 
           if (isDrink && kemasanCup) {
             const curC = currentBranchStock[kemasanCup.id] || 0;
@@ -815,7 +843,7 @@ export const PosView: React.FC<PosViewProps> = ({
                       )}
                     </div>
 
-                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between tabular-nums">
                       <div>
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-semibold">
                           HARGA MENU
@@ -941,13 +969,13 @@ export const PosView: React.FC<PosViewProps> = ({
               {/* Informative micro-badge on stock deduction rules */}
               <div className="text-[10px] px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                 {tipePesanan === 'Dine In' && (
-                  <span>🍽️ <b>Dine In:</b> Hanya memotong stok Bahan Makanan & Minuman (tanpa kemasan).</span>
+                  <span><b>Dine In:</b> Hanya memotong stok Bahan Makanan &amp; Minuman (tanpa kemasan).</span>
                 )}
                 {tipePesanan === 'Take Away' && (
-                  <span>🥡 <b>Take Away:</b> Memotong Bahan Makanan, Minuman, serta Kemasan (bowl/kantong).</span>
+                  <span><b>Take Away:</b> Memotong Bahan Makanan, Minuman, serta Kemasan (bowl/kantong).</span>
                 )}
                 {tipePesanan === 'Delivery Order' && (
-                  <span>🛵 <b>Delivery:</b> Memotong Bahan Makanan, Minuman, Kemasan, plus ongkos kirim.</span>
+                  <span><b>Delivery:</b> Memotong Bahan Makanan, Minuman, Kemasan, plus ongkos kirim.</span>
                 )}
               </div>
             </div>
@@ -1062,7 +1090,7 @@ export const PosView: React.FC<PosViewProps> = ({
                 </div>
 
                 <p className="text-[10px] text-orange-900 dark:text-orange-200 bg-orange-100/70 dark:bg-orange-950/60 p-1.5 rounded-lg border border-orange-200/80 dark:border-orange-800">
-                  💡 <b>Pemberitahuan:</b> ID Take Away & Nama Pelanggan wajib diisi agar pesanan tidak tertukar saat dimasak dan dipanggil.
+                  <b>Pemberitahuan:</b> ID Take Away &amp; Nama Pelanggan wajib diisi agar pesanan tidak tertukar saat dimasak dan dipanggil.
                 </p>
               </div>
             )}
@@ -1211,7 +1239,7 @@ export const PosView: React.FC<PosViewProps> = ({
                           <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
                           <div className="space-y-0.5">
                             <p className="font-black text-red-900 dark:text-red-200">
-                              ⛔ Transaksi Diblokir: Minimal Belanja Rp 10.000
+                              Transaksi Diblokir: Minimal Belanja Rp 10.000
                             </p>
                             <p className="text-[10px] text-red-700 dark:text-red-300 leading-relaxed">
                               Untuk pengiriman jarak ≥ 1,5 km, pesanan kurang dari <b>Rp 10.000</b> diblokir. Belanja <b>{pelangganNama || 'Pelanggan'}</b> saat ini: <b>{formatRupiah(subtotalPesanan)}</b> (kurang {formatRupiah(10000 - subtotalPesanan)}). Harap tambahkan menu ke keranjang.
@@ -1432,7 +1460,7 @@ export const PosView: React.FC<PosViewProps> = ({
             )}
 
             {/* Total Summary */}
-            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-1.5 text-xs tabular-nums">
               <div className="flex justify-between text-slate-500 dark:text-slate-400">
                 <span>Total Item Menu</span>
                 <span className="font-bold text-slate-700 dark:text-slate-200">{totalItemCount} porsi</span>
@@ -1568,9 +1596,9 @@ export const PosView: React.FC<PosViewProps> = ({
                 )}
 
                 {isBelanjaKurang10k && (
-                  <div className="p-2.5 bg-red-100 dark:bg-red-950/60 border border-red-300 dark:border-red-800 rounded-xl text-red-900 dark:text-red-200 text-xs font-bold text-center flex items-center justify-center gap-1.5">
+                  <div className="p-2.5 bg-red-100 dark:bg-red-950/60 border border-red-300 dark:border-red-800 rounded-xl text-red-900 dark:text-red-200 text-xs font-bold text-center flex items-center justify-center gap-1.5 tabular-nums">
                     <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
-                    <span>⛔ Pesanan Diblokir: Minimal belanja Rp 10.000 untuk jarak pengiriman ≥ 1,5 km (Belanja: {formatRupiah(subtotalPesanan)})</span>
+                    <span>Pesanan Diblokir: Minimal belanja Rp 10.000 untuk jarak pengiriman ≥ 1,5 km (Belanja: {formatRupiah(subtotalPesanan)})</span>
                   </div>
                 )}
 
@@ -1672,7 +1700,7 @@ export const PosView: React.FC<PosViewProps> = ({
                       </td>
                       <td className="py-3 px-3 text-slate-600 dark:text-slate-300 max-w-xs">
                         <div className="space-y-0.5">
-                          {trx.items.map((item, idx) => (
+                          {(trx.items || []).map((item, idx) => (
                             <div key={idx} className="text-[11px]">
                               {item.qty}x {item.nama}
                               {item.levelPedas !== undefined && (
@@ -1695,7 +1723,7 @@ export const PosView: React.FC<PosViewProps> = ({
                           {trx.metodeBayar}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-right font-black text-slate-800 dark:text-slate-100">
+                      <td className="py-3 px-3 text-right font-black text-slate-800 dark:text-slate-100 tabular-nums">
                         {formatRupiah(trx.total)}
                       </td>
                       <td className="py-3 px-3 text-center">
@@ -1752,54 +1780,54 @@ export const PosView: React.FC<PosViewProps> = ({
       {/* MODAL: Payment Success & Print Prompt */}
       {showPaymentSuccessModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full mx-auto flex items-center justify-center">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto">
+            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full mx-auto flex items-center justify-center">
               <Check className="w-8 h-8 stroke-[3]" />
             </div>
 
             <div>
-              <h3 className="text-lg font-black text-slate-800">
+              <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">
                 Pesanan Berhasil Dibuat!
               </h3>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 {showPaymentSuccessModal.invoiceNo}
               </p>
             </div>
 
-            <div className="bg-slate-50 p-4 rounded-xl space-y-2 text-xs text-left">
-              <div className="flex justify-between text-slate-600 font-bold pb-1 border-b border-slate-200">
+            <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl space-y-2 text-xs text-left border border-slate-200/80 dark:border-slate-700">
+              <div className="flex justify-between text-slate-600 dark:text-slate-300 font-bold pb-1 border-b border-slate-200 dark:border-slate-700">
                 <span>Tipe Layanan:</span>
-                <span className="text-orange-600 uppercase font-black">
+                <span className="text-orange-600 dark:text-orange-400 uppercase font-black">
                   {showPaymentSuccessModal.tipePesanan || 'Dine In'}
                 </span>
               </div>
 
               {/* Nomor Pesanan Otomatis (Masuk ke Struk & Tiket Dapur) */}
-              <div className="p-2 bg-gradient-to-r from-orange-100 to-amber-100 border border-orange-300 rounded-lg flex items-center justify-between text-xs">
-                <span className="text-orange-950 font-bold flex items-center gap-1">
+              <div className="p-2 bg-gradient-to-r from-orange-100 to-amber-100 dark:from-orange-950/70 dark:to-amber-950/70 border border-orange-300 dark:border-orange-800 rounded-lg flex items-center justify-between text-xs">
+                <span className="text-orange-950 dark:text-orange-200 font-bold flex items-center gap-1">
                   <span>Nomor Antrian / Pesanan:</span>
                 </span>
-                <span className="bg-orange-600 text-white font-black text-sm px-2.5 py-0.5 rounded-lg shadow-xs">
+                <span className="brand-gradient text-white font-black text-sm px-2.5 py-0.5 rounded-lg shadow-xs">
                   {showPaymentSuccessModal.nomorPesanan || '-'}
                 </span>
               </div>
 
               {/* Nama Pelanggan (Semua Tipe Layanan) */}
               {showPaymentSuccessModal.pelangganNama && showPaymentSuccessModal.tipePesanan === 'Dine In' && (
-                <div className="flex justify-between text-slate-700 text-xs">
+                <div className="flex justify-between text-slate-700 dark:text-slate-200 text-xs">
                   <span className="font-semibold">Nama / Meja:</span>
-                  <span className="font-bold text-slate-900">{showPaymentSuccessModal.pelangganNama}</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{showPaymentSuccessModal.pelangganNama}</span>
                 </div>
               )}
 
               {/* Status Pesanan Realtime */}
-              <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between text-xs">
-                <span className="text-amber-800 font-bold flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+              <div className="p-2 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center justify-between text-xs">
+                <span className="text-amber-800 dark:text-amber-300 font-bold flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                   Status Pesanan:
                 </span>
-                <span className="bg-amber-100 text-amber-900 font-extrabold px-2 py-0.5 rounded-full text-[10px]">
-                  ⏳ Menunggu (Antrian Dapur)
+                <span className="bg-amber-100 dark:bg-amber-900 text-amber-900 dark:text-amber-200 font-extrabold px-2 py-0.5 rounded-full text-[10px]">
+                  Menunggu (Antrian Dapur)
                 </span>
               </div>
 
@@ -1807,8 +1835,8 @@ export const PosView: React.FC<PosViewProps> = ({
               <div
                 className={`p-2 rounded-lg flex items-center justify-between text-xs font-bold border ${
                   showPaymentSuccessModal.statusPembayaran === 'LUNAS'
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                    : 'bg-amber-50 border-amber-300 text-amber-900'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                    : 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200'
                 }`}
               >
                 <span className="flex items-center gap-1">
@@ -1818,8 +1846,8 @@ export const PosView: React.FC<PosViewProps> = ({
                 <span
                   className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
                     showPaymentSuccessModal.statusPembayaran === 'LUNAS'
-                      ? 'bg-emerald-200 text-emerald-950'
-                      : 'bg-amber-200 text-amber-950'
+                      ? 'bg-emerald-200 dark:bg-emerald-900 text-emerald-950 dark:text-emerald-100'
+                      : 'bg-amber-200 dark:bg-amber-900 text-amber-950 dark:text-amber-100'
                   }`}
                 >
                   {showPaymentSuccessModal.statusPembayaran === 'LUNAS'
@@ -1830,13 +1858,13 @@ export const PosView: React.FC<PosViewProps> = ({
 
               {/* Take Away Details */}
               {showPaymentSuccessModal.tipePesanan === 'Take Away' && (
-                <div className="p-2.5 bg-orange-50/90 border border-orange-200 rounded-lg space-y-1 text-[11px] text-orange-950">
-                  <div className="font-extrabold flex items-center justify-between text-orange-900">
+                <div className="p-2.5 bg-orange-50/90 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800 rounded-lg space-y-1 text-[11px] text-orange-950 dark:text-orange-200">
+                  <div className="font-extrabold flex items-center justify-between text-orange-900 dark:text-orange-300">
                     <span className="flex items-center gap-1">
-                      <ShoppingBag className="w-3.5 h-3.5 text-orange-600" />
+                      <ShoppingBag className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                       <span>ID Take Away:</span>
                     </span>
-                    <span className="bg-orange-600 text-white px-2 py-0.5 rounded text-xs font-black">
+                    <span className="brand-gradient text-white px-2 py-0.5 rounded text-xs font-black">
                       {showPaymentSuccessModal.takeAwayId || '-'}
                     </span>
                   </div>
@@ -1849,8 +1877,8 @@ export const PosView: React.FC<PosViewProps> = ({
 
               {/* Delivery Order Details */}
               {showPaymentSuccessModal.tipePesanan === 'Delivery Order' && (
-                <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg space-y-1 text-[11px] text-blue-900">
-                  <div className="font-extrabold flex items-center gap-1 text-blue-800">
+                <div className="p-2.5 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg space-y-1 text-[11px] text-blue-900 dark:text-blue-200">
+                  <div className="font-extrabold flex items-center gap-1 text-blue-800 dark:text-blue-300">
                     <Truck className="w-3.5 h-3.5" />
                     <span>Data Pengiriman:</span>
                   </div>
@@ -1867,51 +1895,51 @@ export const PosView: React.FC<PosViewProps> = ({
                         : `${showPaymentSuccessModal.jarakKm} km`}
                     </div>
                   )}
-                  <div className="flex justify-between pt-1 border-t border-blue-200/60 font-semibold">
+                  <div className="flex justify-between pt-1 border-t border-blue-200/60 dark:border-blue-800/60 font-semibold">
                     <span>Biaya Pengiriman (Ongkir):</span>
-                    <span className="font-bold text-blue-700">
+                    <span className="font-bold text-blue-700 dark:text-blue-300">
                       {showPaymentSuccessModal.ongkir === 0 ? 'GRATIS' : formatRupiah(showPaymentSuccessModal.ongkir || 0)}
                     </span>
                   </div>
                 </div>
               )}
 
-              <div className="flex justify-between text-slate-500">
+              <div className="flex justify-between text-slate-500 dark:text-slate-400">
                 <span>Subtotal Menu:</span>
-                <span className="font-semibold text-slate-700">
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
                   {formatRupiah(
                     showPaymentSuccessModal.subtotalPesanan ||
                     (showPaymentSuccessModal.total - (showPaymentSuccessModal.ongkir || 0))
                   )}
                 </span>
               </div>
-              <div className="flex justify-between text-slate-800 font-black text-sm pt-1 border-t border-slate-200">
+              <div className="flex justify-between text-slate-800 dark:text-slate-100 font-black text-sm pt-1 border-t border-slate-200 dark:border-slate-700">
                 <span>TOTAL TRANSAKSI:</span>
-                <span className="text-orange-600 font-extrabold">
+                <span className="text-orange-600 dark:text-orange-400 font-extrabold">
                   {formatRupiah(showPaymentSuccessModal.total)}
                 </span>
               </div>
-              <div className="flex justify-between text-slate-500">
+              <div className="flex justify-between text-slate-500 dark:text-slate-400">
                 <span>Metode Bayar:</span>
-                <span className="font-bold text-slate-800">
+                <span className="font-bold text-slate-800 dark:text-slate-100">
                   {showPaymentSuccessModal.metodeBayar}
                 </span>
               </div>
-              <div className="flex justify-between text-slate-500">
+              <div className="flex justify-between text-slate-500 dark:text-slate-400">
                 <span>Uang Diterima:</span>
-                <span className="font-bold text-slate-800">
+                <span className="font-bold text-slate-800 dark:text-slate-100">
                   {formatRupiah(showPaymentSuccessModal.bayar)}
                 </span>
               </div>
-              <div className="flex justify-between pt-1 border-t border-slate-200 font-bold text-xs">
-                <span className="text-slate-800">Kembalian:</span>
-                <span className="text-emerald-600 font-black">
+              <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-700 font-bold text-xs">
+                <span className="text-slate-800 dark:text-slate-100">Kembalian:</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-black">
                   {formatRupiah(showPaymentSuccessModal.kembali)}
                 </span>
               </div>
             </div>
 
-            <p className="text-[11px] text-slate-500 italic">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
               {showPaymentSuccessModal.tipePesanan === 'Dine In'
                 ? '*Stok Bahan Makanan & Minuman cabang telah berkurang otomatis.'
                 : '*Stok Bahan Makanan, Minuman, serta Kemasan cabang telah berkurang otomatis.'}
@@ -1924,20 +1952,21 @@ export const PosView: React.FC<PosViewProps> = ({
                 disabled={isBluetoothPrinting}
                 onClick={async () => {
                   setIsBluetoothPrinting(true);
+                  const trxBranchName = getBranchName(showPaymentSuccessModal.cabang, dataCabangList);
                   const branchInfo = dataCabangList.find(
-                    (c) => c.nama.toLowerCase() === showPaymentSuccessModal.cabang.toLowerCase()
+                    (c) =>
+                      c.nama.toLowerCase() === trxBranchName.toLowerCase() ||
+                      c.nama.toLowerCase() === showPaymentSuccessModal.cabang.toLowerCase()
                   );
-                  const res = await printReceiptViaBluetooth(showPaymentSuccessModal, branchInfo);
+                  const res = await printReceiptViaBluetooth(showPaymentSuccessModal, branchInfo, {
+                    namaUsaha: brandName,
+                    tagline: appSettings?.tagline,
+                  });
                   setIsBluetoothPrinting(false);
-                  if (res.success) {
-                    alert('Struk berhasil dicetak ke Printer Bluetooth!');
-                  } else {
-                    // Jika belum berhasil konek bluetooth atau user cancel, buka modal print
-                    if (confirm(`Koneksi Bluetooth: ${res.error || 'Belum terhubung'}. Buka jendela opsi cetak struk lengkap?`)) {
-                      const target = showPaymentSuccessModal;
-                      setShowPaymentSuccessModal(null);
-                      onOpenPrintModal('struk', target);
-                    }
+                  if (!res.success) {
+                    const target = showPaymentSuccessModal;
+                    setShowPaymentSuccessModal(null);
+                    onOpenPrintModal('struk', target);
                   }
                 }}
                 className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm transition disabled:opacity-50"
@@ -1967,7 +1996,7 @@ export const PosView: React.FC<PosViewProps> = ({
                     setShowPaymentSuccessModal(null);
                     onOpenPrintModal('struk', target);
                   }}
-                  className="py-2.5 px-3 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition"
+                  className="py-2.5 px-3 brand-gradient hover:opacity-95 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Struk Kasir</span>
@@ -1982,7 +2011,7 @@ export const PosView: React.FC<PosViewProps> = ({
                       setShowPaymentSuccessModal(null);
                       onNavigateToTab('pesanan');
                     }}
-                    className="flex-1 py-2 px-3 bg-slate-900 hover:bg-black text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition shadow-sm"
+                    className="flex-1 py-2 px-3 bg-slate-900 dark:bg-slate-700 hover:bg-black dark:hover:bg-slate-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition shadow-sm"
                   >
                     <span>Buka Menu Pesanan</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -1992,7 +2021,7 @@ export const PosView: React.FC<PosViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowPaymentSuccessModal(null)}
-                  className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer transition"
+                  className="py-2 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs cursor-pointer transition"
                 >
                   Pesanan Baru
                 </button>
@@ -2005,19 +2034,21 @@ export const PosView: React.FC<PosViewProps> = ({
       {/* MODAL: QRIS Display */}
       {showQrisModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b pb-2">
-              <h3 className="font-bold text-slate-800 text-sm">QRIS TELAGA WARNA</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
+                QRIS {brandName.toUpperCase()}
+              </h3>
               <button
                 type="button"
                 onClick={() => setShowQrisModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold cursor-pointer"
               >
                 Tutup
               </button>
             </div>
 
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col items-center">
+            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col items-center">
               <div className="w-48 h-48 bg-white p-2 rounded-lg border-2 border-dashed border-orange-300 flex flex-col items-center justify-center">
                 <QrCode className="w-36 h-36 text-slate-800" />
                 <span className="text-[10px] font-bold text-slate-500 mt-1">
@@ -2025,8 +2056,8 @@ export const PosView: React.FC<PosViewProps> = ({
                 </span>
               </div>
               <div className="mt-3 text-xs">
-                <span className="text-slate-500">Total Pembayaran:</span>
-                <span className="font-black text-orange-600 text-base block">
+                <span className="text-slate-500 dark:text-slate-400">Total Pembayaran:</span>
+                <span className="font-black text-orange-600 dark:text-orange-400 text-base block">
                   {formatRupiah(totalTagihan)}
                 </span>
               </div>
@@ -2050,20 +2081,20 @@ export const PosView: React.FC<PosViewProps> = ({
       {/* MODAL: Retur Transaksi Confirmation */}
       {returTarget && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center gap-2.5 text-rose-600">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400">
               <RotateCcw className="w-5 h-5" />
-              <h3 className="font-black text-slate-800 text-base">
+              <h3 className="font-black text-slate-800 dark:text-slate-100 text-base">
                 Retur Transaksi {returTarget.invoiceNo}
               </h3>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
               Tindakan ini akan membatalkan transaksi dan <strong>mengembalikan seluruh stok bahan baku</strong> cabang ini sesuai resep yang dibeli.
             </p>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
                 Alasan Retur / Pembatalan <span className="text-rose-500">*</span>:
               </label>
               <textarea
@@ -2072,7 +2103,7 @@ export const PosView: React.FC<PosViewProps> = ({
                 placeholder="Contoh: Salah input pesanan / pelanggan membatalkan..."
                 value={alasanRetur}
                 onChange={(e) => setAlasanRetur(e.target.value)}
-                className="w-full p-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
+                className="w-full p-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
               />
             </div>
 
@@ -2080,7 +2111,7 @@ export const PosView: React.FC<PosViewProps> = ({
               <button
                 type="button"
                 onClick={() => setReturTarget(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl cursor-pointer"
               >
                 Batal
               </button>
@@ -2088,9 +2119,85 @@ export const PosView: React.FC<PosViewProps> = ({
                 type="button"
                 disabled={!alasanRetur.trim()}
                 onClick={handleConfirmRetur}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl cursor-pointer transition shadow-xs"
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 text-white text-xs font-bold rounded-xl cursor-pointer transition shadow-xs"
               >
                 Konfirmasi Retur & Kembalikan Stok
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: In-App Notice (Replaces browser alert()) */}
+      {posNotice && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-700 text-xs">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm">
+                  {posNotice.title}
+                </h3>
+                <p className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                  {posNotice.message}
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setPosNotice(null)}
+                className="px-5 py-2 brand-gradient hover:opacity-95 text-white font-bold rounded-xl cursor-pointer transition"
+              >
+                Mengerti
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Konfirmasi Pengantaran Delivery Gabungan (Replaces browser confirm()) */}
+      {pendingDeliveryConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-700 text-xs">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <Truck className="w-5 h-5" />
+              </div>
+              <div className="space-y-1.5 flex-1">
+                <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm">
+                  Minimal Biaya Pesanan Rp 20.000 ({pendingDeliveryConfirm.distKm} km)
+                </h3>
+                <p className="text-slate-600 dark:text-slate-300 leading-relaxed tabular-nums">
+                  Pelanggan <strong>{pelangganNama}</strong> berbelanja{' '}
+                  <strong>{formatRupiah(subtotalPesanan)}</strong> (kurang{' '}
+                  <strong>{formatRupiah(20000 - subtotalPesanan)}</strong> dari Rp 20.000).
+                </p>
+                <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Apakah ada pesanan pelanggan lain yang diantar bersamaan (ongkir per pelanggan Rp 3.500 s/d max 2 km)?
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setPendingDeliveryConfirm(null)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl cursor-pointer"
+              >
+                Tambah Menu Belanja
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetMode = pendingDeliveryConfirm.mode;
+                  setGabungPesananLain(true);
+                  setPendingDeliveryConfirm(null);
+                  executeOrderSubmission(targetMode);
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl cursor-pointer transition"
+              >
+                Ya, Antar Bersamaan &amp; Proses
               </button>
             </div>
           </div>

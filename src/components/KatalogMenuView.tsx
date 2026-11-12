@@ -13,7 +13,6 @@ import {
   X,
   Lock,
   ShoppingCart,
-  Store,
   CheckCircle2,
   AlertTriangle,
 } from 'lucide-react';
@@ -30,7 +29,7 @@ import {
   AppSettings,
 } from '../types';
 import { formatRupiah } from '../utils/storage';
-import { getStoreBranches } from '../utils/branchHelper';
+import { getStoreBranches, getBranchName } from '../utils/branchHelper';
 import { DEFAULT_BUSINESS_NAME } from '../utils/theme';
 import { BottomSheetPicker, BottomSheetPickerTrigger } from './BottomSheetPicker';
 
@@ -68,17 +67,23 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
   appSettings,
 }) => {
   const brandName = appSettings?.namaUsaha || DEFAULT_BUSINESS_NAME;
+  const currentBranchName = getBranchName(currentUser.cabang, dataCabangList) || currentUser.cabang;
+  const roleNorm = (currentUser.jabatan || '').trim().toLowerCase();
+  const isPusatBranch =
+    currentBranchName.trim().toUpperCase() === 'DC PUSAT' ||
+    (currentUser.cabang || '').trim().toUpperCase() === 'DC PUSAT';
   // Access control: Only OWNER and ADMIN DC PUSAT can see HPP, Profit, and manage menu (Add/Edit/Delete)
   const isPrivileged =
-    currentUser.jabatan === 'Owner' ||
-    currentUser.jabatan === 'Admin DC Pusat' ||
-    currentUser.jabatan === 'Admin' ||
-    currentUser.cabang === 'DC PUSAT';
+    roleNorm === 'owner' ||
+    roleNorm === 'admin dc pusat' ||
+    roleNorm === 'admin' ||
+    isPusatBranch;
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [showModal, setShowModal] = useState(false);
   const [editingMenu, setEditingMenu] = useState<KatalogMenu | null>(null);
+  const [pendingDeleteMenu, setPendingDeleteMenu] = useState<KatalogMenu | null>(null);
 
   // Form states for Admin/Owner
   const [kode, setKode] = useState('');
@@ -90,13 +95,12 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
   const [hargaPromo, setHargaPromo] = useState<string>('');
   const [freeMinuman, setFreeMinuman] = useState<string>('');
   const [freeMinumanId, setFreeMinumanId] = useState<string>('');
-  const [searchMinuman, setSearchMinuman] = useState<string>('');
-  const [isMinumanDropdownOpen, setIsMinumanDropdownOpen] = useState<boolean>(false);
   const [promoCabangIds, setPromoCabangIds] = useState<string[]>([]); // Multi-select target cabang promo
   const [selectedMenuCabangIds, setSelectedMenuCabangIds] = useState<string[]>([]); // Multi-select ketersediaan menu per cabang (menu_cabang)
 
   // BottomSheetPicker states
   const [showPickerKategori, setShowPickerKategori] = useState<boolean>(false);
+  const [showPickerMinuman, setShowPickerMinuman] = useState<boolean>(false);
   const [resepPickerRowIndex, setResepPickerRowIndex] = useState<number | null>(null);
 
   // Active store branches for promo multi-select (excluding DC Pusat)
@@ -129,14 +133,8 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
 
   // Filter katalog for beverage category (Minuman Segar or containing 'minuman')
   const beverageOptions = katalogList.filter(
-    (item) => item.kategori === 'Minuman Segar' || item.kategori.toLowerCase().includes('minuman')
+    (item) => item.kategori === 'Minuman Segar' || (item.kategori || '').toLowerCase().includes('minuman')
   );
-
-  const filteredBeverageOptions = beverageOptions.filter((item) => {
-    const q = searchMinuman.toLowerCase().trim();
-    if (!q) return true;
-    return item.nama.toLowerCase().includes(q) || item.kode.toLowerCase().includes(q);
-  });
 
   const categories = [
     'Semua',
@@ -163,9 +161,10 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
 
   // Calculate available portions in current duty branch
   const getPortionsAvailable = (menu: KatalogMenu): number => {
-    if (currentUser.cabang === 'DC PUSAT') {
+    const safeResep = menu.resep || [];
+    if (isPusatBranch) {
       let minPortions = Infinity;
-      for (const r of menu.resep) {
+      for (const r of safeResep) {
         const bhn = bahanBakuList.find((b) => b.id === r.bahanId);
         if (!bhn || r.qtyPakai <= 0) continue;
         const portions = Math.floor(bhn.stokDC / r.qtyPakai);
@@ -174,9 +173,11 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
       return minPortions === Infinity ? 0 : minPortions;
     } else {
       const branchStock =
-        stokCabang[currentUser.cabang as Exclude<Cabang, 'DC PUSAT'>] || {};
+        stokCabang[currentBranchName] ||
+        stokCabang[currentUser.cabang as Exclude<Cabang, 'DC PUSAT'>] ||
+        {};
       let minPortions = Infinity;
-      for (const r of menu.resep) {
+      for (const r of safeResep) {
         if (r.qtyPakai <= 0) continue;
         const currentQty = branchStock[r.bahanId] || 0;
         const portions = Math.floor(currentQty / r.qtyPakai);
@@ -201,8 +202,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
     setHargaPromo('');
     setFreeMinuman('');
     setFreeMinumanId('');
-    setSearchMinuman('');
-    setIsMinumanDropdownOpen(false);
+    setShowPickerMinuman(false);
     setPromoCabangIds([]);
     setSelectedMenuCabangIds([]); // Kosong = Tampil di Semua Cabang
     setEditingMenu(null);
@@ -216,7 +216,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
     setNama(menu.nama);
     setKategori(menu.kategori);
     setDeskripsi(menu.deskripsi || '');
-    setResepRows(menu.resep.length > 0 ? [...menu.resep] : []);
+    setResepRows((menu.resep || []).length > 0 ? [...(menu.resep || [])] : []);
     setHargaJual(menu.hargaJual);
     setHargaPromo(menu.harga_promo !== undefined && menu.harga_promo !== null ? String(menu.harga_promo) : '');
     setFreeMinuman(menu.free_minuman || '');
@@ -227,8 +227,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
       ? beverageOptions.find((b) => b.nama.toLowerCase() === menu.free_minuman?.toLowerCase())
       : undefined;
     setFreeMinumanId(foundDrink ? foundDrink.id : (menu.free_minuman_id || ''));
-    setSearchMinuman('');
-    setIsMinumanDropdownOpen(false);
+    setShowPickerMinuman(false);
     setPromoCabangIds(Array.isArray(menu.promo_cabang_ids) ? [...menu.promo_cabang_ids] : []);
 
     // Set ketersediaan cabang
@@ -339,10 +338,10 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
   });
 
   const currentBranchState =
-    tokoState && currentUser.cabang !== 'DC PUSAT'
-      ? tokoState[currentUser.cabang as Exclude<Cabang, 'DC PUSAT'>]
+    tokoState && !isPusatBranch
+      ? tokoState[currentBranchName] || tokoState[currentUser.cabang as Exclude<Cabang, 'DC PUSAT'>]
       : null;
-  const isTokoBuka = currentUser.cabang === 'DC PUSAT' || currentBranchState?.status === 'Buka';
+  const isTokoBuka = isPusatBranch || currentBranchState?.status === 'Buka';
 
   return (
     <div className="space-y-5">
@@ -352,7 +351,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
           <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
           <div>
             <strong className="text-amber-900 dark:text-amber-200 block font-black">
-              Akses Transaksi Terkunci - Toko {currentUser.cabang} Sedang {currentBranchState?.status === 'Tutup' ? 'TUTUP' : 'BELUM BUKA'}
+              Akses Transaksi Terkunci - Toko {currentBranchName} Sedang {currentBranchState?.status === 'Tutup' ? 'TUTUP' : 'BELUM BUKA'}
             </strong>
             <span className="text-amber-800 dark:text-amber-300">
               Sesuai aturan sistem, katalog menu tidak dapat digunakan untuk melayani transaksi. Harap Buka Toko terlebih dahulu di menu Buka / Tutup Toko.
@@ -369,7 +368,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
             <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">
               {isPrivileged
                 ? 'Katalog Menu & Resep HPP (Master DC)'
-                : `Katalog Menu Jual (${currentUser.cabang})`}
+                : `Katalog Menu Jual (${currentBranchName})`}
             </h2>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -490,8 +489,8 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                       {(hasPromoPrice || hasFreeMinuman) && (
                         <span className="px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 text-[10px] font-bold">
                           {menu.promo_cabang_ids && menu.promo_cabang_ids.length > 0
-                            ? `📍 ${menu.promo_cabang_ids.length} Cabang Target`
-                            : '🌐 Semua Cabang'}
+                            ? `${menu.promo_cabang_ids.length} Cabang Target`
+                            : 'Semua Cabang'}
                         </span>
                       )}
                       {(() => {
@@ -499,13 +498,13 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                         if (branchStatus.isAll) {
                           return (
                             <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-[10px] font-bold">
-                              🌐 Tampil di Semua Cabang
+                              Tampil di Semua Cabang
                             </span>
                           );
                         }
                         return (
                           <span className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 text-[10px] font-bold">
-                            📍 Tampil di {branchStatus.activeCount} cabang
+                            Tampil di {branchStatus.activeCount} cabang
                           </span>
                         );
                       })()}
@@ -535,11 +534,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            if (confirm(`Hapus menu "${menu.nama}" dari katalog?`)) {
-                              onDeleteKatalog(menu.id);
-                            }
-                          }}
+                          onClick={() => setPendingDeleteMenu(menu)}
                           className="p-1.5 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-950 text-rose-600 dark:text-rose-400 rounded-xl transition cursor-pointer"
                           title="Hapus Menu"
                         >
@@ -584,7 +579,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                 </div>
 
                 {/* Body Card: Price, HPP, Profit, and Recipe Breakdown */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs bg-slate-50/80 dark:bg-slate-800/70 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs bg-slate-50/80 dark:bg-slate-800/70 p-3 rounded-xl border border-slate-100 dark:border-slate-800 tabular-nums">
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
                       Harga Menu
@@ -648,7 +643,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                         Status Cabang
                       </span>
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-200 break-words">
-                        {currentUser.cabang}
+                        {currentBranchName}
                       </span>
                     </div>
                   )}
@@ -889,7 +884,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                             </span>
                           </div>
 
-                          <div className="w-24 text-right font-extrabold text-slate-700 dark:text-slate-200 text-[11px]">
+                          <div className="w-24 text-right font-extrabold text-slate-700 dark:text-slate-200 text-[11px] tabular-nums">
                             {formatRupiah(costThisRow)}
                           </div>
 
@@ -935,7 +930,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                     <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
                       Harga Modal (HPP Otomatis)
                     </label>
-                    <div className="p-2.5 bg-slate-200/80 dark:bg-slate-800 rounded-xl font-black text-slate-800 dark:text-slate-100 text-sm">
+                    <div className="p-2.5 bg-slate-200/80 dark:bg-slate-800 rounded-xl font-black text-slate-800 dark:text-slate-100 text-sm tabular-nums">
                       {formatRupiah(calculatedHpp)}
                     </div>
                   </div>
@@ -950,7 +945,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                       min={calculatedHpp}
                       value={hargaJual}
                       onChange={(e) => setHargaJual(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm font-black text-orange-600 dark:text-orange-400"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm font-black text-orange-600 dark:text-orange-400 tabular-nums"
                     />
                   </div>
 
@@ -958,7 +953,7 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                     <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
                       Keuntungan Bersih / Porsi
                     </label>
-                    <div className="p-2.5 bg-emerald-100 dark:bg-emerald-950/60 rounded-xl font-black text-emerald-700 dark:text-emerald-300 text-sm flex items-center justify-between">
+                    <div className="p-2.5 bg-emerald-100 dark:bg-emerald-950/60 rounded-xl font-black text-emerald-700 dark:text-emerald-300 text-sm flex items-center justify-between tabular-nums">
                       <span>{formatRupiah(calculatedKeuntungan)}</span>
                       <span className="text-[10px] font-bold">({marginPercentage}%)</span>
                     </div>
@@ -996,125 +991,67 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1">
-                      2. Free Minuman (Dropdown Searchable)
-                    </label>
+                    <BottomSheetPickerTrigger
+                      label="2. Free Minuman (Bonus Promo)"
+                      placeholder="-- Tanpa Free Minuman (Kosong) --"
+                      valueTitle={
+                        freeMinumanId
+                          ? beverageOptions.find((b) => b.id === freeMinumanId)?.nama || freeMinuman || 'Minuman Dipilih'
+                          : ''
+                      }
+                      badge={
+                        freeMinumanId
+                          ? beverageOptions.find((b) => b.id === freeMinumanId)?.kode
+                          : undefined
+                      }
+                      onClick={() => setShowPickerMinuman(true)}
+                    />
 
-                    {/* Searchable Combobox */}
-                    <div className="relative">
-                      <div
-                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-xl flex items-center justify-between cursor-pointer focus-within:ring-2 focus-within:ring-amber-500"
-                        onClick={() => setIsMinumanDropdownOpen((prev) => !prev)}
+                    {freeMinumanId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFreeMinumanId('');
+                          setFreeMinuman('');
+                        }}
+                        className="mt-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
                       >
-                        <div className="flex items-center gap-2 truncate">
-                          {freeMinumanId ? (
-                            <>
-                              <span className="font-bold text-amber-800 dark:text-amber-300 text-xs">
-                                {beverageOptions.find((b) => b.id === freeMinumanId)?.nama || freeMinuman || 'Minuman Dipilih'}
-                              </span>
-                              <span className="text-[10px] bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-extrabold px-1.5 py-0.5 rounded">
-                                {beverageOptions.find((b) => b.id === freeMinumanId)?.kode || ''}
-                              </span>
-                            </>
-                          ) : (
-                            <span className="text-slate-400 text-xs font-normal">
-                              -- Pilih Free Minuman (Kosong) --
-                            </span>
-                          )}
-                        </div>
+                        Hapus pilihan free minuman
+                      </button>
+                    )}
 
-                        <div className="flex items-center gap-1">
-                          {freeMinumanId && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setFreeMinumanId('');
-                                setFreeMinuman('');
-                                setSearchMinuman('');
-                              }}
-                              className="text-slate-400 hover:text-red-500 p-0.5"
-                              title="Hapus Pilihan"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          <ChevronRight
-                            className={`w-4 h-4 text-slate-400 transition-transform ${
-                              isMinumanDropdownOpen ? 'rotate-90 text-amber-600' : ''
-                            }`}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Dropdown Menu Popup */}
-                      {isMinumanDropdownOpen && (
-                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl shadow-xl z-50 p-2 space-y-2 max-h-56 overflow-y-auto">
-                          <div className="relative">
-                            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
-                            <input
-                              type="text"
-                              autoFocus
-                              placeholder="Cari minuman (Es Teh, Es Jeruk...)"
-                              value={searchMinuman}
-                              onChange={(e) => setSearchMinuman(e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-full pl-8 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            {/* Option Tanpa Free Minuman */}
-                            <div
-                              onClick={() => {
-                                setFreeMinumanId('');
-                                setFreeMinuman('');
-                                setIsMinumanDropdownOpen(false);
-                              }}
-                              className={`p-2 rounded-lg text-xs cursor-pointer flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800 ${
-                                !freeMinumanId ? 'bg-amber-50 dark:bg-amber-950/50 font-bold text-amber-900 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'
-                              }`}
-                            >
-                              <span>🚫 Tanpa Free Minuman (Kosong)</span>
-                              {!freeMinumanId && <Check className="w-3.5 h-3.5 text-amber-600" />}
-                            </div>
-
-                            {/* List Minuman dari Katalog */}
-                            {filteredBeverageOptions.length > 0 ? (
-                              filteredBeverageOptions.map((drink) => (
-                                <div
-                                  key={drink.id}
-                                  onClick={() => {
-                                    setFreeMinumanId(drink.id);
-                                    setFreeMinuman(drink.nama);
-                                    setIsMinumanDropdownOpen(false);
-                                  }}
-                                  className={`p-2 rounded-lg text-xs cursor-pointer flex items-center justify-between hover:bg-amber-50 dark:hover:bg-slate-800 ${
-                                    freeMinumanId === drink.id
-                                      ? 'bg-amber-100/70 dark:bg-amber-950/50 font-bold text-amber-900 dark:text-amber-300'
-                                      : 'text-slate-700 dark:text-slate-200'
-                                  }`}
-                                >
-                                  <div>
-                                    <div className="font-semibold">{drink.nama}</div>
-                                    <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                                      {drink.kode} • Normal {formatRupiah(drink.hargaJual)}
-                                    </div>
-                                  </div>
-                                  {freeMinumanId === drink.id && (
-                                    <Check className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                  )}
-                                </div>
-                              ))
-                            ) : (
-                              <div className="p-2 text-center text-slate-400 text-xs italic">
-                                Minuman tidak ditemukan di katalog
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <BottomSheetPicker
+                      isOpen={showPickerMinuman}
+                      onClose={() => setShowPickerMinuman(false)}
+                      title="Pilih Free Minuman Promo"
+                      selectedId={freeMinumanId || '__NONE__'}
+                      onSelect={(opt) => {
+                        if (opt.id === '__NONE__') {
+                          setFreeMinumanId('');
+                          setFreeMinuman('');
+                        } else {
+                          const drink = beverageOptions.find((b) => b.id === opt.id);
+                          setFreeMinumanId(String(opt.id));
+                          setFreeMinuman(drink ? drink.nama : opt.title);
+                        }
+                      }}
+                      options={[
+                        {
+                          id: '__NONE__',
+                          title: 'Tanpa Free Minuman (Kosong)',
+                          subtitle: 'Menu dijual tanpa bonus minuman gratis',
+                          category: 'Umum',
+                        },
+                        ...beverageOptions.map((drink) => ({
+                          id: drink.id,
+                          title: drink.nama,
+                          subtitle: `${drink.kode} • Harga Normal ${formatRupiah(drink.hargaJual)}`,
+                          category: drink.kategori,
+                          price: drink.hargaJual,
+                          badge: drink.kode,
+                        })),
+                      ]}
+                    />
 
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
                       Data otomatis diambil dari kategori <strong>Minuman Segar</strong>. Disimpan sebagai <code>free_minuman_id</code> dan stok bahan baku minuman akan dipotong saat transaksi.
@@ -1131,8 +1068,8 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                       </label>
                       <span className="text-[10px] text-slate-500 dark:text-slate-400">
                         {promoCabangIds.length === 0
-                          ? '🌟 Berlaku untuk SEMUA CABANG (array kosong / default)'
-                          : `🎯 Khusus ${promoCabangIds.length} cabang terpilih`}
+                          ? 'Berlaku untuk SEMUA CABANG (default)'
+                          : `Khusus ${promoCabangIds.length} cabang terpilih`}
                       </span>
                     </div>
 
@@ -1212,8 +1149,8 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                     </label>
                     <span className="text-[11px] text-blue-800 dark:text-blue-300">
                       {selectedMenuCabangIds.length === 0 || selectedMenuCabangIds.includes('ALL')
-                        ? '🌐 [✓ Semua Cabang] — Menu tampil dan bisa dipesan di semua cabang'
-                        : `📍 Khusus tampil di ${selectedMenuCabangIds.length} cabang terpilih`}
+                        ? 'Semua Cabang — Menu tampil dan bisa dipesan di semua cabang'
+                        : `Khusus tampil di ${selectedMenuCabangIds.length} cabang terpilih`}
                     </span>
                   </div>
 
@@ -1311,6 +1248,46 @@ export const KatalogMenuView: React.FC<KatalogMenuViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Konfirmasi Hapus Menu Katalog */}
+      {pendingDeleteMenu && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-xs">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm">
+                  Hapus Menu Katalog?
+                </h3>
+                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Hapus menu <strong>{pendingDeleteMenu.nama}</strong> ({pendingDeleteMenu.kode}) dari katalog master?
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteMenu(null)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteKatalog(pendingDeleteMenu.id);
+                  setPendingDeleteMenu(null);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl cursor-pointer"
+              >
+                Ya, Hapus Menu
+              </button>
+            </div>
           </div>
         </div>
       )}

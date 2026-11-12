@@ -26,14 +26,12 @@ import {
   RotateCcw,
   Ban,
   AlertTriangle,
-  Lock,
   ShieldCheck,
   Edit3,
   Plus,
   Minus,
   Trash2,
   RefreshCw,
-  HelpCircle,
   Tag,
 } from 'lucide-react';
 import {
@@ -47,7 +45,6 @@ import {
   StokCabangMap,
   TransaksiItem,
   LEVEL_PEDAS_OPTIONS,
-  LevelPedas,
 } from '../types';
 import { formatRupiah } from '../utils/storage';
 import { getBranchName, getStoreBranches } from '../utils/branchHelper';
@@ -158,16 +155,25 @@ export const PesananView: React.FC<PesananViewProps> = ({
   onOpenPrintModal,
   onNavigateToPos,
 }) => {
-  const isDcPusatOrOwner =
-    currentUser.cabang === 'DC PUSAT' || currentUser.jabatan === 'Owner';
+  const roleNorm = (currentUser.jabatan || '').trim().toLowerCase();
+  const isPusatBranch = (currentUser.cabang || '').trim().toUpperCase() === 'DC PUSAT';
   const currentBranchName = getBranchName(currentUser.cabang, dataCabangList);
+  const isDcPusatOrOwner =
+    isPusatBranch ||
+    currentBranchName.trim().toUpperCase() === 'DC PUSAT' ||
+    roleNorm === 'owner' ||
+    roleNorm === 'admin dc pusat' ||
+    roleNorm === 'admin';
 
   const isOwnerOrAdminPusat =
-    currentUser.jabatan === 'Owner' ||
-    currentUser.cabang === 'DC PUSAT' ||
-    currentUser.jabatan === 'Admin DC Pusat';
+    roleNorm === 'owner' ||
+    roleNorm === 'admin dc pusat' ||
+    roleNorm === 'admin' ||
+    isPusatBranch;
 
   const availableBranches = getStoreBranches(dataCabangList);
+
+  const [pesananNotice, setPesananNotice] = useState<{ title: string; message: string } | null>(null);
 
   // Filter States
   const [selectedCabang, setSelectedCabang] = useState<string>(
@@ -197,7 +203,6 @@ export const PesananView: React.FC<PesananViewProps> = ({
   const [editPelangganNama, setEditPelangganNama] = useState<string>('');
   const [editPelangganTelepon, setEditPelangganTelepon] = useState<string>('');
   const [editPelangganAlamat, setEditPelangganAlamat] = useState<string>('');
-  const [selectedKatalogToAdd, setSelectedKatalogToAdd] = useState<string>('');
   const [editMenuSearch, setEditMenuSearch] = useState<string>('');
   const [editMenuKategori, setEditMenuKategori] = useState<string>('Semua');
   const [editingEditPriceIdx, setEditingEditPriceIdx] = useState<number | null>(null);
@@ -214,7 +219,6 @@ export const PesananView: React.FC<PesananViewProps> = ({
   const [voidPaymentMethod, setVoidPaymentMethod] = useState<'Cash' | 'QRIS'>('Cash');
   const [voidCashInput, setVoidCashInput] = useState<string>('');
   const [voidCashAmount, setVoidCashAmount] = useState<number>(0);
-  const [selectedKatalogToVoid, setSelectedKatalogToVoid] = useState<string>('');
   const [voidMenuSearch, setVoidMenuSearch] = useState<string>('');
   const [voidMenuKategori, setVoidMenuKategori] = useState<string>('Semua');
   const [editingVoidPriceIdx, setEditingVoidPriceIdx] = useState<number | null>(null);
@@ -294,7 +298,7 @@ export const PesananView: React.FC<PesananViewProps> = ({
         const matchTakeAwayId = t.takeAwayId?.toLowerCase().includes(q) || false;
         const matchMeja = t.nomorMeja?.toLowerCase().includes(q) || false;
         const matchNomorPesanan = t.nomorPesanan?.toLowerCase().includes(q) || false;
-        const matchItem = t.items.some((i) => i.nama.toLowerCase().includes(q));
+        const matchItem = (t.items || []).some((i) => (i.nama || '').toLowerCase().includes(q));
 
         if (
           !matchInvoice &&
@@ -417,9 +421,10 @@ export const PesananView: React.FC<PesananViewProps> = ({
 
     if (paymentMethod === 'Cash') {
       if (cashAmount < total) {
-        alert(
-          `Nominal pembayaran kurang! Total tagihan adalah ${formatRupiah(total)}, tetapi uang diterima hanya ${formatRupiah(cashAmount)}.`
-        );
+        setPesananNotice({
+          title: 'Nominal Pembayaran Kurang',
+          message: `Total tagihan adalah ${formatRupiah(total)}, tetapi uang diterima hanya ${formatRupiah(cashAmount)}.`,
+        });
         return;
       }
       effectiveBayar = cashAmount;
@@ -451,9 +456,11 @@ export const PesananView: React.FC<PesananViewProps> = ({
     const isPaid = order.statusPembayaran === 'LUNAS' || normalizeStatusPesanan(order.statusPesanan) === 'LUNAS';
 
     if (isPaid && !isOwnerOrAdminPusat) {
-      alert(
-        '⛔ Pesanan yang SUDAH LUNAS tidak bisa dibatalkan atau diedit oleh Crew Store!\nSesuai SOP, pesanan yang sudah lunas hanya bisa dibatalkan dengan otorisasi Owner atau Admin DC Pusat. Untuk menukar/mengganti pesanan pelanggan, silakan gunakan tombol "Void & Ganti".'
-      );
+      setPesananNotice({
+        title: 'Otorisasi Ditolak',
+        message:
+          'Pesanan yang SUDAH LUNAS tidak bisa dibatalkan atau diedit oleh Crew Store. Sesuai SOP, pesanan lunas hanya dapat dibatalkan oleh Owner atau Admin DC Pusat. Untuk menukar pesanan pelanggan, gunakan tombol "Void & Ganti".',
+      });
       return;
     }
 
@@ -480,16 +487,19 @@ export const PesananView: React.FC<PesananViewProps> = ({
   const handleOpenEditModal = (order: Transaksi) => {
     const isPaid = order.statusPembayaran === 'LUNAS' || normalizeStatusPesanan(order.statusPesanan) === 'LUNAS';
     if (isPaid) {
-      alert('⛔ Pesanan yang sudah lunas TIDAK BISA diedit langsung!\nSilakan gunakan tombol "Void & Ganti" untuk memproses perubahan pesanan lunas.');
+      setPesananNotice({
+        title: 'Pesanan Sudah Lunas',
+        message:
+          'Pesanan yang sudah lunas tidak dapat diedit langsung. Gunakan tombol "Void & Ganti" untuk memproses perubahan pesanan lunas.',
+      });
       return;
     }
     setEditTarget(order);
-    setEditItems(order.items.map((i) => ({ ...i })));
+    setEditItems((order.items || []).map((i) => ({ ...i })));
     setEditNomorMeja(order.nomorMeja || '');
     setEditPelangganNama(order.pelangganNama || '');
     setEditPelangganTelepon(order.pelangganTelepon || '');
     setEditPelangganAlamat(order.pelangganAlamat || '');
-    setSelectedKatalogToAdd('');
     setEditMenuSearch('');
     setEditMenuKategori('Semua');
     setEditingEditPriceIdx(null);
@@ -526,23 +536,25 @@ export const PesananView: React.FC<PesananViewProps> = ({
         },
       ];
     });
-    setSelectedKatalogToAdd('');
   };
 
   const handleUpdateEditItemQty = (idx: number, delta: number) => {
     setEditItems((prev) =>
-      prev
-        .map((item, i) => {
-          if (i !== idx) return item;
-          const newQty = item.qty + delta;
-          if (newQty <= 0) return null as any;
-          return {
+      prev.reduce<TransaksiItem[]>((acc, item, i) => {
+        if (i !== idx) {
+          acc.push(item);
+          return acc;
+        }
+        const newQty = item.qty + delta;
+        if (newQty > 0) {
+          acc.push({
             ...item,
             qty: newQty,
             subtotal: newQty * item.harga,
-          };
-        })
-        .filter(Boolean)
+          });
+        }
+        return acc;
+      }, [])
     );
   };
 
@@ -591,7 +603,10 @@ export const PesananView: React.FC<PesananViewProps> = ({
   const handleConfirmEditOrder = () => {
     if (!editTarget || !onEditPesananBelumBayar) return;
     if (editItems.length === 0) {
-      alert('Pesanan harus memiliki minimal 1 item menu!');
+      setPesananNotice({
+        title: 'Item Menu Kosong',
+        message: 'Pesanan harus memiliki minimal 1 item menu.',
+      });
       return;
     }
     onEditPesananBelumBayar(editTarget.id, {
@@ -608,11 +623,14 @@ export const PesananView: React.FC<PesananViewProps> = ({
   const handleOpenVoidModal = (order: Transaksi) => {
     const isPaid = order.statusPembayaran === 'LUNAS' || normalizeStatusPesanan(order.statusPesanan) === 'LUNAS';
     if (!isPaid) {
-      alert('Pesanan belum lunas dapat langsung diedit atau dibatalkan tanpa proses void.');
+      setPesananNotice({
+        title: 'Gunakan Edit / Batal',
+        message: 'Pesanan yang belum lunas dapat langsung diubah atau dibatalkan tanpa proses void.',
+      });
       return;
     }
     setVoidTarget(order);
-    setVoidItems(order.items.map((i) => ({ ...i })));
+    setVoidItems((order.items || []).map((i) => ({ ...i })));
     setVoidNomorMeja(order.nomorMeja || '');
     setVoidPelangganNama(order.pelangganNama || '');
     setVoidPelangganTelepon(order.pelangganTelepon || '');
@@ -621,7 +639,6 @@ export const PesananView: React.FC<PesananViewProps> = ({
     setVoidPaymentMethod('Cash');
     setVoidCashInput('');
     setVoidCashAmount(0);
-    setSelectedKatalogToVoid('');
     setVoidMenuSearch('');
     setVoidMenuKategori('Semua');
     setEditingVoidPriceIdx(null);
@@ -658,23 +675,25 @@ export const PesananView: React.FC<PesananViewProps> = ({
         },
       ];
     });
-    setSelectedKatalogToVoid('');
   };
 
   const handleUpdateVoidItemQty = (idx: number, delta: number) => {
     setVoidItems((prev) =>
-      prev
-        .map((item, i) => {
-          if (i !== idx) return item;
-          const newQty = item.qty + delta;
-          if (newQty <= 0) return null as any;
-          return {
+      prev.reduce<TransaksiItem[]>((acc, item, i) => {
+        if (i !== idx) {
+          acc.push(item);
+          return acc;
+        }
+        const newQty = item.qty + delta;
+        if (newQty > 0) {
+          acc.push({
             ...item,
             qty: newQty,
             subtotal: newQty * item.harga,
-          };
-        })
-        .filter(Boolean)
+          });
+        }
+        return acc;
+      }, [])
     );
   };
 
@@ -723,11 +742,17 @@ export const PesananView: React.FC<PesananViewProps> = ({
   const handleConfirmVoidOrder = () => {
     if (!voidTarget || !onVoidPesananLunas) return;
     if (voidItems.length === 0) {
-      alert('Pesanan baru harus memiliki minimal 1 menu!');
+      setPesananNotice({
+        title: 'Menu Pengganti Kosong',
+        message: 'Pesanan baru pengganti harus memiliki minimal 1 item menu.',
+      });
       return;
     }
     if (!voidReason.trim()) {
-      alert('Harap isi alasan void pesanan!');
+      setPesananNotice({
+        title: 'Alasan Void Wajib Diisi',
+        message: 'Harap isi alasan void pesanan terlebih dahulu.',
+      });
       return;
     }
 
@@ -743,9 +768,10 @@ export const PesananView: React.FC<PesananViewProps> = ({
         : selisih;
 
     if (selisih > 0 && voidPaymentMethod === 'Cash' && effectiveCash < selisih) {
-      alert(
-        `Nominal tagihan tambahan kurang! Kekurangan biaya adalah ${formatRupiah(selisih)}, sedangkan uang diterima ${formatRupiah(effectiveCash)}.`
-      );
+      setPesananNotice({
+        title: 'Nominal Pembayaran Tambahan Kurang',
+        message: `Kekurangan biaya adalah ${formatRupiah(selisih)}, sedangkan uang diterima ${formatRupiah(effectiveCash)}.`,
+      });
       return;
     }
 
@@ -777,11 +803,11 @@ export const PesananView: React.FC<PesananViewProps> = ({
               <UtensilsCrossed className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-800">
+              <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">
                 Menu Pesanan
               </h2>
-              <p className="text-xs text-slate-500">
-                Alur 5 Status: MENUNGGU ➔ DIPROSES ➔ SIAP ANTAR ➔ BELUM BAYAR (Dine In) ➔ LUNAS
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Alur 5 Status: MENUNGGU -&gt; DIPROSES -&gt; SIAP ANTAR -&gt; BELUM BAYAR (Dine In) -&gt; LUNAS
               </p>
             </div>
           </div>
@@ -810,15 +836,15 @@ export const PesananView: React.FC<PesananViewProps> = ({
           onClick={() => setFilterStatus('Semua')}
           className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
             filterStatus === 'Semua'
-              ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/10'
-              : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+              ? 'bg-slate-900 dark:bg-slate-700 text-white border-slate-900 dark:border-slate-600 shadow-sm ring-2 ring-slate-900/10'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 text-slate-700 dark:text-slate-200'
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold opacity-80 uppercase tracking-wider">Semua</span>
             <UtensilsCrossed className="w-3.5 h-3.5 opacity-70" />
           </div>
-          <div className="text-xl font-black mt-1.5">{countAktif}</div>
+          <div className="text-xl font-black mt-1.5 tabular-nums">{countAktif}</div>
           <span className="text-[10px] opacity-70 block truncate">Pesanan Aktif</span>
         </button>
 
@@ -829,15 +855,15 @@ export const PesananView: React.FC<PesananViewProps> = ({
           className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
             filterStatus === 'MENUNGGU'
               ? 'bg-slate-700 text-white border-slate-700 shadow-sm ring-2 ring-slate-600/30'
-              : 'bg-slate-100 border-slate-300 hover:border-slate-400 text-slate-800'
+              : 'bg-slate-100 dark:bg-slate-800/80 border-slate-300 dark:border-slate-700 hover:border-slate-400 text-slate-800 dark:text-slate-200'
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider">1. Menunggu</span>
-            <Clock className="w-3.5 h-3.5 text-slate-500" />
+            <Clock className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
           </div>
-          <div className="text-xl font-black mt-1.5">{countMenunggu}</div>
-          <span className="text-[10px] text-slate-500 block truncate">Cetak Tiket</span>
+          <div className="text-xl font-black mt-1.5 tabular-nums">{countMenunggu}</div>
+          <span className={`text-[10px] block truncate ${filterStatus === 'MENUNGGU' ? 'text-slate-200' : 'text-slate-500 dark:text-slate-400'}`}>Cetak Tiket</span>
         </button>
 
         {/* 2. DIPROSES (Kuning) */}
@@ -847,15 +873,15 @@ export const PesananView: React.FC<PesananViewProps> = ({
           className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
             filterStatus === 'DIPROSES'
               ? 'bg-amber-500 text-white border-amber-500 shadow-sm ring-2 ring-amber-400/30'
-              : 'bg-amber-50 border-amber-300 hover:border-amber-400 text-amber-900'
+              : 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800 hover:border-amber-400 text-amber-900 dark:text-amber-300'
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider">2. Diproses</span>
-            <ChefHat className="w-3.5 h-3.5 text-amber-600" />
+            <ChefHat className={`w-3.5 h-3.5 ${filterStatus === 'DIPROSES' ? 'text-white' : 'text-amber-600 dark:text-amber-400'}`} />
           </div>
-          <div className="text-xl font-black mt-1.5 text-amber-900">{countDiproses}</div>
-          <span className="text-[10px] text-amber-700 block truncate">Masak Dapur</span>
+          <div className="text-xl font-black mt-1.5 tabular-nums">{countDiproses}</div>
+          <span className={`text-[10px] block truncate ${filterStatus === 'DIPROSES' ? 'text-amber-50' : 'text-amber-700 dark:text-amber-400'}`}>Masak Dapur</span>
         </button>
 
         {/* 3. SIAP ANTAR (Hijau) */}
@@ -865,15 +891,15 @@ export const PesananView: React.FC<PesananViewProps> = ({
           className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
             filterStatus === 'SIAP ANTAR'
               ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-500/30'
-              : 'bg-emerald-50 border-emerald-300 hover:border-emerald-400 text-emerald-900'
+              : 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 hover:border-emerald-400 text-emerald-900 dark:text-emerald-300'
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider">3. Siap Antar</span>
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+            <CheckCircle className={`w-3.5 h-3.5 ${filterStatus === 'SIAP ANTAR' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
           </div>
-          <div className="text-xl font-black mt-1.5 text-emerald-900">{countSiapAntar}</div>
-          <span className="text-[10px] text-emerald-700 block truncate">Antar / Serah</span>
+          <div className="text-xl font-black mt-1.5 tabular-nums">{countSiapAntar}</div>
+          <span className={`text-[10px] block truncate ${filterStatus === 'SIAP ANTAR' ? 'text-emerald-50' : 'text-emerald-700 dark:text-emerald-400'}`}>Antar / Serah</span>
         </button>
 
         {/* 4. BELUM BAYAR (Merah) */}
@@ -883,15 +909,15 @@ export const PesananView: React.FC<PesananViewProps> = ({
           className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
             filterStatus === 'BELUM BAYAR'
               ? 'bg-rose-600 text-white border-rose-600 shadow-sm ring-2 ring-rose-500/30'
-              : 'bg-rose-50 border-rose-300 hover:border-rose-400 text-rose-900'
+              : 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 hover:border-rose-400 text-rose-900 dark:text-rose-300'
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider">4. Belum Bayar</span>
-            <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+            <AlertCircle className={`w-3.5 h-3.5 ${filterStatus === 'BELUM BAYAR' ? 'text-white' : 'text-rose-600 dark:text-rose-400'}`} />
           </div>
-          <div className="text-xl font-black mt-1.5 text-rose-900">{countBelumBayar}</div>
-          <span className="text-[10px] text-rose-700 block truncate">Dine In Meja</span>
+          <div className="text-xl font-black mt-1.5 tabular-nums">{countBelumBayar}</div>
+          <span className={`text-[10px] block truncate ${filterStatus === 'BELUM BAYAR' ? 'text-rose-50' : 'text-rose-700 dark:text-rose-400'}`}>Dine In Meja</span>
         </button>
 
         {/* 5. LUNAS (Biru) */}
@@ -901,15 +927,15 @@ export const PesananView: React.FC<PesananViewProps> = ({
           className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
             filterStatus === 'LUNAS'
               ? 'bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-500/30'
-              : 'bg-blue-50 border-blue-300 hover:border-blue-400 text-blue-900'
+              : 'bg-blue-50 dark:bg-blue-950/30 border-blue-300 dark:border-blue-800 hover:border-blue-400 text-blue-900 dark:text-blue-300'
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider">5. Lunas</span>
-            <Receipt className="w-3.5 h-3.5 text-blue-600" />
+            <Receipt className={`w-3.5 h-3.5 ${filterStatus === 'LUNAS' ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
           </div>
-          <div className="text-xl font-black mt-1.5 text-blue-900">{countLunas}</div>
-          <span className="text-[10px] text-blue-700 block truncate">Selesai & Struk</span>
+          <div className="text-xl font-black mt-1.5 tabular-nums">{countLunas}</div>
+          <span className={`text-[10px] block truncate ${filterStatus === 'LUNAS' ? 'text-blue-50' : 'text-blue-700 dark:text-blue-400'}`}>Selesai & Struk</span>
         </button>
 
         {/* Tab DIVOID (Ungu) */}
@@ -919,15 +945,15 @@ export const PesananView: React.FC<PesananViewProps> = ({
           className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
             filterStatus === 'DIVOID'
               ? 'bg-purple-900 text-white border-purple-900 shadow-sm ring-2 ring-purple-700/30'
-              : 'bg-purple-50/70 border-purple-200 hover:border-purple-300 text-purple-900'
+              : 'bg-purple-50/70 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800 hover:border-purple-300 text-purple-900 dark:text-purple-300'
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider">Divoid</span>
-            <RotateCcw className="w-3.5 h-3.5 text-purple-600" />
+            <RotateCcw className={`w-3.5 h-3.5 ${filterStatus === 'DIVOID' ? 'text-white' : 'text-purple-600 dark:text-purple-400'}`} />
           </div>
-          <div className="text-xl font-black mt-1.5 text-purple-900">{countDivoid}</div>
-          <span className="text-[10px] text-purple-700 block truncate">Diganti Baru</span>
+          <div className="text-xl font-black mt-1.5 tabular-nums">{countDivoid}</div>
+          <span className={`text-[10px] block truncate ${filterStatus === 'DIVOID' ? 'text-purple-100' : 'text-purple-700 dark:text-purple-400'}`}>Diganti Baru</span>
         </button>
 
         {/* Tab Dibatalkan */}
@@ -937,20 +963,20 @@ export const PesananView: React.FC<PesananViewProps> = ({
           className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
             filterStatus === 'DIBATALKAN'
               ? 'bg-rose-950 text-white border-rose-950 shadow-sm ring-2 ring-rose-800/30'
-              : 'bg-rose-50/50 border-rose-200 hover:border-rose-300 text-rose-800'
+              : 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900 hover:border-rose-300 text-rose-800 dark:text-rose-300'
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider">Dibatalkan</span>
-            <Ban className="w-3.5 h-3.5 text-rose-600" />
+            <Ban className={`w-3.5 h-3.5 ${filterStatus === 'DIBATALKAN' ? 'text-white' : 'text-rose-600 dark:text-rose-400'}`} />
           </div>
-          <div className="text-xl font-black mt-1.5 text-rose-900">{countDibatalkan}</div>
-          <span className="text-[10px] text-rose-600 block truncate">Stok Kembali</span>
+          <div className="text-xl font-black mt-1.5 tabular-nums">{countDibatalkan}</div>
+          <span className={`text-[10px] block truncate ${filterStatus === 'DIBATALKAN' ? 'text-rose-100' : 'text-rose-600 dark:text-rose-400'}`}>Stok Kembali</span>
         </button>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
           {/* Search box */}
           <div className="relative w-full sm:w-80">
@@ -960,7 +986,7 @@ export const PesananView: React.FC<PesananViewProps> = ({
               placeholder="Cari No. Meja, Nama, Invoice, Menu..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
 
@@ -992,14 +1018,14 @@ export const PesananView: React.FC<PesananViewProps> = ({
                 />
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-800 rounded-xl text-xs font-bold border border-orange-200">
-                <Store className="w-3.5 h-3.5 text-orange-600" />
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 dark:bg-orange-950/40 text-orange-800 dark:text-orange-300 rounded-xl text-xs font-bold border border-orange-200 dark:border-orange-800">
+                <Store className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                 <span>Cabang: {currentBranchName}</span>
               </div>
             )}
 
             {/* Filter Tipe Pesanan */}
-            <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+            <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
               {(['Semua', 'Dine In', 'Take Away', 'Delivery Order'] as const).map(
                 (tipe) => (
                   <button
@@ -1008,8 +1034,8 @@ export const PesananView: React.FC<PesananViewProps> = ({
                     onClick={() => setFilterTipe(tipe)}
                     className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer ${
                       filterTipe === tipe
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800'
+                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                     }`}
                   >
                     {tipe === 'Semua' ? 'Semua Tipe' : tipe}
@@ -1023,14 +1049,14 @@ export const PesananView: React.FC<PesananViewProps> = ({
 
       {/* Orders List / Grid */}
       {filteredOrders.length === 0 ? (
-        <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-xs space-y-3">
-          <div className="w-16 h-16 bg-orange-50 text-orange-500 rounded-full mx-auto flex items-center justify-center">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-12 text-center border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+          <div className="w-16 h-16 bg-orange-50 dark:bg-orange-950/40 text-orange-500 rounded-full mx-auto flex items-center justify-center">
             <UtensilsCrossed className="w-8 h-8" />
           </div>
-          <h3 className="font-black text-slate-800 text-base">
+          <h3 className="font-black text-slate-800 dark:text-slate-100 text-base">
             Tidak Ada Pesanan
           </h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
             {filterStatus === 'DIBATALKAN'
               ? 'Belum ada pesanan yang dibatalkan pada cabang ini.'
               : 'Belum ada antrean pesanan yang cocok dengan filter ini. Transaksi baru yang diinput kasir otomatis masuk ke antrean secara real-time.'}
@@ -1108,14 +1134,14 @@ export const PesananView: React.FC<PesananViewProps> = ({
             return (
               <div
                 key={order.id}
-                className={`bg-white rounded-2xl border flex flex-col justify-between shadow-xs hover:shadow-md transition overflow-hidden relative ${cardTheme.border}`}
+                className={`bg-white dark:bg-slate-900 rounded-2xl border dark:border-slate-800 flex flex-col justify-between shadow-xs hover:shadow-md transition overflow-hidden relative ${cardTheme.border}`}
               >
                 {/* Status Bar Indicator */}
                 <div className={`h-1.5 w-full ${cardTheme.bar}`} />
 
                 <div className="p-4 space-y-3">
                   {/* Card Header */}
-                  <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+                  <div className="flex items-start justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
                     <div>
                       {/* Priority Tag for Order Number / Table / Take Away / Delivery */}
                       <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
@@ -1184,7 +1210,7 @@ export const PesananView: React.FC<PesananViewProps> = ({
                       </div>
 
                       {/* Customer Name prominent */}
-                      <div className="flex items-center gap-1 font-black text-slate-800 text-sm">
+                      <div className="flex items-center gap-1 font-black text-slate-800 dark:text-slate-100 text-sm">
                         <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         <span className="truncate">{order.pelangganNama || 'Pelanggan Kasir'}</span>
                       </div>
@@ -1196,7 +1222,7 @@ export const PesananView: React.FC<PesananViewProps> = ({
                         className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black border ${cardTheme.badge}`}
                       >
                         {status === 'MENUNGGU' && <Clock className="w-3 h-3" />}
-                        {status === 'DIPROSES' && <ChefHat className="w-3 h-3 animate-bounce" />}
+                        {status === 'DIPROSES' && <ChefHat className="w-3 h-3" />}
                         {status === 'SIAP ANTAR' && <CheckCircle className="w-3 h-3" />}
                         {status === 'BELUM BAYAR' && <AlertCircle className="w-3 h-3 text-rose-600" />}
                         {status === 'LUNAS' && <Check className="w-3 h-3 text-blue-600" />}
@@ -1261,19 +1287,19 @@ export const PesananView: React.FC<PesananViewProps> = ({
 
                         {/* Perbandingan Menu Lama vs Menu Pengganti */}
                         <div className="grid grid-cols-2 gap-2 pt-1">
-                          <div className="p-2 bg-white/80 rounded-xl border border-purple-200 space-y-1">
-                            <span className="text-[10px] font-black uppercase text-slate-500 block">
-                              Menu Lama ({order.items.reduce((acc, i) => acc + i.qty, 0)}):
+                          <div className="p-2 bg-white/80 dark:bg-slate-900 rounded-xl border border-purple-200 dark:border-purple-800 space-y-1">
+                            <span className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 block tabular-nums">
+                              Menu Lama ({(order.items || []).reduce((acc, i) => acc + i.qty, 0)}):
                             </span>
                             <div className="space-y-0.5 text-[11px]">
-                              {order.items.map((it, idx) => (
-                                <div key={idx} className="flex justify-between text-slate-700">
+                              {(order.items || []).map((it, idx) => (
+                                <div key={idx} className="flex justify-between text-slate-700 dark:text-slate-300 tabular-nums">
                                   <span className="truncate pr-1">{it.qty}x {it.nama}</span>
                                   <span className="font-bold shrink-0">{formatRupiah(it.subtotal)}</span>
                                 </div>
                               ))}
                             </div>
-                            <div className="pt-1 border-t border-slate-200 flex justify-between font-black text-[11px] text-slate-800">
+                            <div className="pt-1 border-t border-slate-200 dark:border-slate-700 flex justify-between font-black text-[11px] text-slate-800 dark:text-slate-100 tabular-nums">
                               <span>Total Lama:</span>
                               <span>{formatRupiah(order.total)}</span>
                             </div>
@@ -1370,39 +1396,39 @@ export const PesananView: React.FC<PesananViewProps> = ({
 
                   {/* Items List */}
                   <div className="space-y-1.5 py-1">
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
-                      Rincian Menu ({order.items.reduce((acc, i) => acc + i.qty, 0)} item):
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block tabular-nums">
+                      Rincian Menu ({(order.items || []).reduce((acc, i) => acc + i.qty, 0)} item):
                     </span>
 
                     <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                      {order.items.map((item, idx) => (
+                      {(order.items || []).map((item, idx) => (
                         <div
                           key={idx}
-                          className="p-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start justify-between gap-2 text-xs"
+                          className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 flex items-start justify-between gap-2 text-xs"
                         >
                           <div className="space-y-0.5">
-                            <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                              <span className="w-5 h-5 rounded-md bg-slate-200 text-slate-800 flex items-center justify-center font-black text-[10px]">
+                            <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                              <span className="w-5 h-5 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center font-black text-[10px] tabular-nums">
                                 {item.qty}x
                               </span>
                               <span>{item.nama}</span>
                             </div>
 
                             {item.levelPedas !== undefined && (
-                              <div className="flex items-center gap-1 text-[10px] font-bold text-red-600 pl-6">
+                              <div className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 pl-6">
                                 <Flame className="w-3 h-3 fill-red-500" />
                                 <span>Level: {item.levelPedas}</span>
                               </div>
                             )}
 
                             {item.catatan && (
-                              <div className="text-[10px] text-amber-700 italic pl-6">
+                              <div className="text-[10px] text-amber-700 dark:text-amber-400 italic pl-6">
                                 *{item.catatan}
                               </div>
                             )}
                           </div>
 
-                          <div className="text-right text-[11px] font-bold text-slate-700 shrink-0">
+                          <div className="text-right text-[11px] font-bold text-slate-700 dark:text-slate-200 shrink-0 tabular-nums">
                             {formatRupiah(item.subtotal)}
                           </div>
                         </div>
@@ -1411,10 +1437,10 @@ export const PesananView: React.FC<PesananViewProps> = ({
                   </div>
 
                   {/* Total Tagihan & Status Pembayaran Footer */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
                     <div>
                       <span className="text-[10px] text-slate-400 block">Total Tagihan</span>
-                      <span className="font-black text-slate-800 text-sm">
+                      <span className="font-black text-slate-800 dark:text-slate-100 text-sm tabular-nums">
                         {formatRupiah(order.total)}
                       </span>
                     </div>
@@ -1424,12 +1450,12 @@ export const PesananView: React.FC<PesananViewProps> = ({
                       <span
                         className={`font-black text-xs ${
                           status === 'DIVOID'
-                            ? 'text-purple-700'
+                            ? 'text-purple-700 dark:text-purple-400'
                             : status === 'DIBATALKAN'
-                            ? 'text-rose-600'
+                            ? 'text-rose-600 dark:text-rose-400'
                             : isOrderPaid
-                            ? 'text-emerald-700'
-                            : 'text-amber-700'
+                            ? 'text-emerald-700 dark:text-emerald-400'
+                            : 'text-amber-700 dark:text-amber-400'
                         }`}
                       >
                         {status === 'DIVOID'
@@ -1445,7 +1471,7 @@ export const PesananView: React.FC<PesananViewProps> = ({
                 </div>
 
                 {/* Card Action Footer */}
-                <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center gap-2">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
                   {/* Status DIVOID */}
                   {status === 'DIVOID' && (
                     <div className="flex-1 py-2 px-3 bg-purple-50 text-purple-800 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-purple-200">
@@ -1591,7 +1617,7 @@ export const PesananView: React.FC<PesananViewProps> = ({
                       <button
                         type="button"
                         onClick={() => handleOpenPaymentModal(order)}
-                        className="flex-1 py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer active:scale-95 animate-pulse"
+                        className="flex-1 py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer active:scale-95"
                       >
                         <Receipt className="w-4 h-4" />
                         <span>Bayar & Cetak Struk</span>
@@ -1646,7 +1672,7 @@ export const PesananView: React.FC<PesananViewProps> = ({
       {/* QUICK PAYMENT MODAL (Untuk Bayar & Cetak Struk) */}
       {paymentOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs no-print">
-          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1859,36 +1885,36 @@ export const PesananView: React.FC<PesananViewProps> = ({
                 <div className="p-3 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-950 font-bold flex items-center gap-2">
                   <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
                   <span>
-                    Otorisasi Terverifikasi: Pembatalan pesanan <strong>LUNAS</strong> oleh <strong>{currentUser.nama} ({currentUser.jabatan} - {currentUser.cabang})</strong>.
+                    Otorisasi Terverifikasi: Pembatalan pesanan <strong>LUNAS</strong> oleh <strong>{currentUser.nama} ({currentUser.jabatan} - {currentBranchName})</strong>.
                   </span>
                 </div>
               )}
 
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900 space-y-1">
-                <div className="font-bold flex items-center gap-1.5 text-rose-800">
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-2xl text-xs text-rose-900 dark:text-rose-200 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-rose-800 dark:text-rose-300">
                   <AlertCircle className="w-4 h-4 text-rose-600" />
                   <span>Peringatan Pembatalan Pesanan:</span>
                 </div>
-                <p className="text-[11px] text-rose-700 leading-relaxed">
+                <p className="text-[11px] text-rose-700 dark:text-rose-300 leading-relaxed">
                   Pesanan ini akan dibatalkan. Seluruh stok bahan baku dan kemasan (jika Take Away / Delivery) otomatis <strong>dikembalikan ke stok cabang {cancelTarget.cabang}</strong> secara real-time.
                 </p>
               </div>
 
               {/* Order summary snippet */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-between text-xs">
                 <div>
-                  <span className="font-bold text-slate-800 block">
+                  <span className="font-bold text-slate-800 dark:text-slate-100 block">
                     {cancelTarget.nomorPesanan ? `Antrean ${cancelTarget.nomorPesanan}` : cancelTarget.invoiceNo}
                   </span>
-                  <span className="text-[11px] text-slate-500">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
                     {cancelTarget.tipePesanan || 'Dine In'}{' '}
                     {cancelTarget.nomorMeja ? `• Meja ${cancelTarget.nomorMeja}` : ''} •{' '}
-                    {cancelTarget.items.reduce((acc, i) => acc + i.qty, 0)} item
+                    {(cancelTarget.items || []).reduce((acc, i) => acc + i.qty, 0)} item
                   </span>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-slate-400 block">Total</span>
-                  <span className="font-black text-slate-900 text-sm">
+                  <span className="font-black text-slate-900 dark:text-slate-100 text-sm tabular-nums">
                     {formatRupiah(cancelTarget.total)}
                   </span>
                 </div>
@@ -1959,7 +1985,7 @@ export const PesananView: React.FC<PesananViewProps> = ({
       {/* MODAL 1: UBAH PESANAN BELUM BAYAR */}
       {editTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs no-print">
-          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="p-4 bg-amber-500 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -2402,7 +2428,7 @@ export const PesananView: React.FC<PesananViewProps> = ({
       {/* MODAL 2: VOID & GANTI PESANAN LUNAS DENGAN PERHITUNGAN SELISIH */}
       {voidTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs no-print">
-          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="p-4 bg-purple-700 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -3075,6 +3101,32 @@ export const PesananView: React.FC<PesananViewProps> = ({
                 );
               })()}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* IN-APP NOTICE DIALOG (Replaces browser alert()) */}
+      {pesananNotice && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs no-print">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="font-black text-slate-900 dark:text-slate-100 text-base">
+                {pesananNotice.title}
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                {pesananNotice.message}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPesananNotice(null)}
+              className="w-full py-2.5 bg-slate-900 dark:bg-orange-600 hover:bg-black dark:hover:bg-orange-700 text-white font-black rounded-xl text-xs cursor-pointer transition"
+            >
+              Mengerti
+            </button>
           </div>
         </div>
       )}

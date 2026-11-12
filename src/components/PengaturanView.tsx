@@ -19,7 +19,6 @@ import {
   Moon,
   Save,
   Check,
-  Sparkles,
 } from 'lucide-react';
 import {
   Karyawan,
@@ -69,7 +68,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
   onManualResetSuccess,
   onOpenResetModal,
 }) => {
-  const isOwner = currentUser.jabatan === 'Owner';
+  const isOwner = (currentUser.jabatan || '').trim().toLowerCase() === 'owner';
   const effectiveEmail = currentUser.email || (isOwner ? OWNER_EMAIL : '');
   const isOwnerEmail = effectiveEmail.trim().toLowerCase() === OWNER_EMAIL.toLowerCase();
 
@@ -78,6 +77,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
   const [draftTagline, setDraftTagline] = useState(appSettings.tagline || '');
   const [draftLogoUrl, setDraftLogoUrl] = useState(appSettings.logoUrl);
   const [selectedFileName, setSelectedFileName] = useState<string>('');
+  const [autoRemoveWhiteBg, setAutoRemoveWhiteBg] = useState<boolean>(true);
   const [isProcessingLogo, setIsProcessingLogo] = useState(false);
   const [isSavingBranding, setIsSavingBranding] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -118,7 +118,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
     setSelectedFileName(file.name);
     setIsProcessingLogo(true);
     try {
-      const dataUrl = await compressLogoImage(file, 320);
+      const { dataUrl } = await compressLogoImage(file, 320, autoRemoveWhiteBg);
       setDraftLogoUrl(dataUrl);
     } catch (err: any) {
       setStatusMessage({
@@ -267,11 +267,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
             <div className="flex flex-wrap items-center gap-2">
               <span className="p-2 bg-amber-500 text-slate-950 rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md">
                 <Settings className="w-4 h-4" />
-                <span>PENGATURAN APLIKASI & SISTEM</span>
-              </span>
-              <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Firestore Realtime Aktif</span>
+                <span>PENGATURAN APLIKASI &amp; SISTEM</span>
               </span>
             </div>
             <h2 className="text-2xl font-black tracking-wide text-white">
@@ -322,14 +318,14 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
           <div>
             <h3 className="font-black text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <ImageIcon className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-              <span>Edit Logo & Nama Usaha</span>
+              <span>Edit Logo &amp; Nama Usaha</span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Unggah file logo usaha baru & ubah nama usaha untuk memperbarui tampilan Login, Header, dan Struk cetak.
+              Unggah file logo usaha baru &amp; ubah nama usaha untuk memperbarui tampilan Login, Header, Dashboard Watermark, dan Struk cetak.
             </p>
           </div>
-          <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800 self-start sm:self-auto">
-            Sinkron ke Semua Halaman & Data
+          <span className="text-[11px] font-bold text-orange-700 dark:text-orange-300 self-start sm:self-auto">
+            Sinkron ke Semua Halaman &amp; Data
           </span>
         </div>
 
@@ -337,16 +333,16 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
           {/* Upload Logo Column */}
           <div className="lg:col-span-5 space-y-4">
             <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200">
-              Logo Usaha Saat Ini
+              Logo Usaha Saat Ini (Transparan Tanpa Kotak Putih)
             </label>
 
             <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-              <div className="w-24 h-24 rounded-2xl bg-white border border-slate-200 dark:border-slate-600 shadow-sm p-2 flex items-center justify-center shrink-0 overflow-hidden">
+              <div className="w-24 h-24 rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-2 flex items-center justify-center shrink-0 overflow-hidden bg-slate-100/60 dark:bg-slate-900/50">
                 <img
                   src={draftLogoUrl || DEFAULT_LOGO_URL}
                   alt={`Logo ${previewBrandName}`}
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.2)]"
                 />
               </div>
 
@@ -394,10 +390,20 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                 className="block w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:bg-orange-600 file:text-white hover:file:bg-orange-700 cursor-pointer bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-orange-400 dark:hover:border-orange-500 rounded-2xl p-2 transition"
               />
 
+              <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-300 cursor-pointer select-none pt-0.5">
+                <input
+                  type="checkbox"
+                  checked={autoRemoveWhiteBg}
+                  onChange={(e) => setAutoRemoveWhiteBg(e.target.checked)}
+                  className="rounded border-slate-300 dark:border-slate-600 text-orange-600 focus:ring-orange-500 w-3.5 h-3.5 cursor-pointer"
+                />
+                <span>Otomatis hapus background putih polos agar logo transparan</span>
+              </label>
+
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 {isProcessingLogo
-                  ? 'Memproses dan mengoptimalkan ukuran gambar logo...'
-                  : 'Gambar otomatis disesuaikan ukurannya agar cepat dimuat saat Login dan cetak.'}
+                  ? 'Memproses dan menghapus latar belakang putih logo...'
+                  : 'Gambar otomatis dioptimalkan menjadi transparan (tanpa kotak putih) untuk Login, Header, Dashboard Watermark & Struk.'}
               </p>
             </div>
           </div>
@@ -449,11 +455,11 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                 {/* Preview Header Bar */}
                 <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
                   <div className="brand-gradient px-3 py-2.5 text-white flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-lg bg-white p-0.5 flex items-center justify-center shrink-0 overflow-hidden">
+                    <span className="w-8 h-8 flex items-center justify-center shrink-0 overflow-hidden">
                       <img
                         src={draftLogoUrl || DEFAULT_LOGO_URL}
                         alt="Preview Header"
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]"
                       />
                     </span>
                     <div className="min-w-0">
@@ -530,10 +536,15 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
               Pilih Mode Terang / Gelap serta palet warna utama aplikasi sesuai kenyamanan kasir dan pengelola.
             </p>
           </div>
-          <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 self-start sm:self-auto flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+          <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 self-start sm:self-auto flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-sm shrink-0"
+              style={{
+                backgroundImage: `linear-gradient(135deg, ${activePreset.swatchHex[0]}, ${activePreset.swatchHex[1]})`,
+              }}
+            />
             <span>Tema Aktif: {activePreset.nama}</span>
-          </span>
+          </div>
         </div>
 
         {/* Mode Tampilan Light / Dark */}
@@ -656,9 +667,8 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
             <span className="text-xs font-bold uppercase tracking-wider">Status Database</span>
             <Database className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <div className="text-base font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Cloud Firestore</span>
+          <div className="text-base font-black text-slate-900 dark:text-slate-100">
+            <span>Cloud Firestore Terhubung</span>
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400">
             Terhubung &amp; sinkron realtime ke semua HP kasir &amp; admin.
@@ -762,7 +772,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
         <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-t border-red-200 dark:border-red-900/60">
           <div className="text-[11px] text-red-700 dark:text-red-300 font-semibold space-y-0.5">
             <div>
-              🔒 Keamanan: Hanya akun dengan email <strong>{OWNER_EMAIL}</strong> yang dapat mereset data demo.
+              Keamanan: Hanya akun dengan email <strong>{OWNER_EMAIL}</strong> yang dapat mereset data demo.
             </div>
             <div className="text-slate-500 dark:text-slate-400 font-normal">
               Email aktif saat ini:{' '}
@@ -785,7 +795,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                 title={isOwnerEmail ? 'Pilih koleksi data trial yang ingin dihapus total' : `Terkunci: Email harus ${OWNER_EMAIL}`}
               >
                 <Trash2 className="w-4 h-4 text-rose-300 stroke-[2.5]" />
-                <span>🗑️ RESET TOTAL - HAPUS SEMUA DATA TRIAL</span>
+                <span>RESET TOTAL - HAPUS SEMUA DATA TRIAL</span>
               </button>
             )}
             <button

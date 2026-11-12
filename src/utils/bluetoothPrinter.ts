@@ -296,9 +296,13 @@ export const buildReceiptEscPos = (
   b.divider('-');
 
   // INFO TRANSAKSI
+  const invoiceSafe = trx.invoiceNo || '-';
+  const tanggalSafe = trx.tanggal || '';
+  const jamSafe = trx.jam || '';
+  const itemsSafe = Array.isArray(trx.items) ? trx.items : [];
   b.align('left');
-  b.twoColumn(`No: ${trx.invoiceNo}`, `Tgl: ${trx.tanggal}`);
-  b.twoColumn(`Kasir: ${trx.kasirNama || 'Kasir'}`, `Jam: ${trx.jam}`);
+  b.twoColumn(`No: ${invoiceSafe}`, `Tgl: ${tanggalSafe}`);
+  b.twoColumn(`Kasir: ${trx.kasirNama || 'Kasir'}`, `Jam: ${jamSafe}`);
   
   // Tipe Pesanan
   const tipePesanan = trx.tipePesanan || 'Dine In';
@@ -335,14 +339,17 @@ export const buildReceiptEscPos = (
   b.bold(true).line('ITEM PESANAN:');
   b.bold(false);
 
-  trx.items.forEach((item) => {
+  itemsSafe.forEach((item) => {
+    const qtySafe = item.qty || 1;
+    const hargaSafe = item.harga || 0;
+    const subtotalSafe = item.subtotal ?? hargaSafe * qtySafe;
     // Baris 1: Nama menu
-    const menuTitle = `${item.nama}${item.levelPedas !== undefined ? ` (${item.levelPedas})` : ''}`;
+    const menuTitle = `${item.nama || 'Menu'}${item.levelPedas !== undefined ? ` (${item.levelPedas})` : ''}`;
     b.line(menuTitle);
 
     // Baris 2: Qty x Harga   Subtotal
-    const qtyPrice = ` ${item.qty} x ${formatRupiah(item.harga)}`;
-    const subtotal = formatRupiah(item.subtotal);
+    const qtyPrice = ` ${qtySafe} x ${formatRupiah(hargaSafe)}`;
+    const subtotal = formatRupiah(subtotalSafe);
     b.twoColumn(qtyPrice, subtotal);
 
     if (item.free_minuman) {
@@ -357,20 +364,22 @@ export const buildReceiptEscPos = (
   b.divider('-');
 
   // SUBTOTAL, ONGKIR, TOTAL & PEMBAYARAN
+  const totalSafe = trx.total || 0;
   if (tipePesanan === 'Delivery Order' && trx.ongkir !== undefined) {
-    const subtotalBelanja = trx.subtotalPesanan || (trx.total - (trx.ongkir || 0));
+    const subtotalBelanja = trx.subtotalPesanan || (totalSafe - (trx.ongkir || 0));
     b.twoColumn('Subtotal Menu:', formatRupiah(subtotalBelanja));
     const ongkirTitle = trx.jarakKm !== undefined ? `Ongkir (${trx.jarakKm} km):` : 'Biaya Kirim (Ongkir):';
     const ongkirText = trx.ongkir === 0 ? 'GRATIS' : formatRupiah(trx.ongkir || 0);
     b.twoColumn(ongkirTitle, ongkirText);
   }
 
+  const metodeSafe = (trx.metodeBayar || 'Cash').toUpperCase();
   b.bold(true).size('normal');
-  b.twoColumn('TOTAL BAYAR:', formatRupiah(trx.total));
+  b.twoColumn('TOTAL BAYAR:', formatRupiah(totalSafe));
   b.bold(false);
-  b.twoColumn(`METODE BAYAR:`, trx.metodeBayar.toUpperCase());
-  b.twoColumn('JUMLAH BAYAR:', formatRupiah(trx.bayar));
-  b.twoColumn('KEMBALIAN:', formatRupiah(trx.kembali));
+  b.twoColumn(`METODE BAYAR:`, metodeSafe);
+  b.twoColumn('JUMLAH BAYAR:', formatRupiah(trx.bayar ?? totalSafe));
+  b.twoColumn('KEMBALIAN:', formatRupiah(trx.kembali ?? 0));
   b.divider('=');
 
   // FOOTER UCAPAN
@@ -419,9 +428,11 @@ export const buildKitchenTicketEscPos = (
   b.divider('-');
 
   // INFO PESANAN
+  const invoiceSafe = trx.invoiceNo || '-';
+  const itemsSafe = Array.isArray(trx.items) ? trx.items : [];
   b.align('left');
-  b.twoColumn(`Inv: #${trx.invoiceNo.slice(-6)}`, `Jam: ${trx.jam}`);
-  b.twoColumn(`Tgl: ${trx.tanggal}`, `Kasir: ${trx.kasirNama || '-'}`);
+  b.twoColumn(`Inv: #${invoiceSafe.slice(-6)}`, `Jam: ${trx.jam || ''}`);
+  b.twoColumn(`Tgl: ${trx.tanggal || ''}`, `Kasir: ${trx.kasirNama || '-'}`);
 
   const tipePesanan = trx.tipePesanan || 'Dine In';
   b.bold(true).line(`LAYANAN: [ ${tipePesanan.toUpperCase()} ]`);
@@ -447,8 +458,9 @@ export const buildKitchenTicketEscPos = (
   b.bold(true).line('PESANAN MASAK (TANPA HARGA):');
   b.bold(false);
 
-  trx.items.forEach((item) => {
-    b.bold(true).line(`[ ${item.qty}x ] ${item.nama.toUpperCase()}`);
+  itemsSafe.forEach((item) => {
+    const qtySafe = item.qty || 1;
+    b.bold(true).line(`[ ${qtySafe}x ] ${(item.nama || 'Menu').toUpperCase()}`);
     b.bold(false);
     if (item.levelPedas !== undefined && item.levelPedas !== '') {
       b.line(`  * Level: ${item.levelPedas}`);
@@ -463,7 +475,7 @@ export const buildKitchenTicketEscPos = (
 
   b.divider('=');
   b.align('center');
-  const totalItemCount = trx.items.reduce((acc, i) => acc + i.qty, 0);
+  const totalItemCount = itemsSafe.reduce((acc, i) => acc + (i.qty || 0), 0);
   b.bold(true).line(`TOTAL: ${totalItemCount} PORSI`);
   b.bold(false);
   b.line('*** HARAP DIPROSES SEGERA ***');

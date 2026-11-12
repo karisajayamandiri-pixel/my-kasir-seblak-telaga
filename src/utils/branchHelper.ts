@@ -11,10 +11,29 @@ export function getBranchName(branchIdOrName: string | undefined, branches: Data
     (b) =>
       b.id === trimmed ||
       b.branchId === trimmed ||
-      b.nama.toLowerCase() === trimmed.toLowerCase() ||
+      (b.nama || '').toLowerCase() === trimmed.toLowerCase() ||
       (b.name && b.name.toLowerCase() === trimmed.toLowerCase())
   );
-  return found ? found.nama : trimmed;
+  return found ? (found.nama || trimmed) : trimmed;
+}
+
+/**
+ * Checks whether a branch ID or name points to DC PUSAT / headquarter branch.
+ */
+export function isPusatBranch(branchIdOrName: string | undefined, branches: DataCabang[] = []): boolean {
+  if (!branchIdOrName) return false;
+  const trimmed = branchIdOrName.trim();
+  const upper = trimmed.toUpperCase();
+  if (upper === 'DC PUSAT' || upper === 'PUSAT') return true;
+  const found = branches.find(
+    (b) =>
+      b.id === trimmed ||
+      b.branchId === trimmed ||
+      (b.nama || '').toLowerCase() === trimmed.toLowerCase() ||
+      (b.name && b.name.toLowerCase() === trimmed.toLowerCase())
+  );
+  if (!found) return false;
+  return Boolean(found.isPusat) || (found.nama || '').trim().toUpperCase() === 'DC PUSAT';
 }
 
 /**
@@ -27,7 +46,7 @@ export function getBranchId(branchIdOrName: string | undefined, branches: DataCa
     (b) =>
       b.id === trimmed ||
       b.branchId === trimmed ||
-      b.nama.toLowerCase() === trimmed.toLowerCase() ||
+      (b.nama || '').toLowerCase() === trimmed.toLowerCase() ||
       (b.name && b.name.toLowerCase() === trimmed.toLowerCase())
   );
   return found ? (found.branchId || found.id) : trimmed;
@@ -45,7 +64,7 @@ export function getBranchById(branchId: string | undefined, branches: DataCabang
  * Get all active store branches (excluding DC Pusat) dynamically from branches collection
  */
 export function getStoreBranches(branches: DataCabang[] = []): DataCabang[] {
-  return branches.filter((b) => !b.isPusat && b.status === 'Aktif');
+  return branches.filter((b) => !b.isPusat && (b.nama || '').trim().toUpperCase() !== 'DC PUSAT' && b.status === 'Aktif');
 }
 
 /**
@@ -59,7 +78,7 @@ export function getStoreBranchNames(branches: DataCabang[] = []): string[] {
  * Get all store branches (active & nonaktif, excluding DC Pusat)
  */
 export function getAllStoreBranches(branches: DataCabang[] = []): DataCabang[] {
-  return branches.filter((b) => !b.isPusat);
+  return branches.filter((b) => !b.isPusat && (b.nama || '').trim().toUpperCase() !== 'DC PUSAT');
 }
 
 /**
@@ -79,7 +98,7 @@ export function isPromoActiveForBranch(
     return false;
   }
   const targetBranch = getBranchById(currentBranchIdOrName, branches) ||
-    branches.find((b) => b.nama.toLowerCase() === currentBranchIdOrName.toLowerCase() || b.id === currentBranchIdOrName);
+    branches.find((b) => (b.nama || '').toLowerCase() === currentBranchIdOrName.toLowerCase() || b.id === currentBranchIdOrName);
 
   const currentId = targetBranch?.branchId || targetBranch?.id || currentBranchIdOrName;
   const currentName = targetBranch?.nama || currentBranchIdOrName;

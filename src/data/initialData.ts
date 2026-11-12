@@ -27,7 +27,7 @@ export const INITIAL_DATA_CABANG: DataCabang[] = [
     isPusat: true,
     bankOrEwallet: 'BCA',
     noRekening: '8830-123-999',
-    atasNama: 'PT Seblak Juara Indonesia',
+    atasNama: 'PT Telaga Warna Indonesia',
   },
   {
     id: 'cbg-1',
@@ -40,7 +40,7 @@ export const INITIAL_DATA_CABANG: DataCabang[] = [
     status: 'Aktif',
     bankOrEwallet: 'BCA',
     noRekening: '1780-554-121',
-    atasNama: 'Seblak Juara Padaherang 01',
+    atasNama: 'Telaga Warna Padaherang 01',
   },
   {
     id: 'cbg-2',
@@ -53,7 +53,7 @@ export const INITIAL_DATA_CABANG: DataCabang[] = [
     status: 'Aktif',
     bankOrEwallet: 'Mandiri',
     noRekening: '137-00-9876543-2',
-    atasNama: 'Seblak Juara Banjarsari 02',
+    atasNama: 'Telaga Warna Banjarsari 02',
   },
   {
     id: 'cbg-3',
@@ -66,7 +66,7 @@ export const INITIAL_DATA_CABANG: DataCabang[] = [
     status: 'Aktif',
     bankOrEwallet: 'GoPay / QRIS',
     noRekening: '0821-9876-5432',
-    atasNama: 'Seblak Juara Ciawtali 03',
+    atasNama: 'Telaga Warna Ciawtali 03',
   },
 ];
 
@@ -75,7 +75,7 @@ export const INITIAL_KARYAWAN: Karyawan[] = [
     id: 'usr-0',
     nib: '1902240012345',
     email: 'karisajayamandiri@gmail.com',
-    nama: 'Haji Hendra (Owner)',
+    nama: 'Rizal Maulana',
     hp: '081122334455',
     alamat: 'Jl. Surya Kencana No. 1, Pusat',
     cabang: 'DC PUSAT',
@@ -902,7 +902,7 @@ export const INITIAL_PENGELUARAN: PengeluaranToko[] = [
     fotoStrukHash: 'hash-nota-demo-1',
     status: 'Disetujui',
     catatanOwner: 'Di-ACC otomatis untuk kebutuhan operasional',
-    accOleh: 'Haji Hendra (Owner)',
+    accOleh: 'Rizal Maulana (Owner)',
     accWaktu: '2026-10-21 14:30:00',
   },
   {
@@ -918,7 +918,7 @@ export const INITIAL_PENGELUARAN: PengeluaranToko[] = [
     fotoStrukHash: 'hash-nota-demo-2',
     status: 'Disetujui',
     catatanOwner: 'Sesuai nota fisik',
-    accOleh: 'Haji Hendra (Owner)',
+    accOleh: 'Rizal Maulana (Owner)',
     accWaktu: '2026-10-21 16:15:00',
   },
   {
@@ -934,7 +934,7 @@ export const INITIAL_PENGELUARAN: PengeluaranToko[] = [
     fotoStrukHash: 'hash-nota-demo-3',
     status: 'Disetujui',
     catatanOwner: 'Di-ACC',
-    accOleh: 'Haji Hendra (Owner)',
+    accOleh: 'Rizal Maulana (Owner)',
     accWaktu: '2026-10-21 15:20:00',
   },
 ];

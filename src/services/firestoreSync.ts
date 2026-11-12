@@ -6,7 +6,6 @@ import {
   onSnapshot,
   getDocs,
   writeBatch,
-  enableNetwork,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { db, handleFirestoreError, OperationType } from '../firebase';
@@ -398,17 +397,19 @@ export async function executeFullResetInFirestore(
     }
 
     // 11. Data Karyawan (jangan hapus Owner)
-    // KECUALI: JANGAN HAPUS akun Owner (Haji Hendra, usr-0, jabatan Owner, email OWNER_EMAIL)
+    // KECUALI: JANGAN HAPUS akun Owner (Rizal Maulana, usr-0, jabatan Owner, email OWNER_EMAIL)
     if (options.dataKaryawan) {
       affectedCategories.push('Data Karyawan');
       const collectionsToClean = ['karyawan', 'employees'];
       for (const col of collectionsToClean) {
         const deleted = await deleteCollectionInBatches(col, (data, docId) => {
+          const jab = String(data?.jabatan || '').trim().toLowerCase();
+          const rol = String(data?.role || '').trim().toLowerCase();
           const isOwnerDoc =
             docId === 'usr-0' ||
-            data?.jabatan === 'Owner' ||
-            data?.role === 'owner' ||
-            (data?.email && data.email.toLowerCase() === OWNER_EMAIL.toLowerCase());
+            jab === 'owner' ||
+            rol === 'owner' ||
+            (data?.email && String(data.email).toLowerCase() === OWNER_EMAIL.toLowerCase());
           return !isOwnerDoc; // Hanya hapus jika BUKAN akun Owner
         });
         if (deleted > 0) {
@@ -423,7 +424,7 @@ export async function executeFullResetInFirestore(
       success: true,
       totalDeleted,
       collectionCount: affectedCollections.length,
-      message: `✅ ${totalDeleted} data trial berhasil dihapus di ${affectedCollections.length || 1} koleksi (${affectedCategories.join(', ')}).`,
+      message: `${totalDeleted} data trial berhasil dihapus di ${affectedCollections.length || 1} koleksi (${affectedCategories.join(', ')}).`,
       affectedCategories,
     };
   } catch (error: any) {
@@ -491,31 +492,38 @@ function decodeFirestoreRestFields(fields: Record<string, any> | undefined): Rec
 
 async function fetchCollectionViaRest(collectionId: string): Promise<Array<{ id: string; data: Record<string, any> }>> {
   const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${firebaseConfig.firestoreDatabaseId}/documents:runQuery?key=${encodeURIComponent(firebaseConfig.apiKey)}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      structuredQuery: {
-        from: [{ collectionId }],
-      },
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(`REST runQuery ${collectionId} failed (${res.status})`);
-  }
-  const rows = await res.json();
-  if (!Array.isArray(rows)) return [];
-  const docs: Array<{ id: string; data: Record<string, any> }> = [];
-  for (const row of rows) {
-    if (row?.document?.name) {
-      const id = String(row.document.name).split('/').pop() || '';
-      docs.push({
-        id,
-        data: decodeFirestoreRestFields(row.document.fields),
-      });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId }],
+        },
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`REST runQuery ${collectionId} failed (${res.status})`);
     }
+    const rows = await res.json();
+    if (!Array.isArray(rows)) return [];
+    const docs: Array<{ id: string; data: Record<string, any> }> = [];
+    for (const row of rows) {
+      if (row?.document?.name) {
+        const id = String(row.document.name).split('/').pop() || '';
+        docs.push({
+          id,
+          data: decodeFirestoreRestFields(row.document.fields),
+        });
+      }
+    }
+    return docs;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return docs;
 }
 
 /**
@@ -601,14 +609,13 @@ export function subscribeToRealtimeFirestore(callbacks: {
     return state;
   };
 
-  // Fallback REST recovery ONLY if WebChannel has not synced from server within 5 seconds
+  // Fallback REST recovery if WebChannel has not synced from server within 2.5 seconds
   fallbackTimer = setTimeout(() => {
     if (isDisposed || hasServerSync || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
       return;
     }
 
     void (async () => {
-      enableNetwork(db).catch(() => {});
       const jobs: Array<{ col: string; apply: (rows: Array<{ id: string; data: Record<string, any> }>) => void }> = [
         { col: FIRESTORE_COLLECTIONS.BRANCHES, apply: (rows) => callbacks.onCabang(mapBranches(rows)) },
         { col: FIRESTORE_COLLECTIONS.KATALOG, apply: (rows) => callbacks.onKatalog(rows.map((r) => r.data as KatalogMenu)) },
@@ -661,7 +668,7 @@ export function subscribeToRealtimeFirestore(callbacks: {
         })
       );
     })();
-  }, 5000);
+  }, 2500);
 
   // 1. Branches (Firestore collection `branches` berdasarkan `branchId`)
   unsubscribers.push(
@@ -912,6 +919,9 @@ export function subscribeToRealtimeFirestore(callbacks: {
 export function sanitizeForFirestore<T>(data: T): T {
   if (data === null || data === undefined) {
     return data;
+  }
+  if (typeof data === 'number' && !Number.isFinite(data)) {
+    return 0 as unknown as T;
   }
   if (Array.isArray(data)) {
     return data.map((item) => sanitizeForFirestore(item)) as unknown as T;

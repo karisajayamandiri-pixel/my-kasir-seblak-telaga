@@ -5,10 +5,7 @@ import {
   AlertCircle,
   Store,
   ArrowRight,
-  ChevronDown,
   MessageCircle,
-  HelpCircle,
-  FileText,
   CheckCircle,
   X,
   ShieldAlert,
@@ -62,6 +59,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [modalError, setModalError] = useState('');
 
   // Failed password attempts per username
   const [failedAttempts, setFailedAttempts] = useState<Record<string, number>>({});
@@ -86,11 +85,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [contactUser, setContactUser] = useState<Karyawan | null>(null);
 
   // Find Admin DC Pusat phone number from karyawanList
+  const isAdminRoleStr = (j?: string) => {
+    const n = (j || '').trim().toLowerCase();
+    return n === 'admin dc pusat' || n === 'admin';
+  };
   const adminDcPusat =
-    karyawanList.find(
-      (k) => (k.jabatan === 'Admin DC Pusat' || k.jabatan === 'Admin') && k.status === 'Aktif'
-    ) ||
-    karyawanList.find((k) => k.jabatan === 'Admin DC Pusat' || k.jabatan === 'Admin');
+    karyawanList.find((k) => isAdminRoleStr(k.jabatan) && k.status === 'Aktif') ||
+    karyawanList.find((k) => isAdminRoleStr(k.jabatan));
 
   const adminPhone = adminDcPusat?.hp || '081234567890';
   const adminNama = adminDcPusat?.nama || 'Admin DC Pusat';
@@ -125,7 +126,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         : [
             {
               id: 'kry-owner-default',
-              nama: 'Rizal (Owner)',
+              nama: 'Rizal Maulana',
               hp: '081234567890',
               alamat: 'Padaherang',
               cabang: 'DC PUSAT',
@@ -151,8 +152,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       const currentCount = (failedAttempts[cleanUsername] || 0) + 1;
       setFailedAttempts((prev) => ({ ...prev, [cleanUsername]: currentCount }));
 
+      const foundRoleNorm = (found.jabatan || '').trim().toLowerCase();
+
       // REQUIREMENT 3: Owner wrong password 3x -> prompt NIB
-      if (found.jabatan === 'Owner') {
+      if (foundRoleNorm === 'owner') {
         if (currentCount >= 3) {
           setError('Password salah 3 kali! Silakan verifikasi Nomor Induk Berusaha (NIB) Anda.');
           setTargetOwner(found);
@@ -168,7 +171,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       }
 
       // REQUIREMENT 4: Admin DC Pusat wrong password 3x -> show button lupa kata sandi & prompt NIK
-      if (found.jabatan === 'Admin DC Pusat' || found.jabatan === 'Admin') {
+      if (isAdminRoleStr(found.jabatan)) {
         if (currentCount >= 3) {
           setError('Password salah 3 kali! Akun Admin DC Pusat terkunci. Klik tombol Lupa Kata Sandi di bawah.');
           setTargetAdmin(found);
@@ -199,12 +202,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
     // Cabang Validation:
     // Roles with roving/enterprise duty: Owner, Admin DC Pusat, Supervisor Area, Driver
+    const foundRoleNorm = (found.jabatan || '').trim().toLowerCase();
     const isRovingRole =
-      found.jabatan === 'Owner' ||
-      found.jabatan === 'Admin DC Pusat' ||
-      found.jabatan === 'Admin' ||
-      found.jabatan === 'Supervisor Area' ||
-      found.jabatan === 'Driver';
+      foundRoleNorm === 'owner' ||
+      foundRoleNorm === 'admin dc pusat' ||
+      foundRoleNorm === 'admin' ||
+      foundRoleNorm === 'supervisor area' ||
+      foundRoleNorm === 'driver';
 
     const normSelected = getBranchName(selectedCabang, dataCabangList).trim().toUpperCase();
     const normAssigned = getBranchName(found.cabang, dataCabangList).trim().toUpperCase();
@@ -243,17 +247,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    if (found.jabatan === 'Owner') {
+    const foundRoleNorm = (found.jabatan || '').trim().toLowerCase();
+    if (foundRoleNorm === 'owner') {
       setTargetOwner(found);
       setInputNib('');
       setNibVerified(false);
       setNewOwnerPassword('');
+      setModalError('');
       setShowOwnerNibModal(true);
-    } else if (found.jabatan === 'Admin DC Pusat' || found.jabatan === 'Admin') {
+    } else if (isAdminRoleStr(found.jabatan)) {
       setTargetAdmin(found);
       setInputNik('');
       setNikVerified(false);
       setNewAdminPassword('');
+      setModalError('');
       setShowAdminNikModal(true);
     } else {
       // Supervisor Area, Kepala Toko, Cashier, Crew Store, Driver
@@ -266,10 +273,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const handleVerifyOwnerNib = (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetOwner) return;
+    setModalError('');
 
     const expectedNib = (targetOwner.nib || '1902240012345').trim();
     if (inputNib.trim() !== expectedNib) {
-      alert('Nomor Induk Berusaha (NIB) tidak sesuai dengan data terdaftar! Akses reset ditolak.');
+      setModalError('Nomor Induk Berusaha (NIB) tidak sesuai dengan data terdaftar! Akses reset ditolak.');
       return;
     }
 
@@ -289,18 +297,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     onUpdateKaryawan?.(updated);
     setPassword(newOwnerPassword.trim());
     setFailedAttempts((prev) => ({ ...prev, [targetOwner.username.toLowerCase()]: 0 }));
+    setModalError('');
     setShowOwnerNibModal(false);
-    alert('Kata sandi Owner berhasil diperbarui! Silakan klik Masuk Aplikasi.');
+    setSuccessMsg('Kata sandi Owner berhasil diperbarui! Silakan klik Masuk Aplikasi.');
   };
 
   // Submit NIK verification for Admin DC Pusat
   const handleVerifyAdminNik = (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetAdmin) return;
+    setModalError('');
 
     const expectedNik = (targetAdmin.nik || 'NIK-DC-001').trim().toUpperCase();
     if (inputNik.trim().toUpperCase() !== expectedNik) {
-      alert('Nomor Induk Karyawan (NIK) tidak sesuai! Akses reset ditolak.');
+      setModalError('Nomor Induk Karyawan (NIK) tidak sesuai! Akses reset ditolak.');
       return;
     }
 
@@ -320,15 +330,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     onUpdateKaryawan?.(updated);
     setPassword(newAdminPassword.trim());
     setFailedAttempts((prev) => ({ ...prev, [targetAdmin.username.toLowerCase()]: 0 }));
+    setModalError('');
     setShowAdminNikModal(false);
-    alert('Kata sandi Admin DC Pusat berhasil diperbarui! Silakan klik Masuk Aplikasi.');
+    setSuccessMsg('Kata sandi Admin DC Pusat berhasil diperbarui! Silakan klik Masuk Aplikasi.');
   };
 
   const cleanUserKey = username.trim().toLowerCase();
   const currentAttempts = failedAttempts[cleanUserKey] || 0;
   const isTargetAdminFailed3x =
     targetAdmin &&
-    (targetAdmin.jabatan === 'Admin DC Pusat' || targetAdmin.jabatan === 'Admin') &&
+    isAdminRoleStr(targetAdmin.jabatan) &&
     currentAttempts >= 3;
 
   return (
@@ -336,12 +347,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-orange-100 dark:border-slate-800 overflow-hidden">
         {/* Brand Header */}
         <div className="brand-gradient text-white p-6 text-center">
-          <div className="w-20 h-20 bg-white rounded-2xl mx-auto flex items-center justify-center mb-3 shadow-md ring-2 ring-white/30 p-1.5 overflow-hidden">
+          <div className="w-24 h-24 mx-auto flex items-center justify-center mb-2.5">
             <img
               src={brandLogoUrl}
               alt={`Logo ${brandName}`}
               referrerPolicy="no-referrer"
-              className="w-full h-full object-contain"
+              className="w-full h-full object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.35)]"
             />
           </div>
           <h1 className="text-2xl font-black tracking-wide">{brandName}</h1>
@@ -360,6 +371,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </p>
           </div>
 
+          {successMsg && (
+            <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-800 dark:text-emerald-200">
+              <CheckCircle className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+              <span className="leading-relaxed font-semibold block flex-1">{successMsg}</span>
+              <button
+                type="button"
+                onClick={() => setSuccessMsg('')}
+                className="text-emerald-600 dark:text-emerald-300 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {error && (
             <div className="p-3.5 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 rounded-2xl flex items-start gap-2.5 text-xs text-red-700 dark:text-red-200 animate-in fade-in duration-150">
               <AlertCircle className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
@@ -371,12 +396,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
           {/* REQUIREMENT 4: Admin DC Pusat apabila salah 3x muncul tombol lupa kata sandi */}
           {isTargetAdminFailed3x && (
-            <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-2 text-xs">
-              <div className="flex items-center gap-2 font-bold text-amber-900">
-                <KeyRound className="w-4 h-4 text-amber-600" />
+            <div className="p-3.5 bg-amber-50 dark:bg-amber-950/50 border-2 border-amber-300 dark:border-amber-700 rounded-2xl space-y-2 text-xs">
+              <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-200">
+                <KeyRound className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                 <span>Pemulihan Akun Admin DC Pusat</span>
               </div>
-              <p className="text-[11px] text-amber-800">
+              <p className="text-[11px] text-amber-800 dark:text-amber-300">
                 Verifikasi Nomor Induk Karyawan (NIK) Anda untuk mengatur ulang kata sandi.
               </p>
               <button
@@ -385,6 +410,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   setInputNik('');
                   setNikVerified(false);
                   setNewAdminPassword('');
+                  setModalError('');
                   setShowAdminNikModal(true);
                 }}
                 className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
@@ -525,6 +551,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   Demi keamanan tertinggi, sistem meminta <strong>Nomor Induk Berusaha (NIB)</strong> terdaftar untuk memverifikasi identitas asli Owner.
                 </div>
 
+                {modalError && (
+                  <div className="p-2.5 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-200 font-semibold text-[11px]">
+                    {modalError}
+                  </div>
+                )}
+
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
                     Nomor Induk Berusaha (NIB) Owner <span className="text-red-500">*</span>
@@ -534,7 +566,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     required
                     placeholder="Contoh: 1902240012345"
                     value={inputNib}
-                    onChange={(e) => setInputNib(e.target.value)}
+                    onChange={(e) => {
+                      setInputNib(e.target.value);
+                      setModalError('');
+                    }}
                     className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl font-mono text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-amber-500"
                   />
                 </div>
@@ -623,6 +658,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   Masukkan <strong>Nomor Induk Karyawan (NIK)</strong> Anda yang terdaftar di Data Karyawan oleh Owner untuk mereset kata sandi Admin DC Pusat.
                 </div>
 
+                {modalError && (
+                  <div className="p-2.5 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-200 font-semibold text-[11px]">
+                    {modalError}
+                  </div>
+                )}
+
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
                     Nomor Induk Karyawan (NIK) Admin <span className="text-red-500">*</span>
@@ -632,7 +673,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     required
                     placeholder="Contoh: NIK-DC-001"
                     value={inputNik}
-                    onChange={(e) => setInputNik(e.target.value)}
+                    onChange={(e) => {
+                      setInputNik(e.target.value);
+                      setModalError('');
+                    }}
                     className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl font-mono text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-red-500"
                   />
                 </div>

@@ -6,7 +6,6 @@ import {
   Trash2,
   Search,
   AlertTriangle,
-  Printer,
   TrendingUp,
   Warehouse,
   CheckCircle,
@@ -55,9 +54,10 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
   const [restockQty, setRestockQty] = useState<number>(0);
   const [restockNote, setRestockNote] = useState('');
 
-  // BottomSheetPicker states
+  // BottomSheetPicker & Delete Confirm states
   const [showPickerSatuan, setShowPickerSatuan] = useState<boolean>(false);
   const [showPickerRestockBahan, setShowPickerRestockBahan] = useState<boolean>(false);
+  const [pendingDeleteBahan, setPendingDeleteBahan] = useState<BahanBaku | null>(null);
 
   const filteredList = bahanBakuList.filter((b) => {
     const matchSearch =
@@ -181,7 +181,7 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
             Total Jenis Bahan
           </span>
-          <span className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1 block">
+          <span className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1 block tabular-nums">
             {totalItemGudang} Bahan
           </span>
           <span className="text-[11px] text-slate-400">Master inventaris {brandName}</span>
@@ -192,7 +192,7 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
             Stok DC Kritis / Menipis
           </span>
           <span
-            className={`text-2xl font-black mt-1 block ${
+            className={`text-2xl font-black mt-1 block tabular-nums ${
               criticalCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
             }`}
           >
@@ -205,7 +205,7 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
             Estimasi Nilai Stok DC
           </span>
-          <span className="text-2xl font-black text-orange-600 dark:text-orange-400 mt-1 block">
+          <span className="text-2xl font-black text-orange-600 dark:text-orange-400 mt-1 block tabular-nums">
             {formatRupiah(totalValuasiGudang)}
           </span>
           <span className="text-[11px] text-slate-400">Total valuasi harga modal beli</span>
@@ -334,11 +334,7 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (confirm(`Hapus bahan baku "${item.nama}"? Pastikan tidak sedang dipakai resep katalog!`)) {
-                          onDeleteBahanBaku(item.id);
-                        }
-                      }}
+                      onClick={() => setPendingDeleteBahan(item)}
                       className="p-2 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-950 text-rose-600 dark:text-rose-400 rounded-xl transition cursor-pointer"
                       title="Hapus Bahan"
                     >
@@ -347,7 +343,7 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-slate-50/80 dark:bg-slate-800/70 p-3 sm:p-3.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-slate-50/80 dark:bg-slate-800/70 p-3 sm:p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 tabular-nums">
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
                       Harga Beli (Kulakan)
@@ -428,9 +424,6 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
                           : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
                     >
-                      {kat === 'Bahan Makanan' && '🍲 '}
-                      {kat === 'Bahan Minuman' && '🥤 '}
-                      {kat === 'Kemasan' && '📦 '}
                       {kat}
                     </button>
                   ))}
@@ -476,7 +469,7 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
                     required
                     min={0}
                     value={formHargaBeli}
-                    onChange={(e) => setFormHargaBeli(Number(e.target.value))}
+                    onChange={(e) => setFormHargaBeli(Math.max(0, Number(e.target.value)))}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 font-bold"
                   />
                 </div>
@@ -492,7 +485,7 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
                     required
                     min={0}
                     value={formStokMin}
-                    onChange={(e) => setFormStokMin(Number(e.target.value))}
+                    onChange={(e) => setFormStokMin(Math.max(0, Number(e.target.value)))}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
@@ -506,7 +499,7 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
                     required
                     min={0}
                     value={formStokAwalDc}
-                    onChange={(e) => setFormStokAwalDc(Number(e.target.value))}
+                    onChange={(e) => setFormStokAwalDc(Math.max(0, Number(e.target.value)))}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 font-bold"
                   />
                 </div>
@@ -636,6 +629,46 @@ export const BahanBakuView: React.FC<BahanBakuViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Konfirmasi Hapus Bahan Baku */}
+      {pendingDeleteBahan && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-xs">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm">
+                  Hapus Bahan Baku?
+                </h3>
+                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Hapus <strong>{pendingDeleteBahan.nama}</strong>? Pastikan bahan ini tidak sedang dipakai dalam resep katalog menu aktif.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteBahan(null)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteBahanBaku(pendingDeleteBahan.id);
+                  setPendingDeleteBahan(null);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl cursor-pointer"
+              >
+                Ya, Hapus Bahan
+              </button>
+            </div>
           </div>
         </div>
       )}

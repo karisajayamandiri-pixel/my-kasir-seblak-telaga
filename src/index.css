@@ -85,8 +85,44 @@
     display: block !important;
   }
 
+  .print-modal-root {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  .print-modal-container {
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    display: block !important;
+  }
+
+  .print-modal-scroll {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
   /* Thermal Receipt 58mm Styling */
-  .receipt-58mm {
+  .receipt-58mm,
+  .document-thermal {
     width: 58mm !important;
     max-width: 58mm !important;
     font-family: 'JetBrains Mono', 'Courier New', Courier, monospace !important;
@@ -95,6 +131,7 @@
     padding: 2mm 1mm !important;
     margin: 0 auto !important;
     color: #000000 !important;
+    background: #ffffff !important;
     box-shadow: none !important;
     border: none !important;
   }
@@ -110,6 +147,12 @@
     font-size: 11px !important;
     box-shadow: none !important;
     border: none !important;
+  }
+
+  .print-high-contrast,
+  .print-high-contrast * {
+    color: #000000 !important;
+    background-color: transparent !important;
   }
 
   /* Dot Matrix & Monochrome Laser High-Contrast borders */

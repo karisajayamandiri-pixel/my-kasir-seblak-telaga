@@ -43,17 +43,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   const brandName = (appSettings?.namaUsaha || DEFAULT_APP_SETTINGS.namaUsaha).trim() || DEFAULT_APP_SETTINGS.namaUsaha;
   const brandLogoUrl = appSettings?.logoUrl || DEFAULT_LOGO_URL;
 
-  const isOwner = currentUser.jabatan === 'Owner';
-  const isAdminDc = currentUser.jabatan === 'Admin DC Pusat' || currentUser.jabatan === 'Admin';
-  const isSupervisorArea = currentUser.jabatan === 'Supervisor Area';
-  const isCrewStore = currentUser.jabatan === 'Crew Store' || (currentUser.jabatan as string) === 'CREW STORE';
-  const isKitchen = currentUser.jabatan === 'Kitchen' || (currentUser.jabatan as string) === 'KITCHEN';
-  const isDriver = currentUser.jabatan === 'Driver';
-  const isDcPusat = currentUser.cabang === 'DC PUSAT' || isOwner || isAdminDc;
+  const jabatanNorm = (currentUser.jabatan || '').trim().toLowerCase();
+  const isOwner = jabatanNorm === 'owner';
+  const isAdminDc = jabatanNorm === 'admin dc pusat' || jabatanNorm === 'admin';
+  const isSupervisorArea = jabatanNorm === 'supervisor area';
+  const isCrewStore = jabatanNorm === 'crew store';
+  const isKitchen = jabatanNorm === 'kitchen';
+  const isDriver = jabatanNorm === 'driver';
+  const userBranchName = getBranchName(currentUser.cabang, dataCabangList);
+  const isDcPusat = userBranchName === 'DC PUSAT' || (currentUser.cabang || '').trim().toUpperCase() === 'DC PUSAT' || isOwner || isAdminDc;
 
   // Count incoming delivery for current branch
   const incomingShipments = suratJalanList.filter(
-    (sj) => sj.cabangTujuan === currentUser.cabang && (sj.status === 'Dikirim' || sj.status === 'Terkirim')
+    (sj) => getBranchName(sj.cabangTujuan, dataCabangList) === userBranchName && (sj.status === 'Dikirim' || sj.status === 'Terkirim')
   ).length;
 
   // Count pending requests at DC
@@ -145,56 +147,49 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-orange-100 dark:border-slate-800 shadow-sm no-print transition-colors">
       {/* Top Banner */}
-      <div className="brand-gradient text-white px-4 py-2">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-2 font-bold tracking-wide">
-            <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-white shadow-xs p-0.5 shrink-0 overflow-hidden">
-              <img
-                src={brandLogoUrl}
-                alt={`Logo ${brandName}`}
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-contain"
-              />
+      <div className="brand-gradient text-white px-4 py-2.5">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5 font-bold tracking-wide min-w-0">
+            <img
+              src={brandLogoUrl}
+              alt={`Logo ${brandName}`}
+              referrerPolicy="no-referrer"
+              className="w-9 h-9 object-contain shrink-0 drop-shadow-[0_2px_6px_rgba(0,0,0,0.38)]"
+            />
+            <span className="text-sm sm:text-base font-black tracking-wide whitespace-nowrap">
+              MY KASIR POS {brandName.toUpperCase()}
             </span>
-            <span className="text-sm">MY KASIR POS {brandName.toUpperCase()}</span>
-            <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase">
-              Multi-Cabang POS
-            </span>
-            <div className="hidden md:flex items-center gap-1.5 bg-emerald-950/40 border border-emerald-400/30 px-2 py-0.5 rounded text-[10px] text-emerald-200" title="Firestore Realtime Aktif: Sinkronisasi data otomatis ke semua HP">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="font-semibold">Firestore Realtime</span>
-            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 bg-black/20 px-2.5 py-1 rounded-md">
-              <Store className="w-3.5 h-3.5 text-amber-200" />
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <div className="flex items-center gap-1.5 bg-black/20 px-2.5 py-1.5 rounded-lg whitespace-nowrap shrink-0">
+              <Store className="w-3.5 h-3.5 text-amber-200 shrink-0" />
               <span className="font-semibold text-amber-100">Tugas:</span>
               <span className="font-bold underline decoration-amber-300 decoration-2">
-                {getBranchName(currentUser.cabang, dataCabangList)}
+                {userBranchName}
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5 bg-black/20 px-2.5 py-1 rounded-md">
-              {currentUser.jabatan === 'Owner' ? (
-                <Shield className="w-3.5 h-3.5 text-yellow-300 fill-yellow-400" />
-              ) : currentUser.jabatan === 'Admin DC Pusat' || currentUser.jabatan === 'Admin' ? (
-                <Shield className="w-3.5 h-3.5 text-red-300" />
-              ) : currentUser.jabatan === 'Supervisor Area' ? (
-                <Shield className="w-3.5 h-3.5 text-indigo-300" />
+            <div className="flex items-center gap-1.5 bg-black/20 px-2.5 py-1.5 rounded-lg whitespace-nowrap shrink-0">
+              {isOwner ? (
+                <Shield className="w-3.5 h-3.5 text-yellow-300 fill-yellow-400 shrink-0" />
+              ) : isAdminDc ? (
+                <Shield className="w-3.5 h-3.5 text-red-300 shrink-0" />
+              ) : isSupervisorArea ? (
+                <Shield className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
               ) : (
-                <User className="w-3.5 h-3.5 text-sky-300" />
+                <User className="w-3.5 h-3.5 text-sky-300 shrink-0" />
               )}
               <span className="font-semibold">{currentUser.nama}</span>
-              <span className="text-white/70">({currentUser.jabatan})</span>
+              <span className="text-white/80">({currentUser.jabatan})</span>
             </div>
 
             <button
               onClick={onLogout}
-              className="flex items-center gap-1 bg-red-800 hover:bg-red-900 text-white px-2.5 py-1 rounded-md font-semibold transition cursor-pointer shadow-sm active:scale-95"
+              className="flex items-center gap-1.5 bg-red-800 hover:bg-red-900 text-white px-3 py-1.5 rounded-lg font-bold transition cursor-pointer shadow-sm active:scale-95 whitespace-nowrap shrink-0"
               title="Logout dan Ganti Akun"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-3.5 h-3.5 shrink-0" />
               <span>LOGOUT</span>
             </button>
           </div>
@@ -210,7 +205,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-all cursor-pointer ${
                   isActive
                     ? 'brand-tab-active'
                     : 'text-slate-600 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-slate-800'
@@ -219,10 +214,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span>{item.label}</span>
                 {item.badge !== undefined && item.badge > 0 && (
                   <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
                       isActive
                         ? 'bg-white text-slate-900'
-                        : 'bg-red-500 text-white animate-pulse'
+                        : 'bg-red-600 text-white'
                     }`}
                   >
                     {item.badge}

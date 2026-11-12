@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, X, Check, ChevronDown, Inbox } from 'lucide-react';
 
 export interface BottomSheetOption<T = string | number> {
@@ -35,6 +35,12 @@ export function BottomSheetPicker<T = string | number>({
 }: BottomSheetPickerProps<T>) {
   const [searchQuery, setSearchQuery] = useState('');
 
+  useEffect(() => {
+    if (isOpen) {
+      setSearchQuery('');
+    }
+  }, [isOpen]);
+
   const filteredOptions = useMemo(() => {
     if (!searchQuery.trim()) return options;
     const q = searchQuery.toLowerCase().trim();
@@ -57,7 +63,7 @@ export function BottomSheetPicker<T = string | number>({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs transition-opacity p-0 sm:p-4"
+      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs transition-opacity p-0 sm:p-4"
       onClick={onClose}
     >
       <div
