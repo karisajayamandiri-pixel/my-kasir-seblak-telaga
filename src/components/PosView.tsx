@@ -133,31 +133,33 @@ export const PosView: React.FC<PosViewProps> = ({
   };
 
   /**
-   * Aturan Biaya Pengiriman Delivery Order (Update):
+   * Aturan Biaya Pengiriman Delivery Order (Dinamis dari Pengaturan):
    * 1. Jarak ≤ 200 meter (<= 0.2 km): GRATIS (Rp 0)
-   * 2. Jarak ≥ 200 meter dan max 500 meter (> 0.2 km - 0.5 km): Rp 2.000
-   * 3. Jarak ≥ 500 meter max 1 km (> 0.5 km - 1.0 km): Rp 2.500
-   * 4. Jarak ≥ 1 km max 1,5 km (> 1.0 km - 1.5 km): Rp 3.000
-   * 5. Jarak ≥ 1,5 km s/d max 2 km: Rp 3.500 (per pelanggan jika ada pesanan pelanggan lain / gabung)
-   * 6. Setiap jarak ≥ 2 km: tambah biaya Rp 500 per setiap 500 meter (0.5 km) seterusnya
+   * 2. Jarak ≥ 200 meter dan max 500 meter (> 0.2 km - 0.5 km): (Tarif 1 km - Tarif per 500m) atau Rp 2.000 / Rp 2.500
+   * 3. Jarak ≥ 500 meter max 1 km (> 0.5 km - 1.0 km): Tarif Dasar 1 km (default: 2.500 / bisa diatur jadi 3.000)
+   * 4. Setiap penambahan 0.5 km (500 meter) di atas 1 km: bertambah Tarif per 500m (default: 500)
+   *    Contoh jika tarif 1 km = 3.000 dan penambahan = 500:
+   *    - 1 km = 3.000
+   *    - 1.5 km = 3.500
+   *    - 2 km = 4.000
+   *    - 2.5 km = 4.500
    */
+  const tarif1Km = appSettings?.tarifDelivery1Km ?? 2500;
+  const tarifPer500m = appSettings?.tarifDeliveryPer500m ?? 500;
+
   const calculateDeliveryFee = (distanceKm: number): number => {
     if (distanceKm <= 0) return 0;
     // Jarak ≤ 200 meter: gratis
     if (distanceKm <= 0.2001) return 0;
-    // Jarak 200m - 500m: Rp 2.000
-    if (distanceKm <= 0.5001) return 2000;
-    // Jarak 500m - 1km: Rp 2.500
-    if (distanceKm <= 1.0001) return 2500;
-    // Jarak 1km - 1.5km: Rp 3.000
-    if (distanceKm <= 1.5001) return 3000;
-    // Jarak 1.5km - 2km: Rp 3.500
-    if (distanceKm <= 2.0001) return 3500;
+    // Jarak 200m - 500m: tarif 1km dikurangi step 500m (min 0)
+    if (distanceKm <= 0.5001) return Math.max(0, tarif1Km - tarifPer500m);
+    // Jarak 500m - 1km: Tarif dasar 1 km
+    if (distanceKm <= 1.0001) return tarif1Km;
 
-    // Setiap jarak ≥ 2 km tambah biaya 500 rupiah per setiap 500 meter sampai seterusnya
-    const extraKm = distanceKm - 2.0;
+    // Setiap jarak > 1 km tambah biaya per setiap 500 meter
+    const extraKm = distanceKm - 1.0;
     const extra500m = Math.ceil(extraKm / 0.5);
-    return 3500 + extra500m * 500;
+    return tarif1Km + extra500m * tarifPer500m;
   };
 
   const handleJarakChange = (val: string) => {
@@ -1189,13 +1191,13 @@ export const PosView: React.FC<PosViewProps> = ({
                     <div className="flex-1 flex gap-1 justify-end flex-wrap">
                       {[
                         { label: '≤ 200 m (Gratis)', val: '0.2' },
-                        { label: '500 m (Rp 2rb)', val: '0.5' },
-                        { label: '1 km (Rp 2,5rb)', val: '1' },
-                        { label: '1.5 km (Rp 3rb)', val: '1.5' },
-                        { label: '2 km (Rp 3,5rb)', val: '2' },
-                        { label: '2.5 km (Rp 4rb)', val: '2.5' },
-                        { label: '3 km (Rp 4,5rb)', val: '3' },
-                        { label: '4 km (Rp 5,5rb)', val: '4' },
+                        { label: `500 m (${formatRupiah(calculateDeliveryFee(0.5))})`, val: '0.5' },
+                        { label: `1 km (${formatRupiah(calculateDeliveryFee(1.0))})`, val: '1' },
+                        { label: `1.5 km (${formatRupiah(calculateDeliveryFee(1.5))})`, val: '1.5' },
+                        { label: `2 km (${formatRupiah(calculateDeliveryFee(2.0))})`, val: '2' },
+                        { label: `2.5 km (${formatRupiah(calculateDeliveryFee(2.5))})`, val: '2.5' },
+                        { label: `3 km (${formatRupiah(calculateDeliveryFee(3.0))})`, val: '3' },
+                        { label: `4 km (${formatRupiah(calculateDeliveryFee(4.0))})`, val: '4' },
                       ].map((chip) => (
                         <button
                           key={chip.val}
@@ -1218,11 +1220,9 @@ export const PosView: React.FC<PosViewProps> = ({
                     <div className="p-2 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg text-[11px] text-blue-900 dark:text-blue-200 flex items-center justify-between">
                       <span className="font-semibold">
                         {parsedDistKm <= 0.2001 && 'Jarak ≤ 200 meter: Gratis Ongkir'}
-                        {parsedDistKm > 0.2001 && parsedDistKm <= 0.5001 && 'Jarak 200 m s/d 500 m: Ongkir Rp 2.000'}
-                        {parsedDistKm > 0.5001 && parsedDistKm <= 1.0001 && 'Jarak 500 m s/d 1 km: Ongkir Rp 2.500'}
-                        {parsedDistKm > 1.0001 && parsedDistKm <= 1.5001 && 'Jarak 1 km s/d 1,5 km: Ongkir Rp 3.000'}
-                        {parsedDistKm > 1.5001 && parsedDistKm <= 2.0001 && 'Jarak 1,5 km s/d 2 km: Ongkir Rp 3.500 (per pelanggan)'}
-                        {parsedDistKm > 2.0001 && `Jarak ${parsedDistKm} km: Ongkir Rp 3.500 + ${Math.ceil((parsedDistKm - 2.0)/0.5) * 500} (+Rp 500/500m)`}
+                        {parsedDistKm > 0.2001 && parsedDistKm <= 0.5001 && `Jarak 200 m s/d 500 m: Ongkir ${formatRupiah(calculateDeliveryFee(0.5))}`}
+                        {parsedDistKm > 0.5001 && parsedDistKm <= 1.0001 && `Jarak 500 m s/d 1 km: Ongkir ${formatRupiah(calculateDeliveryFee(1.0))}`}
+                        {parsedDistKm > 1.0001 && `Jarak ${parsedDistKm} km: Ongkir ${formatRupiah(calculateDeliveryFee(parsedDistKm))} (Dasar 1km: ${formatRupiah(tarif1Km)} + ${Math.ceil((parsedDistKm - 1.0)/0.5)}x ${formatRupiah(tarifPer500m)}/500m)`}
                       </span>
                       <span className="font-black text-blue-700 dark:text-blue-300">
                         {biayaPengiriman === 0 ? 'GRATIS' : formatRupiah(biayaPengiriman)}

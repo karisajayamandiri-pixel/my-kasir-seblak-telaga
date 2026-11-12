@@ -465,6 +465,9 @@ export interface AppSettings {
   logoUrl: string;
   temaWarna: ThemeColorId;
   modeTampilan: ThemeMode;
+  tarifDelivery1Km?: number; // Biaya pengiriman dasar (default: 2500 atau 3000)
+  tarifDeliveryPer500m?: number; // Tambahan biaya per 0.5 km (default: 500)
   updatedAt?: string;
   updatedBy?: string;
 }
+

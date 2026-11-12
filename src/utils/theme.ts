@@ -11,6 +11,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   logoUrl: DEFAULT_LOGO_URL,
   temaWarna: 'sunset',
   modeTampilan: 'light',
+  tarifDelivery1Km: 2500,
+  tarifDeliveryPer500m: 500,
 };
 
 export interface ThemePresetDefinition {
@@ -155,6 +157,8 @@ export function getThemePreset(id?: ThemeColorId): ThemePresetDefinition {
 }
 
 export function normalizeAppSettings(raw?: Partial<AppSettings> | null): AppSettings {
+  const baseTarif1Km = Number(raw?.tarifDelivery1Km);
+  const step500m = Number(raw?.tarifDeliveryPer500m);
   return {
     id: raw?.id || 'branding',
     namaUsaha: (raw?.namaUsaha || DEFAULT_BUSINESS_NAME).trim() || DEFAULT_BUSINESS_NAME,
@@ -164,6 +168,8 @@ export function normalizeAppSettings(raw?: Partial<AppSettings> | null): AppSett
       ? (raw?.temaWarna as ThemeColorId)
       : 'sunset',
     modeTampilan: raw?.modeTampilan === 'dark' ? 'dark' : 'light',
+    tarifDelivery1Km: !isNaN(baseTarif1Km) && baseTarif1Km >= 0 ? baseTarif1Km : 2500,
+    tarifDeliveryPer500m: !isNaN(step500m) && step500m >= 0 ? step500m : 500,
     updatedAt: raw?.updatedAt,
     updatedBy: raw?.updatedBy,
   };

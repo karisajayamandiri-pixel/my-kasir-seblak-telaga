@@ -19,6 +19,7 @@ import {
   Moon,
   Save,
   Check,
+  Truck,
 } from 'lucide-react';
 import {
   Karyawan,
@@ -76,10 +77,17 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
   const [draftNamaUsaha, setDraftNamaUsaha] = useState(appSettings.namaUsaha);
   const [draftTagline, setDraftTagline] = useState(appSettings.tagline || '');
   const [draftLogoUrl, setDraftLogoUrl] = useState(appSettings.logoUrl);
+  const [draftTarifDelivery1Km, setDraftTarifDelivery1Km] = useState<number>(
+    appSettings.tarifDelivery1Km !== undefined ? appSettings.tarifDelivery1Km : 2500
+  );
+  const [draftTarifDeliveryPer500m, setDraftTarifDeliveryPer500m] = useState<number>(
+    appSettings.tarifDeliveryPer500m !== undefined ? appSettings.tarifDeliveryPer500m : 500
+  );
   const [selectedFileName, setSelectedFileName] = useState<string>('');
   const [autoRemoveWhiteBg, setAutoRemoveWhiteBg] = useState<boolean>(true);
   const [isProcessingLogo, setIsProcessingLogo] = useState(false);
   const [isSavingBranding, setIsSavingBranding] = useState(false);
+  const [isSavingDeliveryTarif, setIsSavingDeliveryTarif] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Sync local draft when realtime appSettings updates from Firestore
@@ -87,7 +95,9 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
     setDraftNamaUsaha(appSettings.namaUsaha);
     setDraftTagline(appSettings.tagline || '');
     setDraftLogoUrl(appSettings.logoUrl);
-  }, [appSettings.namaUsaha, appSettings.tagline, appSettings.logoUrl]);
+    setDraftTarifDelivery1Km(appSettings.tarifDelivery1Km !== undefined ? appSettings.tarifDelivery1Km : 2500);
+    setDraftTarifDeliveryPer500m(appSettings.tarifDeliveryPer500m !== undefined ? appSettings.tarifDeliveryPer500m : 500);
+  }, [appSettings.namaUsaha, appSettings.tagline, appSettings.logoUrl, appSettings.tarifDelivery1Km, appSettings.tarifDeliveryPer500m]);
 
   // Reset & notification states
   const [isResetting, setIsResetting] = useState(false);
@@ -172,6 +182,49 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
       });
     } finally {
       setIsSavingBranding(false);
+    }
+  };
+
+  const handleSaveDeliveryTarif = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const tarif1Km = Number(draftTarifDelivery1Km);
+    const tarifPer500m = Number(draftTarifDeliveryPer500m);
+
+    if (isNaN(tarif1Km) || tarif1Km < 0) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Tarif dasar 1 km harus berupa angka valid (minimal Rp 0)!',
+      });
+      return;
+    }
+
+    if (isNaN(tarifPer500m) || tarifPer500m < 0) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Tarif tambahan per 0.5 km harus berupa angka valid (minimal Rp 0)!',
+      });
+      return;
+    }
+
+    setIsSavingDeliveryTarif(true);
+    setStatusMessage(null);
+    try {
+      await onSaveAppSettings({
+        ...appSettings,
+        tarifDelivery1Km: tarif1Km,
+        tarifDeliveryPer500m: tarifPer500m,
+      });
+
+      const msg = `Tarif pengiriman berhasil diperbarui: Dasar 1 km = Rp ${tarif1Km.toLocaleString('id-ID')} & tambahan per 0.5 km = Rp ${tarifPer500m.toLocaleString('id-ID')}. Berlaku otomatis di POS Kasir.`;
+      setStatusMessage({ type: 'success', text: msg });
+      showSuccessToast('Tarif Ongkir Disimpan', msg);
+    } catch (err: any) {
+      setStatusMessage({
+        type: 'error',
+        text: err?.message || 'Gagal menyimpan pengaturan tarif pengiriman.',
+      });
+    } finally {
+      setIsSavingDeliveryTarif(false);
     }
   };
 
@@ -659,6 +712,150 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* SECTION 3: PENGATURAN TARIF JARAK PENGIRIMAN (DELIVERY ORDER) */}
+      <form
+        onSubmit={handleSaveDeliveryTarif}
+        className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-6"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div>
+            <h3 className="font-black text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Truck className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+              <span>Pengaturan Tarif Jarak Pengiriman (Delivery Order)</span>
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Atur tarif dasar pengiriman 1 km dan kelipatan penambahan biaya otomatis per 0,5 km untuk seluruh cabang.
+            </p>
+          </div>
+          <span className="text-[11px] font-bold text-orange-700 dark:text-orange-300 self-start sm:self-auto bg-orange-50 dark:bg-orange-950/60 px-2.5 py-1 rounded-full border border-orange-200 dark:border-orange-800">
+            Kalkulator Otomatis Kasir POS
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-xs">
+          {/* Tarif Dasar 1 KM */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2">
+            <label className="block font-extrabold text-slate-800 dark:text-slate-100">
+              Tarif Dasar Pengiriman Jarak 1 KM (Rp) <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">Rp</span>
+              <input
+                type="number"
+                min="0"
+                step="100"
+                required
+                value={draftTarifDelivery1Km}
+                onChange={(e) => setDraftTarifDelivery1Km(Number(e.target.value) || 0)}
+                placeholder="2500 atau 3000"
+                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl font-mono text-sm font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              Biaya pengiriman dasar untuk jarak s/d 1 km (Contoh: <strong>Rp 2.500</strong> diubah menjadi <strong>Rp 3.000</strong>).
+            </p>
+          </div>
+
+          {/* Tambahan per 0.5 KM */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2">
+            <label className="block font-extrabold text-slate-800 dark:text-slate-100">
+              Biaya Tambahan Per Setiap 0,5 KM (Rp) <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">Rp</span>
+              <input
+                type="number"
+                min="0"
+                step="100"
+                required
+                value={draftTarifDeliveryPer500m}
+                onChange={(e) => setDraftTarifDeliveryPer500m(Number(e.target.value) || 0)}
+                placeholder="500"
+                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl font-mono text-sm font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              Penambahan ongkir otomatis setiap kelipatan 0,5 km seterusnya (Contoh: <strong>+Rp 500</strong> per 500 meter).
+            </p>
+          </div>
+        </div>
+
+        {/* Live Simulation Preview Table */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 p-4 space-y-3">
+          <div className="text-[11px] font-extrabold text-slate-700 dark:text-slate-200 flex items-center justify-between">
+            <span>Simulasi Kalkulasi Ongkir Otomatis Sesuai Tarif yang Diatur:</span>
+            <span className="text-[10px] text-slate-400 font-normal">Otomatis sinkron ke menu POS Kasir</span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center text-xs tabular-nums">
+            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <span className="block text-[10px] text-slate-400 font-semibold">≤ 200 meter</span>
+              <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">GRATIS</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <span className="block text-[10px] text-slate-400 font-semibold">200m - 500m</span>
+              <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                Rp {Math.max(0, draftTarifDelivery1Km - draftTarifDeliveryPer500m).toLocaleString('id-ID')}
+              </span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/50 border border-orange-300 dark:border-orange-700 ring-1 ring-orange-400/40">
+              <span className="block text-[10px] text-orange-700 dark:text-orange-300 font-bold">1 KM (Dasar)</span>
+              <span className="text-xs font-black text-orange-600 dark:text-orange-400">
+                Rp {draftTarifDelivery1Km.toLocaleString('id-ID')}
+              </span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <span className="block text-[10px] text-slate-400 font-semibold">1,5 KM</span>
+              <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                Rp {(draftTarifDelivery1Km + draftTarifDeliveryPer500m).toLocaleString('id-ID')}
+              </span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <span className="block text-[10px] text-slate-400 font-semibold">2 KM</span>
+              <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                Rp {(draftTarifDelivery1Km + draftTarifDeliveryPer500m * 2).toLocaleString('id-ID')}
+              </span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <span className="block text-[10px] text-slate-400 font-semibold">2,5 KM</span>
+              <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                Rp {(draftTarifDelivery1Km + draftTarifDeliveryPer500m * 3).toLocaleString('id-ID')}
+              </span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <span className="block text-[10px] text-slate-400 font-semibold">3 KM</span>
+              <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                Rp {(draftTarifDelivery1Km + draftTarifDeliveryPer500m * 4).toLocaleString('id-ID')}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+            Perubahan tarif pengiriman akan langsung tersimpan di Cloud Firestore dan otomatis diterapkan pada menu POS Kasir Delivery Order.
+          </div>
+          <button
+            type="submit"
+            disabled={isSavingDeliveryTarif}
+            className="w-full sm:w-auto px-6 py-3 brand-gradient hover:opacity-95 disabled:opacity-60 text-white font-extrabold rounded-2xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition active:scale-95 text-xs"
+          >
+            {isSavingDeliveryTarif ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Menyimpan...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                <span>Simpan Tarif Jarak Pengiriman</span>
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+
 
       {/* Grid: Database Status & Persistence Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
